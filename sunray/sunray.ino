@@ -14,7 +14,6 @@
 #include "config.h"  // see note above if you get an error here!
 #include "robot.h"
 
-
 void setup(){
   start();
 } 
