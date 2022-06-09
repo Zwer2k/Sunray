@@ -44,7 +44,7 @@ volatile bool leftPressed = false;
 volatile bool rightPressed = false;
 
 
-volatile boolean tone_pin_state = false;
+volatile bool tone_pin_state = false;
 
 
 void toneHandler(){  
@@ -107,7 +107,7 @@ void OdometryMowISR(){
     unsigned long duration = millis() - motorMowTransitionTime;
     if (duration > 5) duration = 0;
     motorMowTransitionTime = millis();
-    motorMowDurationMax = 0.7 * max(motorMowDurationMax, ((float)duration));
+    motorMowDurationMax = 0.7 * max((float)motorMowDurationMax, ((float)duration));
     motorMowTicksTimeout = millis() + motorMowDurationMax;
   #else
     motorMowTicksTimeout = millis() + 1;
@@ -123,7 +123,7 @@ void OdometryLeftISR(){
     unsigned long duration = millis() - motorLeftTransitionTime;
     if (duration > 5) duration = 0;
     motorLeftTransitionTime = millis();
-    motorLeftDurationMax = 0.7 * max(motorLeftDurationMax, ((float)duration));
+    motorLeftDurationMax = 0.7 * max((float)motorLeftDurationMax, ((float)duration));
     motorLeftTicksTimeout = millis() + motorLeftDurationMax;
   #else
     motorLeftTicksTimeout = millis() + 1;
@@ -138,7 +138,7 @@ void OdometryRightISR(){
     unsigned long duration = millis() - motorRightTransitionTime;
     if (duration > 5) duration = 0;  
     motorRightTransitionTime = millis();
-    motorRightDurationMax = 0.7 * max(motorRightDurationMax, ((float)duration));  
+    motorRightDurationMax = 0.7 * max((float)motorRightDurationMax, ((float)duration));  
     motorRightTicksTimeout = millis() + motorRightDurationMax;
   #else
     motorRightTicksTimeout = millis() + 1;
@@ -247,6 +247,24 @@ AmMotorDriver::AmMotorDriver(){
   JYQD.adcVoltToAmpScale = 7.57; // ADC voltage to amps (scale)
   JYQD.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
 
+  // MOW800_MC33035 brushless driver 
+  MOW800_MC33035.driverName = "MOW800_MC33035";    // just a name for your driver
+  MOW800_MC33035.forwardPwmInvert = true; // invert PWM signal for forward? (false or true)
+  MOW800_MC33035.forwardDirLevel = LOW;    // logic level for forward (LOW or HIGH)
+  MOW800_MC33035.reversePwmInvert = false; // invert PWM signal for reverse? (false or true)
+  MOW800_MC33035.reverseDirLevel = HIGH;   // logic level for reverse (LOW or HIGH)
+  MOW800_MC33035.usePwmRamp = false;       // use a ramp to get to PWM value?    
+  MOW800_MC33035.faultActive = LOW;        // fault active level (LOW or HIGH)
+  MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
+  MOW800_MC33035.enableActive = LOW;       // enable active level (LOW or HIGH)
+  MOW800_MC33035.disableAtPwmZeroSpeed = false;  // disable driver at PWM zero speed? (brake function)
+  MOW800_MC33035.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
+  MOW800_MC33035.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
+  MOW800_MC33035.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
+  MOW800_MC33035.adcVoltToAmpOfs = 1.65;      // ADC voltage to amps (offset)
+  MOW800_MC33035.adcVoltToAmpScale = 7.57; // ADC voltage to amps (scale)
+  MOW800_MC33035.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
+
   // your custom brushed/brushless driver (ACT-8015A, JYQD_V7.3E3, etc.)
   CUSTOM.driverName = "CUSTOM";    // just a name for your driver
   CUSTOM.forwardPwmInvert = false; // invert PWM signal for forward? (false or true)
@@ -288,6 +306,8 @@ void AmMotorDriver::begin(){
       mowDriverChip = BLDC8015A;    
     #elif MOTOR_DRIVER_BRUSHLESS_MOW_JYQD
       mowDriverChip = JYQD;
+    #elif MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035 
+      mowDriverChip = MOW800_MC33035;    
     #else 
       mowDriverChip = CUSTOM;
     #endif

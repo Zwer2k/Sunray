@@ -77,7 +77,7 @@ SFE_UBLOX_GPS::SFE_UBLOX_GPS(void)
 }
 
 //Initialize the Serial port
-boolean SFE_UBLOX_GPS::begin(TwoWire &wirePort, uint8_t deviceAddress)
+bool SFE_UBLOX_GPS::begin(TwoWire &wirePort, uint8_t deviceAddress)
 {
   commType = COMM_TYPE_I2C;
   _i2cPort = &wirePort; //Grab which port the user wants us to use
@@ -93,7 +93,7 @@ boolean SFE_UBLOX_GPS::begin(TwoWire &wirePort, uint8_t deviceAddress)
   _gpsI2Caddress = deviceAddress; //Store the I2C address from user
 
   // Attempt isConnected up to 3 times if required
-  boolean success = isConnected();
+  bool success = isConnected();
 
   if (!success)
     success = isConnected();
@@ -105,13 +105,13 @@ boolean SFE_UBLOX_GPS::begin(TwoWire &wirePort, uint8_t deviceAddress)
 }
 
 //Initialize the Serial port
-boolean SFE_UBLOX_GPS::begin(Stream &serialPort)
+bool SFE_UBLOX_GPS::begin(Stream &serialPort)
 {
   commType = COMM_TYPE_SERIAL;
   _serialPort = &serialPort; //Grab which port the user wants us to use
 
   // Attempt isConnected up to 3 times if required
-  boolean success = isConnected();
+  bool success = isConnected();
 
   if (!success)
     success = isConnected();
@@ -137,7 +137,7 @@ uint8_t SFE_UBLOX_GPS::getI2CTransactionSize(void)
 
 //Enable or disable the printing of sent/response HEX values.
 //Use this in conjunction with 'Transport Logging' from the Universal Reader Assistant to see what they're doing that we're not
-void SFE_UBLOX_GPS::enableDebugging(Stream &debugPort, boolean printLimitedDebug)
+void SFE_UBLOX_GPS::enableDebugging(Stream &debugPort, bool printLimitedDebug)
 {
   _debugSerial = &debugPort; //Grab which port the user wants us to use for debugging
   if (printLimitedDebug == false)
@@ -298,7 +298,7 @@ void SFE_UBLOX_GPS::setSerialRate(uint32_t baudrate, uint8_t uartPort, uint16_t 
 
 //Changes the I2C address that the u-blox module responds to
 //0x42 is the default but can be changed with this command
-boolean SFE_UBLOX_GPS::setI2CAddress(uint8_t deviceAddress, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setI2CAddress(uint8_t deviceAddress, uint16_t maxWait)
 {
   //Get the current config values for the I2C port
   getPortSettings(COM_PORT_I2C, maxWait); //This will load the payloadCfg array with current port settings
@@ -327,13 +327,13 @@ void SFE_UBLOX_GPS::setNMEAOutputPort(Stream &nmeaOutputPort)
 }
 
 //Called regularly to check for available bytes on the user' specified port
-boolean SFE_UBLOX_GPS::checkUblox(uint8_t requestedClass, uint8_t requestedID)
+bool SFE_UBLOX_GPS::checkUblox(uint8_t requestedClass, uint8_t requestedID)
 {
   return checkUbloxInternal(&packetCfg, requestedClass, requestedID);
 }
 
 //Called regularly to check for available bytes on the user' specified port
-boolean SFE_UBLOX_GPS::checkUbloxInternal(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
+bool SFE_UBLOX_GPS::checkUbloxInternal(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
 {
   if (commType == COMM_TYPE_I2C)
     return (checkUbloxI2C(incomingUBX, requestedClass, requestedID));
@@ -344,7 +344,7 @@ boolean SFE_UBLOX_GPS::checkUbloxInternal(ubxPacket *incomingUBX, uint8_t reques
 
 //Polls I2C for data, passing any new bytes to process()
 //Returns true if new bytes are available
-boolean SFE_UBLOX_GPS::checkUbloxI2C(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
+bool SFE_UBLOX_GPS::checkUbloxI2C(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
 {
   if (millis() - lastCheck >= i2cPollingWait)
   {
@@ -486,7 +486,7 @@ boolean SFE_UBLOX_GPS::checkUbloxI2C(ubxPacket *incomingUBX, uint8_t requestedCl
 } //end checkUbloxI2C()
 
 //Checks Serial for data, passing any new bytes to process()
-boolean SFE_UBLOX_GPS::checkUbloxSerial(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
+bool SFE_UBLOX_GPS::checkUbloxSerial(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
 {
   while (_serialPort->available())
   {
@@ -1426,7 +1426,7 @@ void SFE_UBLOX_GPS::sendSerialCommand(ubxPacket *outgoingUBX)
 }
 
 //Returns true if I2C device ack's
-boolean SFE_UBLOX_GPS::isConnected(uint16_t maxWait)
+bool SFE_UBLOX_GPS::isConnected(uint16_t maxWait)
 {
   if (commType == COMM_TYPE_I2C)
   {
@@ -1832,7 +1832,7 @@ sfe_ublox_status_e SFE_UBLOX_GPS::waitForNoACKResponse(ubxPacket *outgoingUBX, u
 
 //Save current configuration to flash and BBR (battery backed RAM)
 //This still works but it is the old way of configuring ublox modules. See getVal and setVal for the new methods
-boolean SFE_UBLOX_GPS::saveConfiguration(uint16_t maxWait)
+bool SFE_UBLOX_GPS::saveConfiguration(uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_CFG;
@@ -1851,7 +1851,7 @@ boolean SFE_UBLOX_GPS::saveConfiguration(uint16_t maxWait)
 
 //Save the selected configuration sub-sections to flash and BBR (battery backed RAM)
 //This still works but it is the old way of configuring ublox modules. See getVal and setVal for the new methods
-boolean SFE_UBLOX_GPS::saveConfigSelective(uint32_t configMask, uint16_t maxWait)
+bool SFE_UBLOX_GPS::saveConfigSelective(uint32_t configMask, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_CFG;
@@ -1886,7 +1886,7 @@ void SFE_UBLOX_GPS::GNSSRestart()
 
 //Reset module to factory defaults
 //This still works but it is the old way of configuring ublox modules. See getVal and setVal for the new methods
-boolean SFE_UBLOX_GPS::factoryDefault(uint16_t maxWait)
+bool SFE_UBLOX_GPS::factoryDefault(uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_CFG;
@@ -2320,7 +2320,7 @@ uint8_t SFE_UBLOX_GPS::sendCfgValset8(uint32_t key, uint8_t value, uint16_t maxW
 }
 
 //Get the current TimeMode3 settings - these contain survey in statuses
-boolean SFE_UBLOX_GPS::getSurveyMode(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getSurveyMode(uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_TMODE3;
@@ -2331,7 +2331,7 @@ boolean SFE_UBLOX_GPS::getSurveyMode(uint16_t maxWait)
 }
 
 //Control Survey-In for NEO-M8P
-boolean SFE_UBLOX_GPS::setSurveyMode(uint8_t mode, uint16_t observationTime, float requiredAccuracy, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setSurveyMode(uint8_t mode, uint16_t observationTime, float requiredAccuracy, uint16_t maxWait)
 {
   if (getSurveyMode(maxWait) == false) //Ask module for the current TimeMode3 settings. Loads into payloadCfg.
     return (false);
@@ -2365,13 +2365,13 @@ boolean SFE_UBLOX_GPS::setSurveyMode(uint8_t mode, uint16_t observationTime, flo
 }
 
 //Begin Survey-In for NEO-M8P
-boolean SFE_UBLOX_GPS::enableSurveyMode(uint16_t observationTime, float requiredAccuracy, uint16_t maxWait)
+bool SFE_UBLOX_GPS::enableSurveyMode(uint16_t observationTime, float requiredAccuracy, uint16_t maxWait)
 {
   return (setSurveyMode(SVIN_MODE_ENABLE, observationTime, requiredAccuracy, maxWait));
 }
 
 //Stop Survey-In for NEO-M8P
-boolean SFE_UBLOX_GPS::disableSurveyMode(uint16_t maxWait)
+bool SFE_UBLOX_GPS::disableSurveyMode(uint16_t maxWait)
 {
   return (setSurveyMode(SVIN_MODE_DISABLE, 0, 0, maxWait));
 }
@@ -2379,7 +2379,7 @@ boolean SFE_UBLOX_GPS::disableSurveyMode(uint16_t maxWait)
 //Reads survey in status and sets the global variables
 //for status, position valid, observation time, and mean 3D StdDev
 //Returns true if commands was successful
-boolean SFE_UBLOX_GPS::getSurveyStatus(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getSurveyStatus(uint16_t maxWait)
 {
   //Reset variables
   svin.active = false;
@@ -2420,7 +2420,7 @@ boolean SFE_UBLOX_GPS::getSurveyStatus(uint16_t maxWait)
 }
 
 //Loads the payloadCfg array with the current protocol bits located the UBX-CFG-PRT register for a given port
-boolean SFE_UBLOX_GPS::getPortSettings(uint8_t portID, uint16_t maxWait)
+bool SFE_UBLOX_GPS::getPortSettings(uint8_t portID, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_PRT;
@@ -2435,7 +2435,7 @@ boolean SFE_UBLOX_GPS::getPortSettings(uint8_t portID, uint16_t maxWait)
 //Configure a given port to output UBX, NMEA, RTCM3 or a combination thereof
 //Port 0=I2c, 1=UART1, 2=UART2, 3=USB, 4=SPI
 //Bit:0 = UBX, :1=NMEA, :5=RTCM3
-boolean SFE_UBLOX_GPS::setPortOutput(uint8_t portID, uint8_t outStreamSettings, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setPortOutput(uint8_t portID, uint8_t outStreamSettings, uint16_t maxWait)
 {
   //Get the current config values for this port ID
   if (getPortSettings(portID, maxWait) == false)
@@ -2455,7 +2455,7 @@ boolean SFE_UBLOX_GPS::setPortOutput(uint8_t portID, uint8_t outStreamSettings, 
 //Configure a given port to input UBX, NMEA, RTCM3 or a combination thereof
 //Port 0=I2c, 1=UART1, 2=UART2, 3=USB, 4=SPI
 //Bit:0 = UBX, :1=NMEA, :5=RTCM3
-boolean SFE_UBLOX_GPS::setPortInput(uint8_t portID, uint8_t inStreamSettings, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setPortInput(uint8_t portID, uint8_t inStreamSettings, uint16_t maxWait)
 {
   //Get the current config values for this port ID
   //This will load the payloadCfg array with current port settings
@@ -2474,23 +2474,23 @@ boolean SFE_UBLOX_GPS::setPortInput(uint8_t portID, uint8_t inStreamSettings, ui
 }
 
 //Configure a port to output UBX, NMEA, RTCM3 or a combination thereof
-boolean SFE_UBLOX_GPS::setI2COutput(uint8_t comSettings, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setI2COutput(uint8_t comSettings, uint16_t maxWait)
 {
   return (setPortOutput(COM_PORT_I2C, comSettings, maxWait));
 }
-boolean SFE_UBLOX_GPS::setUART1Output(uint8_t comSettings, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setUART1Output(uint8_t comSettings, uint16_t maxWait)
 {
   return (setPortOutput(COM_PORT_UART1, comSettings, maxWait));
 }
-boolean SFE_UBLOX_GPS::setUART2Output(uint8_t comSettings, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setUART2Output(uint8_t comSettings, uint16_t maxWait)
 {
   return (setPortOutput(COM_PORT_UART2, comSettings, maxWait));
 }
-boolean SFE_UBLOX_GPS::setUSBOutput(uint8_t comSettings, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setUSBOutput(uint8_t comSettings, uint16_t maxWait)
 {
   return (setPortOutput(COM_PORT_USB, comSettings, maxWait));
 }
-boolean SFE_UBLOX_GPS::setSPIOutput(uint8_t comSettings, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setSPIOutput(uint8_t comSettings, uint16_t maxWait)
 {
   return (setPortOutput(COM_PORT_SPI, comSettings, maxWait));
 }
@@ -2498,7 +2498,7 @@ boolean SFE_UBLOX_GPS::setSPIOutput(uint8_t comSettings, uint16_t maxWait)
 //Set the rate at which the module will give us an updated navigation solution
 //Expects a number that is the updates per second. For example 1 = 1Hz, 2 = 2Hz, etc.
 //Max is 40Hz(?!)
-boolean SFE_UBLOX_GPS::setNavigationFrequency(uint8_t navFreq, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setNavigationFrequency(uint8_t navFreq, uint16_t maxWait)
 {
   //if(updateRate > 40) updateRate = 40; //Not needed: module will correct out of bounds values
 
@@ -2546,9 +2546,9 @@ uint8_t SFE_UBLOX_GPS::getNavigationFrequency(uint16_t maxWait)
 
 //In case no config access to the GPS is possible and PVT is send cyclically already
 //set config to suitable parameters
-boolean SFE_UBLOX_GPS::assumeAutoPVT(boolean enabled, boolean implicitUpdate)
+bool SFE_UBLOX_GPS::assumeAutoPVT(bool enabled, bool implicitUpdate)
 {
-  boolean changes = autoPVT != enabled || autoPVTImplicitUpdate != implicitUpdate;
+  bool changes = autoPVT != enabled || autoPVTImplicitUpdate != implicitUpdate;
   if (changes)
   {
     autoPVT = enabled;
@@ -2559,14 +2559,14 @@ boolean SFE_UBLOX_GPS::assumeAutoPVT(boolean enabled, boolean implicitUpdate)
 
 //Enable or disable automatic navigation message generation by the GPS. This changes the way getPVT
 //works.
-boolean SFE_UBLOX_GPS::setAutoPVT(boolean enable, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoPVT(bool enable, uint16_t maxWait)
 {
   return setAutoPVT(enable, true, maxWait);
 }
 
 //Enable or disable automatic navigation message generation by the GPS. This changes the way getPVT
 //works.
-boolean SFE_UBLOX_GPS::setAutoPVT(boolean enable, boolean implicitUpdate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoPVT(bool enable, bool implicitUpdate, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_MSG;
@@ -2576,7 +2576,7 @@ boolean SFE_UBLOX_GPS::setAutoPVT(boolean enable, boolean implicitUpdate, uint16
   payloadCfg[1] = UBX_NAV_PVT;
   payloadCfg[2] = enable ? 1 : 0; // rate relative to navigation freq.
 
-  boolean ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
+  bool ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
   if (ok)
   {
     autoPVT = enable;
@@ -2588,9 +2588,9 @@ boolean SFE_UBLOX_GPS::setAutoPVT(boolean enable, boolean implicitUpdate, uint16
 
 //In case no config access to the GPS is possible and HPPOSLLH is send cyclically already
 //set config to suitable parameters
-boolean SFE_UBLOX_GPS::assumeAutoHPPOSLLH(boolean enabled, boolean implicitUpdate)
+bool SFE_UBLOX_GPS::assumeAutoHPPOSLLH(bool enabled, bool implicitUpdate)
 {
-  boolean changes = autoHPPOSLLH != enabled || autoHPPOSLLHImplicitUpdate != implicitUpdate;
+  bool changes = autoHPPOSLLH != enabled || autoHPPOSLLHImplicitUpdate != implicitUpdate;
   if (changes)
   {
     autoHPPOSLLH = enabled;
@@ -2601,14 +2601,14 @@ boolean SFE_UBLOX_GPS::assumeAutoHPPOSLLH(boolean enabled, boolean implicitUpdat
 
 //Enable or disable automatic navigation message generation by the GPS. This changes the way getHPPOSLLH
 //works.
-boolean SFE_UBLOX_GPS::setAutoHPPOSLLH(boolean enable, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHPPOSLLH(bool enable, uint16_t maxWait)
 {
   return setAutoHPPOSLLH(enable, true, maxWait);
 }
 
 //Enable or disable automatic navigation message generation by the GPS. This changes the way getHPPOSLLH
 //works.
-boolean SFE_UBLOX_GPS::setAutoHPPOSLLH(boolean enable, boolean implicitUpdate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHPPOSLLH(bool enable, bool implicitUpdate, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_MSG;
@@ -2618,7 +2618,7 @@ boolean SFE_UBLOX_GPS::setAutoHPPOSLLH(boolean enable, boolean implicitUpdate, u
   payloadCfg[1] = UBX_NAV_HPPOSLLH;
   payloadCfg[2] = enable ? 1 : 0; // rate relative to navigation freq.
 
-  boolean ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
+  bool ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
   if (ok)
   {
     autoHPPOSLLH = enable;
@@ -2631,9 +2631,9 @@ boolean SFE_UBLOX_GPS::setAutoHPPOSLLH(boolean enable, boolean implicitUpdate, u
 
 //In case no config access to the GPS is possible and DOP is send cyclically already
 //set config to suitable parameters
-boolean SFE_UBLOX_GPS::assumeAutoDOP(boolean enabled, boolean implicitUpdate)
+bool SFE_UBLOX_GPS::assumeAutoDOP(bool enabled, bool implicitUpdate)
 {
-  boolean changes = autoDOP != enabled || autoDOPImplicitUpdate != implicitUpdate;
+  bool changes = autoDOP != enabled || autoDOPImplicitUpdate != implicitUpdate;
   if (changes)
   {
     autoDOP = enabled;
@@ -2644,14 +2644,14 @@ boolean SFE_UBLOX_GPS::assumeAutoDOP(boolean enabled, boolean implicitUpdate)
 
 //Enable or disable automatic navigation message generation by the GPS. This changes the way getDOP
 //works.
-boolean SFE_UBLOX_GPS::setAutoDOP(boolean enable, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoDOP(bool enable, uint16_t maxWait)
 {
   return setAutoDOP(enable, true, maxWait);
 }
 
 //Enable or disable automatic navigation message generation by the GPS. This changes the way getDOP
 //works.
-boolean SFE_UBLOX_GPS::setAutoDOP(boolean enable, boolean implicitUpdate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoDOP(bool enable, bool implicitUpdate, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_MSG;
@@ -2661,7 +2661,7 @@ boolean SFE_UBLOX_GPS::setAutoDOP(boolean enable, boolean implicitUpdate, uint16
   payloadCfg[1] = UBX_NAV_DOP;
   payloadCfg[2] = enable ? 1 : 0; // rate relative to navigation freq.
 
-  boolean ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
+  bool ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
   if (ok)
   {
     autoDOP = enable;
@@ -2672,7 +2672,7 @@ boolean SFE_UBLOX_GPS::setAutoDOP(boolean enable, boolean implicitUpdate, uint16
 }
 
 //Configure a given message type for a given port (UART1, I2C, SPI, etc)
-boolean SFE_UBLOX_GPS::configureMessage(uint8_t msgClass, uint8_t msgID, uint8_t portID, uint8_t sendRate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::configureMessage(uint8_t msgClass, uint8_t msgID, uint8_t portID, uint8_t sendRate, uint16_t maxWait)
 {
   //Poll for the current settings for a given message
   packetCfg.cls = UBX_CLASS_CFG;
@@ -2697,21 +2697,21 @@ boolean SFE_UBLOX_GPS::configureMessage(uint8_t msgClass, uint8_t msgID, uint8_t
 }
 
 //Enable a given message type, default of 1 per update rate (usually 1 per second)
-boolean SFE_UBLOX_GPS::enableMessage(uint8_t msgClass, uint8_t msgID, uint8_t portID, uint8_t rate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::enableMessage(uint8_t msgClass, uint8_t msgID, uint8_t portID, uint8_t rate, uint16_t maxWait)
 {
   return (configureMessage(msgClass, msgID, portID, rate, maxWait));
 }
 //Disable a given message type on a given port
-boolean SFE_UBLOX_GPS::disableMessage(uint8_t msgClass, uint8_t msgID, uint8_t portID, uint16_t maxWait)
+bool SFE_UBLOX_GPS::disableMessage(uint8_t msgClass, uint8_t msgID, uint8_t portID, uint16_t maxWait)
 {
   return (configureMessage(msgClass, msgID, portID, 0, maxWait));
 }
 
-boolean SFE_UBLOX_GPS::enableNMEAMessage(uint8_t msgID, uint8_t portID, uint8_t rate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::enableNMEAMessage(uint8_t msgID, uint8_t portID, uint8_t rate, uint16_t maxWait)
 {
   return (configureMessage(UBX_CLASS_NMEA, msgID, portID, rate, maxWait));
 }
-boolean SFE_UBLOX_GPS::disableNMEAMessage(uint8_t msgID, uint8_t portID, uint16_t maxWait)
+bool SFE_UBLOX_GPS::disableNMEAMessage(uint8_t msgID, uint8_t portID, uint16_t maxWait)
 {
   return (enableNMEAMessage(msgID, portID, 0, maxWait));
 }
@@ -2731,19 +2731,19 @@ boolean SFE_UBLOX_GPS::disableNMEAMessage(uint8_t msgID, uint8_t portID, uint16_
 //1005, 1074, 1084, 1094, 1124, 1230
 
 //Much of this configuration is not documented and instead discerned from u-center binary console
-boolean SFE_UBLOX_GPS::enableRTCMmessage(uint8_t messageNumber, uint8_t portID, uint8_t sendRate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::enableRTCMmessage(uint8_t messageNumber, uint8_t portID, uint8_t sendRate, uint16_t maxWait)
 {
   return (configureMessage(UBX_RTCM_MSB, messageNumber, portID, sendRate, maxWait));
 }
 
 //Disable a given message on a given port by setting secondsBetweenMessages to zero
-boolean SFE_UBLOX_GPS::disableRTCMmessage(uint8_t messageNumber, uint8_t portID, uint16_t maxWait)
+bool SFE_UBLOX_GPS::disableRTCMmessage(uint8_t messageNumber, uint8_t portID, uint16_t maxWait)
 {
   return (enableRTCMmessage(messageNumber, portID, 0, maxWait));
 }
 
 //Add a new geofence using UBX-CFG-GEOFENCE
-boolean SFE_UBLOX_GPS::addGeofence(int32_t latitude, int32_t longitude, uint32_t radius, byte confidence, byte pinPolarity, byte pin, uint16_t maxWait)
+bool SFE_UBLOX_GPS::addGeofence(int32_t latitude, int32_t longitude, uint32_t radius, byte confidence, byte pinPolarity, byte pin, uint16_t maxWait)
 {
   if (currentGeofenceParams.numFences >= 4)
     return (false); // Quit if we already have four geofences defined
@@ -2835,7 +2835,7 @@ boolean SFE_UBLOX_GPS::addGeofence(int32_t latitude, int32_t longitude, uint32_t
 }
 
 //Clear all geofences using UBX-CFG-GEOFENCE
-boolean SFE_UBLOX_GPS::clearGeofences(uint16_t maxWait)
+bool SFE_UBLOX_GPS::clearGeofences(uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_GEOFENCE;
@@ -2859,7 +2859,7 @@ boolean SFE_UBLOX_GPS::clearGeofences(uint16_t maxWait)
 //Clear the antenna control settings using UBX-CFG-ANT
 //This function is hopefully redundant but may be needed to release
 //any PIO pins pre-allocated for antenna functions
-boolean SFE_UBLOX_GPS::clearAntPIO(uint16_t maxWait)
+bool SFE_UBLOX_GPS::clearAntPIO(uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_ANT;
@@ -2875,7 +2875,7 @@ boolean SFE_UBLOX_GPS::clearAntPIO(uint16_t maxWait)
 }
 
 //Returns the combined geofence state using UBX-NAV-GEOFENCE
-boolean SFE_UBLOX_GPS::getGeofenceState(geofenceState &currentGeofenceState, uint16_t maxWait)
+bool SFE_UBLOX_GPS::getGeofenceState(geofenceState &currentGeofenceState, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_NAV;
   packetCfg.id = UBX_NAV_GEOFENCE;
@@ -2903,7 +2903,7 @@ boolean SFE_UBLOX_GPS::getGeofenceState(geofenceState &currentGeofenceState, uin
 
 //Power Save Mode
 //Enables/Disables Low Power Mode using UBX-CFG-RXM
-boolean SFE_UBLOX_GPS::powerSaveMode(bool power_save, uint16_t maxWait)
+bool SFE_UBLOX_GPS::powerSaveMode(bool power_save, uint16_t maxWait)
 {
   // Let's begin by checking the Protocol Version as UBX_CFG_RXM is not supported on the ZED (protocol >= 27)
   uint8_t protVer = getProtocolVersionHigh(maxWait);
@@ -2988,7 +2988,7 @@ uint8_t SFE_UBLOX_GPS::getPowerSaveMode(uint16_t maxWait)
 // NOTE: Querying the device before the duration is complete, for example by "getLatitude()" will wake it up!
 // Returns true if command has not been not acknowledged.
 // Returns false if command has not been acknowledged or maxWait = 0.
-boolean SFE_UBLOX_GPS::powerOff(uint32_t durationInMs, uint16_t maxWait)
+bool SFE_UBLOX_GPS::powerOff(uint32_t durationInMs, uint16_t maxWait)
 {
   // use durationInMs = 0 for infinite duration
   if (_printDebug == true)
@@ -3034,7 +3034,7 @@ boolean SFE_UBLOX_GPS::powerOff(uint32_t durationInMs, uint16_t maxWait)
 // NOTE: Querying the device before the duration is complete, for example by "getLatitude()" will wake it up!
 // Returns true if command has not been not acknowledged.
 // Returns false if command has not been acknowledged or maxWait = 0.
-boolean SFE_UBLOX_GPS::powerOffWithInterrupt(uint32_t durationInMs, uint32_t wakeupSources, boolean forceWhileUsb, uint16_t maxWait)
+bool SFE_UBLOX_GPS::powerOffWithInterrupt(uint32_t durationInMs, uint32_t wakeupSources, bool forceWhileUsb, uint16_t maxWait)
 {
   // use durationInMs = 0 for infinite duration
   if (_printDebug == true)
@@ -3113,7 +3113,7 @@ boolean SFE_UBLOX_GPS::powerOffWithInterrupt(uint32_t durationInMs, uint32_t wak
 //AIRBORNE1g,AIRBORNE2g,AIRBORNE4g,WRIST,BIKE
 //WRIST is not supported in protocol versions less than 18
 //BIKE is supported in protocol versions 19.2
-boolean SFE_UBLOX_GPS::setDynamicModel(dynModel newDynamicModel, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setDynamicModel(dynModel newDynamicModel, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_NAV5;
@@ -3347,7 +3347,7 @@ int32_t SFE_UBLOX_GPS::getNanosecond(uint16_t maxWait)
 }
 
 //Get the latest Position/Velocity/Time solution and fill all global variables
-boolean SFE_UBLOX_GPS::getPVT(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getPVT(uint16_t maxWait)
 {
   if (autoPVT && autoPVTImplicitUpdate)
   {
@@ -3533,7 +3533,7 @@ uint32_t SFE_UBLOX_GPS::getVerticalAccuracy(uint16_t maxWait /* = 250*/)
   return (verticalAccuracy);
 }
 
-boolean SFE_UBLOX_GPS::getHPPOSLLH(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getHPPOSLLH(uint16_t maxWait)
 {
   if (autoHPPOSLLH && autoHPPOSLLHImplicitUpdate)
   {
@@ -3668,7 +3668,7 @@ uint16_t SFE_UBLOX_GPS::getEastingDOP(uint16_t maxWait /* = 250*/)
   return (eastingDOP);
 }
 
-boolean SFE_UBLOX_GPS::getDOP(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getDOP(uint16_t maxWait)
 {
   if (autoDOP && autoDOPImplicitUpdate)
   {
@@ -3978,7 +3978,7 @@ uint8_t SFE_UBLOX_GPS::getProtocolVersionLow(uint16_t maxWait)
 
 //Get the current protocol version of the u-blox module we're communicating with
 //This is helpful when deciding if we should call the high-precision Lat/Long (HPPOSLLH) or the regular (POSLLH)
-boolean SFE_UBLOX_GPS::getProtocolVersion(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getProtocolVersion(uint16_t maxWait)
 {
   //Send packet with only CLS and ID, length of zero. This will cause the module to respond with the contents of that CLS/ID.
   packetCfg.cls = UBX_CLASS_MON;
@@ -4103,7 +4103,7 @@ void SFE_UBLOX_GPS::flushDOP()
 //Note:
 //  RELPOSNED on the M8 is only 40 bytes long
 //  RELPOSNED on the F9 is 64 bytes long and contains much more information
-boolean SFE_UBLOX_GPS::getRELPOSNED(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getRELPOSNED(uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_NAV;
   packetCfg.id = UBX_NAV_RELPOSNED;
@@ -4200,7 +4200,7 @@ boolean SFE_UBLOX_GPS::getRELPOSNED(uint16_t maxWait)
   return (true);
 }
 
-boolean SFE_UBLOX_GPS::getEsfInfo(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getEsfInfo(uint16_t maxWait)
 {
   // Requesting Data from the receiver
   packetCfg.cls = UBX_CLASS_ESF;
@@ -4223,7 +4223,7 @@ boolean SFE_UBLOX_GPS::getEsfInfo(uint16_t maxWait)
 }
 
 //
-boolean SFE_UBLOX_GPS::getEsfIns(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getEsfIns(uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_ESF;
   packetCfg.id = UBX_ESF_INS;
@@ -4257,7 +4257,7 @@ boolean SFE_UBLOX_GPS::getEsfIns(uint16_t maxWait)
 }
 
 //
-boolean SFE_UBLOX_GPS::getEsfDataInfo(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getEsfDataInfo(uint16_t maxWait)
 {
 
   packetCfg.cls = UBX_CLASS_ESF;
@@ -4306,7 +4306,7 @@ boolean SFE_UBLOX_GPS::getEsfDataInfo(uint16_t maxWait)
   return (true);
 }
 
-boolean SFE_UBLOX_GPS::getEsfRawDataInfo(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getEsfRawDataInfo(uint16_t maxWait)
 {
 
   // Need to know the number of sensor to get the correct data
@@ -4376,7 +4376,7 @@ sfe_ublox_status_e SFE_UBLOX_GPS::getSensState(uint8_t sensor, uint16_t maxWait)
   return (SFE_UBLOX_STATUS_SUCCESS);
 }
 
-boolean SFE_UBLOX_GPS::getVehAtt(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getVehAtt(uint16_t maxWait)
 {
 
   packetCfg.cls = UBX_CLASS_NAV;
@@ -4462,7 +4462,7 @@ bool SFE_UBLOX_GPS::setStaticPosition(int32_t ecefXOrLat, int32_t ecefYOrLon, in
 // Push (e.g.) RTCM data directly to the module
 // Returns true if all numDataBytes were pushed successfully
 // Warning: this function does not check that the data is valid. It is the user's responsibility to ensure the data is valid before pushing.
-boolean SFE_UBLOX_GPS::pushRawData(uint8_t *dataBytes, size_t numDataBytes)
+bool SFE_UBLOX_GPS::pushRawData(uint8_t *dataBytes, size_t numDataBytes)
 {
   if (commType == COMM_TYPE_SERIAL)
   {
@@ -4509,7 +4509,7 @@ boolean SFE_UBLOX_GPS::pushRawData(uint8_t *dataBytes, size_t numDataBytes)
 
 // Set the High Navigation Rate
 // Returns true if the setHNRNavigationRate is successful
-boolean SFE_UBLOX_GPS::setHNRNavigationRate(uint8_t rate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setHNRNavigationRate(uint8_t rate, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_HNR;
@@ -4552,9 +4552,9 @@ uint8_t SFE_UBLOX_GPS::getHNRNavigationRate(uint16_t maxWait)
 
 //In case no config access to the GPS is possible and HNR attitude is send cyclically already
 //set config to suitable parameters
-boolean SFE_UBLOX_GPS::assumeAutoHNRAtt(boolean enabled, boolean implicitUpdate)
+bool SFE_UBLOX_GPS::assumeAutoHNRAtt(bool enabled, bool implicitUpdate)
 {
-  boolean changes = autoHNRAtt != enabled || autoHNRAttImplicitUpdate != implicitUpdate;
+  bool changes = autoHNRAtt != enabled || autoHNRAttImplicitUpdate != implicitUpdate;
   if (changes)
   {
     autoHNRAtt = enabled;
@@ -4565,14 +4565,14 @@ boolean SFE_UBLOX_GPS::assumeAutoHNRAtt(boolean enabled, boolean implicitUpdate)
 
 //Enable or disable automatic HNR attitude message generation by the GPS. This changes the way getHNRAtt
 //works.
-boolean SFE_UBLOX_GPS::setAutoHNRAtt(boolean enable, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHNRAtt(bool enable, uint16_t maxWait)
 {
   return setAutoHNRAtt(enable, true, maxWait);
 }
 
 //Enable or disable automatic HNR attitude message generation by the GPS. This changes the way getHNRAtt
 //works.
-boolean SFE_UBLOX_GPS::setAutoHNRAtt(boolean enable, boolean implicitUpdate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHNRAtt(bool enable, bool implicitUpdate, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_MSG;
@@ -4582,7 +4582,7 @@ boolean SFE_UBLOX_GPS::setAutoHNRAtt(boolean enable, boolean implicitUpdate, uin
   payloadCfg[1] = UBX_HNR_ATT;
   payloadCfg[2] = enable ? 1 : 0; // rate relative to navigation freq.
 
-  boolean ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
+  bool ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
   if (ok)
   {
     autoHNRAtt = enable;
@@ -4597,7 +4597,7 @@ boolean SFE_UBLOX_GPS::setAutoHNRAtt(boolean enable, boolean implicitUpdate, uin
 // Note: if hnrAttQueried is true, it gets set to false by this function since we assume
 //       that the user will read hnrAtt immediately after this. I.e. this function will
 //       only return true _once_ after each auto HNR Att is processed
-boolean SFE_UBLOX_GPS::getHNRAtt(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getHNRAtt(uint16_t maxWait)
 {
   if (autoHNRAtt && autoHNRAttImplicitUpdate)
   {
@@ -4672,9 +4672,9 @@ boolean SFE_UBLOX_GPS::getHNRAtt(uint16_t maxWait)
 
 //In case no config access to the GPS is possible and HNR vehicle dynamics is send cyclically already
 //set config to suitable parameters
-boolean SFE_UBLOX_GPS::assumeAutoHNRDyn(boolean enabled, boolean implicitUpdate)
+bool SFE_UBLOX_GPS::assumeAutoHNRDyn(bool enabled, bool implicitUpdate)
 {
-  boolean changes = autoHNRDyn != enabled || autoHNRDynImplicitUpdate != implicitUpdate;
+  bool changes = autoHNRDyn != enabled || autoHNRDynImplicitUpdate != implicitUpdate;
   if (changes)
   {
     autoHNRDyn = enabled;
@@ -4685,14 +4685,14 @@ boolean SFE_UBLOX_GPS::assumeAutoHNRDyn(boolean enabled, boolean implicitUpdate)
 
 //Enable or disable automatic HNR vehicle dynamics message generation by the GPS. This changes the way getHNRDyn
 //works.
-boolean SFE_UBLOX_GPS::setAutoHNRDyn(boolean enable, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHNRDyn(bool enable, uint16_t maxWait)
 {
   return setAutoHNRDyn(enable, true, maxWait);
 }
 
 //Enable or disable automatic HNR vehicle dynamics message generation by the GPS. This changes the way getHNRDyn
 //works.
-boolean SFE_UBLOX_GPS::setAutoHNRDyn(boolean enable, boolean implicitUpdate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHNRDyn(bool enable, bool implicitUpdate, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_MSG;
@@ -4702,7 +4702,7 @@ boolean SFE_UBLOX_GPS::setAutoHNRDyn(boolean enable, boolean implicitUpdate, uin
   payloadCfg[1] = UBX_HNR_INS;
   payloadCfg[2] = enable ? 1 : 0; // rate relative to navigation freq.
 
-  boolean ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
+  bool ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
   if (ok)
   {
     autoHNRDyn = enable;
@@ -4717,7 +4717,7 @@ boolean SFE_UBLOX_GPS::setAutoHNRDyn(boolean enable, boolean implicitUpdate, uin
 // Note: if hnrDynQueried is true, it gets set to false by this function since we assume
 //       that the user will read hnrVehDyn immediately after this. I.e. this function will
 //       only return true _once_ after each auto HNR Dyn is processed
-boolean SFE_UBLOX_GPS::getHNRDyn(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getHNRDyn(uint16_t maxWait)
 {
   if (autoHNRDyn && autoHNRDynImplicitUpdate)
   {
@@ -4792,9 +4792,9 @@ boolean SFE_UBLOX_GPS::getHNRDyn(uint16_t maxWait)
 
 //In case no config access to the GPS is possible and HNR PVT is send cyclically already
 //set config to suitable parameters
-boolean SFE_UBLOX_GPS::assumeAutoHNRPVT(boolean enabled, boolean implicitUpdate)
+bool SFE_UBLOX_GPS::assumeAutoHNRPVT(bool enabled, bool implicitUpdate)
 {
-  boolean changes = autoHNRPVT != enabled || autoHNRPVTImplicitUpdate != implicitUpdate;
+  bool changes = autoHNRPVT != enabled || autoHNRPVTImplicitUpdate != implicitUpdate;
   if (changes)
   {
     autoHNRPVT = enabled;
@@ -4805,14 +4805,14 @@ boolean SFE_UBLOX_GPS::assumeAutoHNRPVT(boolean enabled, boolean implicitUpdate)
 
 //Enable or disable automatic HNR PVT message generation by the GPS. This changes the way getHNRPVT
 //works.
-boolean SFE_UBLOX_GPS::setAutoHNRPVT(boolean enable, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHNRPVT(bool enable, uint16_t maxWait)
 {
   return setAutoHNRPVT(enable, true, maxWait);
 }
 
 //Enable or disable automatic HNR PVT message generation by the GPS. This changes the way getHNRPVT
 //works.
-boolean SFE_UBLOX_GPS::setAutoHNRPVT(boolean enable, boolean implicitUpdate, uint16_t maxWait)
+bool SFE_UBLOX_GPS::setAutoHNRPVT(bool enable, bool implicitUpdate, uint16_t maxWait)
 {
   packetCfg.cls = UBX_CLASS_CFG;
   packetCfg.id = UBX_CFG_MSG;
@@ -4822,7 +4822,7 @@ boolean SFE_UBLOX_GPS::setAutoHNRPVT(boolean enable, boolean implicitUpdate, uin
   payloadCfg[1] = UBX_HNR_PVT;
   payloadCfg[2] = enable ? 1 : 0; // rate relative to navigation freq.
 
-  boolean ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
+  bool ok = ((sendCommand(&packetCfg, maxWait)) == SFE_UBLOX_STATUS_DATA_SENT); // We are only expecting an ACK
   if (ok)
   {
     autoHNRPVT = enable;
@@ -4837,7 +4837,7 @@ boolean SFE_UBLOX_GPS::setAutoHNRPVT(boolean enable, boolean implicitUpdate, uin
 // Note: if hnrPVTQueried is true, it gets set to false by this function since we assume
 //       that the user will read hnrPVT immediately after this. I.e. this function will
 //       only return true _once_ after each auto HNR PVT is processed
-boolean SFE_UBLOX_GPS::getHNRPVT(uint16_t maxWait)
+bool SFE_UBLOX_GPS::getHNRPVT(uint16_t maxWait)
 {
   if (autoHNRPVT && autoHNRPVTImplicitUpdate)
   {

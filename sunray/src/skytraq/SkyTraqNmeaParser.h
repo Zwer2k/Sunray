@@ -18,7 +18,7 @@ typedef unsigned short int        U16;
 typedef signed   long int         S32;
 typedef unsigned long int         U32;
 typedef float                     F32;
-typedef double                    D64;
+typedef double                    DB64;
 
 #define _SUPPORT_GPS_SATELLITES_        0
 #define _SUPPORT_GLONASS_SATELLITES_    0
@@ -119,25 +119,25 @@ public:
   U16 GetDay() const { return day; }
   U16 GetHour() const { return hour; }
   U16 GetMinute() const { return minute; }
-  D64 GetSecond() const { return second; }
+  DB64 GetSecond() const { return second; }
 
   //Geographic Information
-  D64 GetLatitude() const { return latitude; }
-  D64 GetLongitude() const { return longitude; }
-  D64 GetAltitudeInMeter() const { return altitudeAboutMeanSeaLevel + geoidalSeparation; }
-  D64 GetAltitudeAboutMeanSeaLevelInMeter() const { return altitudeAboutMeanSeaLevel; }
-  D64 GetGeoidalSeparationInMeter() const { return geoidalSeparation; }
+  DB64 GetLatitude() const { return latitude; }
+  DB64 GetLongitude() const { return longitude; }
+  DB64 GetAltitudeInMeter() const { return altitudeAboutMeanSeaLevel + geoidalSeparation; }
+  DB64 GetAltitudeAboutMeanSeaLevelInMeter() const { return altitudeAboutMeanSeaLevel; }
+  DB64 GetGeoidalSeparationInMeter() const { return geoidalSeparation; }
 
   //Speed and Orientation
-  D64 GetCourseInDegree() const { return courseOverGround; }
-  D64 GetSpeedInKnots() const { return speedKnot; }
-  D64 GetSpeedInKmHr() const { return speedKnot * KnotToKmHr(); }
-  D64 GetSpeedInMph() const { return speedKnot * KnotToMph(); }
+  DB64 GetCourseInDegree() const { return courseOverGround; }
+  DB64 GetSpeedInKnots() const { return speedKnot; }
+  DB64 GetSpeedInKmHr() const { return speedKnot * KnotToKmHr(); }
+  DB64 GetSpeedInMph() const { return speedKnot * KnotToMph(); }
 
   //Accuracy
-  D64 GetHdop() const { return hdop; }
-  D64 GetPdop() const { return pdop; }
-  D64 GetVdop() const { return vdop; }
+  DB64 GetHdop() const { return hdop; }
+  DB64 GetPdop() const { return pdop; }
+  DB64 GetVdop() const { return vdop; }
 
   //Fix Mode
   QualityMode GetQualitMode() const { return qualityMode; }
@@ -159,16 +159,16 @@ public:
   const SatelliteInfo* GetBeidouSatellites() const { return bdSatellites; };
 #endif
   //RTK information
-  D64 GetEVelocity() const { return eVelocity; };
-  D64 GetNVelocity() const { return nVelocity; };
-  D64 GetUVelocity() const { return uVelocity; };
-  D64 GetRtkAge() const { return rtkAge; };
-  D64 GetRtkRatio() const { return rtkRatio; };
-  D64 GetEProjection() const { return eProjection; };
-  D64 GetNProjection() const { return nProjection; };
-  D64 GetUProjection() const { return uProjection; };
-  D64 GetBaselineLength() const { return baselineLength; };
-  D64 GetBaselineCourse() const { return baselineCourse; };
+  DB64 GetEVelocity() const { return eVelocity; };
+  DB64 GetNVelocity() const { return nVelocity; };
+  DB64 GetUVelocity() const { return uVelocity; };
+  DB64 GetRtkAge() const { return rtkAge; };
+  DB64 GetRtkRatio() const { return rtkRatio; };
+  DB64 GetEProjection() const { return eProjection; };
+  DB64 GetNProjection() const { return nProjection; };
+  DB64 GetUProjection() const { return uProjection; };
+  DB64 GetBaselineLength() const { return baselineLength; };
+  DB64 GetBaselineCourse() const { return baselineCourse; };
 
 protected:  //data members
   //Date and Time
@@ -177,22 +177,22 @@ protected:  //data members
   U16 day;
   U16 hour;
   U16 minute;
-  D64 second;
+  DB64 second;
 
   //Geographic Information
-  D64 latitude;
-  D64 longitude;
-  D64 altitudeAboutMeanSeaLevel;
-  D64 geoidalSeparation;
+  DB64 latitude;
+  DB64 longitude;
+  DB64 altitudeAboutMeanSeaLevel;
+  DB64 geoidalSeparation;
 
   //Speed and Orientation
-  D64 courseOverGround; //Course over ground
-  D64 speedKnot;        //Speed in Knot
+  DB64 courseOverGround; //Course over ground
+  DB64 speedKnot;        //Speed in Knot
 
   //Accuracy
-  D64 hdop;
-  D64 pdop;
-  D64 vdop;
+  DB64 hdop;
+  DB64 pdop;
+  DB64 vdop;
 
   //Fix Mode
   QualityMode qualityMode;  //Fix Mode
@@ -219,20 +219,20 @@ protected:  //data members
   SatelliteInfo workingBdSatellites[MaxSatelliteNum];
 #endif
   //RTK information
-  D64 eVelocity; 
-  D64 nVelocity; 
-  D64 uVelocity; 
+  DB64 eVelocity; 
+  DB64 nVelocity; 
+  DB64 uVelocity; 
 
-  D64 rtkAge;     //Age of differential
-  D64 rtkRatio;   //AR ratio factor for validation
+  DB64 rtkAge;     //Age of differential
+  DB64 rtkRatio;   //AR ratio factor for validation
 
   //ENU-Projection of baseline, meters
-  D64 eProjection; 
-  D64 nProjection; 
-  D64 uProjection; 
+  DB64 eProjection; 
+  DB64 nProjection; 
+  DB64 uProjection; 
 
-  D64 baselineLength;   //Baseline length, meters
-  D64 baselineCourse;   //Baseline course (angle between baseline vector and north direction), degrees
+  DB64 baselineLength;   //Baseline length, meters
+  DB64 baselineCourse;   //Baseline course (angle between baseline vector and north direction), degrees
 
 protected:  //functions
   void Init();
@@ -249,7 +249,7 @@ protected:  //functions
   //Setter functions
   //Date and Time
   bool SetDate(U16 y, U16 m, U16 d);
-  bool SetTime(U16 h, U16 m, D64 s);
+  bool SetTime(U16 h, U16 m, DB64 s);
 
   //Geographic Information
   bool SetNmeaLatitude(double lat, char ns);
@@ -258,13 +258,13 @@ protected:  //functions
   bool SetGeoidalSeparationInMeter(double gs);
 
   //Speed and Orientation
-  bool SetCourse(D64 c);
-  bool SetSpeedInKnots(D64 s);
+  bool SetCourse(DB64 c);
+  bool SetSpeedInKnots(DB64 s);
 
   //Accuracy
-  bool SetPdop(D64 p);
-  bool SetHdop(D64 h);
-  bool SetVdop(D64 v);
+  bool SetPdop(DB64 p);
+  bool SetHdop(DB64 h);
+  bool SetVdop(DB64 v);
 
   //Fix Mode
   bool SetNavigationMode(NavigationMode m);
@@ -301,8 +301,8 @@ protected:  //functions
 
   //RTK information
   bool SetEnuVelocity(double ev, double nv, double uv);
-  bool SetRtkAge(D64 r);
-  bool SetRtkRatio(D64 r);
+  bool SetRtkAge(DB64 r);
+  bool SetRtkRatio(DB64 r);
   bool SetEnuProjection(double ep, double np, double up);
   bool SetBaselineLength(double b);
   bool SetBaselineCourse(double b);

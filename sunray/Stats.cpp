@@ -53,7 +53,7 @@ void calcStats(){
           if (lastSolution == SOL_INVALID) statMowInvalidRecoveries++;
           lastSolution = gps.solution;
         } 
-        statMowMaxDgpsAge = max(statMowMaxDgpsAge, (millis() - gps.dgpsAge)/1000.0);        
+        statMowMaxDgpsAge = max((DB64)statMowMaxDgpsAge, (millis() - gps.dgpsAge)/1000.0);        
         break;
       case OP_CHARGE:
         statChargeDuration++;

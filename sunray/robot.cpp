@@ -380,6 +380,9 @@ void outputConfig(){
   #ifdef MOTOR_DRIVER_BRUSHLESS_MOW_JYQD
     CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_MOW_JYQD");
   #endif 
+  #ifdef MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035
+    CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035");
+  #endif 
   
   CONSOLE.print("MOTOR_OVERLOAD_CURRENT: ");
   CONSOLE.println(MOTOR_OVERLOAD_CURRENT);
@@ -509,7 +512,9 @@ void start(){
       I2Creset();  
       Wire.begin();    
       #ifdef I2C_SPEED
-        Wire.setClock(I2C_SPEED);     
+        #ifndef ARDUINO_ARCH_STM32
+          Wire.setClock(I2C_SPEED);     
+        #endif
       #endif
     } else break;
   }  

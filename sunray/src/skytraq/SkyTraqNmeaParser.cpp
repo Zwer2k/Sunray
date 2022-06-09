@@ -214,7 +214,7 @@ bool GnssData::SetDate(U16 y, U16 m, U16 d)
   return true;
 }
 
-bool GnssData::SetTime(U16 h, U16 m, D64 s) 
+bool GnssData::SetTime(U16 h, U16 m, DB64 s) 
 { 
   if(hour == h && minute == m && second == s)
   {
@@ -301,7 +301,7 @@ bool GnssData::SetGeoidalSeparationInMeter(double gs)
   return true;
 }
 
-bool GnssData::SetCourse(D64 c) 
+bool GnssData::SetCourse(DB64 c) 
 { 
   if(courseOverGround == c)
   {
@@ -311,7 +311,7 @@ bool GnssData::SetCourse(D64 c)
   return true;
 }
 
-bool GnssData::SetSpeedInKnots(D64 s) 
+bool GnssData::SetSpeedInKnots(DB64 s) 
 { 
   if(speedKnot == s)
   {
@@ -331,7 +331,7 @@ bool GnssData::SetNumberOfSv(U16 n)
   return true;
 }
 
-bool GnssData::SetHdop(D64 h)
+bool GnssData::SetHdop(DB64 h)
 {
   if(hdop == h)
   {
@@ -341,7 +341,7 @@ bool GnssData::SetHdop(D64 h)
   return true;
 }
 
-bool GnssData::SetPdop(D64 p)
+bool GnssData::SetPdop(DB64 p)
 {
   if(pdop == p)
   {
@@ -351,7 +351,7 @@ bool GnssData::SetPdop(D64 p)
   return true;
 }
 
-bool GnssData::SetVdop(D64 v)
+bool GnssData::SetVdop(DB64 v)
 {
   if(vdop == v)
   {
@@ -461,7 +461,7 @@ bool GnssData::SetEnuVelocity(double ev, double nv, double uv)
   return true;
 }
 
-bool GnssData::SetRtkAge(D64 r)
+bool GnssData::SetRtkAge(DB64 r)
 {
   if(rtkAge == r)
   {
@@ -471,7 +471,7 @@ bool GnssData::SetRtkAge(D64 r)
   return true;
 }
 
-bool GnssData::SetRtkRatio(D64 r)
+bool GnssData::SetRtkRatio(DB64 r)
 {
   if(rtkRatio == r)
   {
@@ -493,7 +493,7 @@ bool GnssData::SetEnuProjection(double ep, double np, double up)
   return true;
 }
 
-bool GnssData::SetBaselineLength(D64 b)
+bool GnssData::SetBaselineLength(DB64 b)
 {
   if(baselineLength == b)
   {
@@ -503,7 +503,7 @@ bool GnssData::SetBaselineLength(D64 b)
   return true;
 }
 
-bool GnssData::SetBaselineCourse(D64 b)
+bool GnssData::SetBaselineCourse(DB64 b)
 {
   if(baselineCourse == b)
   {
@@ -876,7 +876,7 @@ static int GetParamInt(const U08* pt, int start, int end, int defaultValue)
   return atoi(buf);
 }
 
-static D64 GetParamDouble(const U08* pt, int start, int end, double defaultValue)
+static DB64 GetParamDouble(const U08* pt, int start, int end, double defaultValue)
 {
   const int MaxIntStringSize = 16;
   char buf[MaxIntStringSize] = { 0 };

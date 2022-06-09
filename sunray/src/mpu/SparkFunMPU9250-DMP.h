@@ -360,7 +360,7 @@ public:
 	float calcQuat(long axis);
 	
 	// computeEulerAngles -- Compute euler angles based on most recently read qw, qx, qy, and qz
-	// Input: boolean indicating whether angle results are presented in degrees or radians
+	// Input: bool indicating whether angle results are presented in degrees or radians
 	// Output: class variables roll, pitch, and yaw will be updated on exit.	
 	void computeEulerAngles(bool degrees = true);
 	

@@ -285,7 +285,7 @@ class Adafruit_BNO055 : public Adafruit_Sensor
     void  setMode             ( adafruit_bno055_opmode_t mode );
     void  getRevInfo          ( adafruit_bno055_rev_info_t* );
     void  displayRevInfo      ( void );
-    void  setExtCrystalUse    ( boolean usextal );
+    void  setExtCrystalUse    ( bool usextal );
     void  getSystemStatus     ( uint8_t *system_status,
                                 uint8_t *self_test_result,
                                 uint8_t *system_error);
