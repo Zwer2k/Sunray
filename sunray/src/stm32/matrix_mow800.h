@@ -10,7 +10,7 @@
 // extern HardwareSerial Serial3;
 
 extern HardwareSerial Serial4;
-extern HardwareSerial Serial5;
+//extern HardwareSerial Serial5;
 
 extern void watchdogReset();
 extern void watchdogEnable(uint32_t timeout);
