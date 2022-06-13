@@ -16,6 +16,8 @@
 
 #if defined(_SAM3XA_)
   #include "../due/DueTimer.h"
+#elif defined(__MOW800__)
+  #include "../stm32/STM32_TimerInterrupt/STM32TimerInterrupt.h"
 #else
   #include "../agcm4/Adafruit_ZeroTimer.h"    // __SAMD51__
 #endif
@@ -58,6 +60,8 @@ Adafruit_ZeroTimer zerotimer = Adafruit_ZeroTimer(3);
 void TC3_Handler() {
   Adafruit_ZeroTimer::timerHandler(3);
 }
+#elif defined(__MOW800__)
+  STM32Timer timer1(TIM1);
 #endif 
 
 
@@ -717,9 +721,11 @@ void AmBuzzerDriver::run(){
 }
 
 void AmBuzzerDriver::noTone(){  
-  #ifdef _SAM3XA_
+  #if defined(_SAM3XA_)
     Timer1.stop();  
     digitalWrite(pinBuzzer, LOW);
+  #elif defined(__MOW800__)
+    timer1.stopTimer();
   #elif __SAMD51__  // __SAMD51__
     //::noTone(pinBuzzer);     
     zerotimer.enable(false);
@@ -728,9 +734,13 @@ void AmBuzzerDriver::noTone(){
 }
 
 void AmBuzzerDriver::tone(int freq){  
-  #ifdef _SAM3XA_
+  #if defined(_SAM3XA_)
     pinMode(pinBuzzer, OUTPUT);
     Timer1.attachInterrupt(toneHandler).setFrequency(freq).start();   
+  #elif defined(__MOW800__)
+    if (!timer1.attachInterruptInterval(freq, toneHandler)) {
+      Serial.println(F("Can't set buzzer timer."));
+    }
   #elif __SAMD51__      // __SAMD51__
     //::tone(pinBuzzer, freq);    
 

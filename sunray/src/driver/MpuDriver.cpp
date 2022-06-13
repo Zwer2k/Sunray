@@ -24,7 +24,7 @@ void MpuDriver::detect(){
   CONSOLE.print(F("MPU ID=0x"));
   CONSOLE.println(data, HEX);     
   #if defined MPU6050 || defined MPU9150       
-    if ((data == 0x68) || (data == 0xAA)) {
+    if (data == 0x68) {
         CONSOLE.println("MPU6050/9150 found");
         imuFound = true;
         return;
