@@ -16,7 +16,7 @@
 // HardwareSerial Serial2(PIN_SERIAL2_RX, PIN_SERIAL2_TX);
 // HardwareSerial Serial3(PIN_SERIAL3_RX, PIN_SERIAL3_TX);
 HardwareSerial Serial4(PC11, PC10);
-HardwareSerial Serial5(PD9, PD8);
+//HardwareSerial Serial5(PD9, PD8);
  
 WatchdogSTM32 watchdog;
 

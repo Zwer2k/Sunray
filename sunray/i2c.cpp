@@ -17,7 +17,6 @@
   #endif
 #endif
 
-
 /**
  * This routine turns off the I2C bus and clears it
  * on return SCA and SCL pins are tri-state inputs.
@@ -139,6 +138,8 @@ int I2CreadFrom(uint8_t device, uint8_t address, uint8_t num, uint8_t buff[], in
   int i = 0;
   for (int j=0; j < retryCount+1; j++){
     i=0;
+
+    Wire.begin();
     Wire.beginTransmission(device); //start transmission to device 
     Wire.write(address);        //sends address to read from
     Wire.endTransmission(); //end transmission
