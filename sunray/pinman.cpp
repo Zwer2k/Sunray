@@ -149,6 +149,17 @@ void PinManager::analogWrite(uint32_t ulPin, uint32_t ulValue, byte pwmFreq) {
       tccTop = 0xFF;  
       break;    
   }
+
+#elif defined(__MOW800__)
+  int pwmFrequency = 3900;
+  switch(pwmFreq){    
+    case PWM_FREQ_3900:
+      pwmFrequency = 3900;
+      break;
+    case PWM_FREQ_29300:
+      pwmFrequency = 29300;
+      break;    
+  }
 #endif
 
 
@@ -534,7 +545,9 @@ void PinManager::analogWrite(uint32_t ulPin, uint32_t ulValue, byte pwmFreq) {
   } else {
     digitalWrite(ulPin, HIGH);
   }
-
+#elif defined(__MOW800__)
+  ::analogWriteFrequency(pwmFrequency);
+  ::analogWrite(ulPin, ulValue);
 #else // ----------------------------------------------------------------------------------------
   ::analogWrite(ulPin, ulValue);
 
