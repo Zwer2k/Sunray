@@ -269,7 +269,7 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
   MOW800_MC33035.enableActive = LOW;       // enable active level (LOW or HIGH)
   MOW800_MC33035.disableAtPwmZeroSpeed = false;  // disable driver at PWM zero speed? (brake function)
-  MOW800_MC33035.keepPwmZeroSpeed = false;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
+  MOW800_MC33035.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
   MOW800_MC33035.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
   MOW800_MC33035.adcVoltToAmpOfs = 0.0;      // ADC voltage to amps (offset)
