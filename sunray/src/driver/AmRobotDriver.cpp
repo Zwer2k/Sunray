@@ -235,7 +235,7 @@ AmMotorDriver::AmMotorDriver(){
 
   // JYQD brushless driver 
   JYQD.driverName = "JYQD";    // just a name for your driver
-  JYQD.forwardPwmInvert = false; // invert PWM signal for forward? (false or true)
+  JYQD.forwardPwmInvert = true; // invert PWM signal for forward? (false or true)
   JYQD.forwardDirLevel = LOW;    // logic level for forward (LOW or HIGH)
   JYQD.reversePwmInvert = false; // invert PWM signal for reverse? (false or true)
   JYQD.reverseDirLevel = HIGH;   // logic level for reverse (LOW or HIGH)
@@ -254,19 +254,19 @@ AmMotorDriver::AmMotorDriver(){
   // MOW800_MC33035 brushless driver 
   MOW800_MC33035.driverName = "MOW800_MC33035";    // just a name for your driver
   MOW800_MC33035.forwardPwmInvert = true; // invert PWM signal for forward? (false or true)
-  MOW800_MC33035.forwardDirLevel = LOW;    // logic level for forward (LOW or HIGH)
-  MOW800_MC33035.reversePwmInvert = false; // invert PWM signal for reverse? (false or true)
-  MOW800_MC33035.reverseDirLevel = HIGH;   // logic level for reverse (LOW or HIGH)
-  MOW800_MC33035.usePwmRamp = false;       // use a ramp to get to PWM value?    
+  MOW800_MC33035.forwardDirLevel = HIGH;    // logic level for forward (LOW or HIGH)
+  MOW800_MC33035.reversePwmInvert = true; // invert PWM signal for reverse? (false or true)
+  MOW800_MC33035.reverseDirLevel = LOW;   // logic level for reverse (LOW or HIGH)
+  MOW800_MC33035.usePwmRamp = true;       // use a ramp to get to PWM value?    
   MOW800_MC33035.faultActive = LOW;        // fault active level (LOW or HIGH)
   MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
-  MOW800_MC33035.enableActive = LOW;       // enable active level (LOW or HIGH)
-  MOW800_MC33035.disableAtPwmZeroSpeed = false;  // disable driver at PWM zero speed? (brake function)
+  MOW800_MC33035.enableActive = HIGH;       // enable active level (LOW or HIGH)
+  MOW800_MC33035.disableAtPwmZeroSpeed = true;  // disable driver at PWM zero speed? (brake function)
   MOW800_MC33035.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
   MOW800_MC33035.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
-  MOW800_MC33035.adcVoltToAmpOfs = 1.65;      // ADC voltage to amps (offset)
-  MOW800_MC33035.adcVoltToAmpScale = 7.57; // ADC voltage to amps (scale)
+  MOW800_MC33035.adcVoltToAmpOfs = 0.0;      // ADC voltage to amps (offset)
+  MOW800_MC33035.adcVoltToAmpScale = 1.0; // ADC voltage to amps (scale)
   MOW800_MC33035.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
 
   // your custom brushed/brushless driver (ACT-8015A, JYQD_V7.3E3, etc.)
@@ -322,6 +322,8 @@ void AmMotorDriver::begin(){
       gearsDriverChip = A4931;
     #elif MOTOR_DRIVER_BRUSHLESS_GEARS_BLDC8015A
       gearsDriverChip = BLDC8015A;    
+    #elif MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035 
+      gearsDriverChip = MOW800_MC33035;    
     #else 
       gearsDriverChip = CUSTOM;
     #endif
@@ -333,9 +335,15 @@ void AmMotorDriver::begin(){
   #endif
 
 
-  // left wheel motor
+#ifdef __MOW800__
+  pinMode(pinMotorBrakeDisable, OUTPUT);
+  digitalWrite(pinMotorBrakeDisable, HIGH);
+#endif
+
   pinMode(pinMotorEnable, OUTPUT);
-  digitalWrite(pinMotorEnable, gearsDriverChip.enableActive);
+  digitalWrite(pinMotorEnable, gearsDriverChip.disableAtPwmZeroSpeed ? !gearsDriverChip.enableActive : gearsDriverChip.enableActive);
+
+  // left wheel motor
   pinMode(pinMotorLeftPWM, OUTPUT);
   pinMode(pinMotorLeftDir, OUTPUT);
   pinMode(pinMotorLeftSense, INPUT);
@@ -434,24 +442,21 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     
 void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){  
   // remember speed sign during zero-transition
-  if (leftPwm < 0) leftSpeedSign = -1;
-  if (leftPwm > 0) leftSpeedSign = 1;
-  if (rightPwm < 0) rightSpeedSign = -1;
-  if (rightPwm > 0) rightSpeedSign = 1;
-  if (mowPwm < 0) mowSpeedSign = -1;
-  if (mowPwm > 0) mowSpeedSign = 1;   
-  
+  leftSpeedSign = (lastLeftPwm < 0) ? -1 : (lastLeftPwm > 0) ? 1 : (leftPwm < 0) ? -1 : 1;
+  rightSpeedSign = (lastRightPwm < 0) ? -1 : (lastRightPwm > 0) ? 1 : (rightPwm < 0) ? -1 : 1;
+  mowSpeedSign = (lastMowPwm < 0) ? -1 : (lastMowPwm > 0) ? 1 : (mowPwm < 0) ? -1 : 1;
+
   // limit pwm to ramp if required
   if (gearsDriverChip.usePwmRamp){
     int deltaLeftPwm = leftPwm-lastLeftPwm;
-    leftPwm = leftPwm + min(1, max(-1, deltaLeftPwm));    
+    leftPwm = lastLeftPwm + min(10, max(-10, deltaLeftPwm));
     int deltaRightPwm = rightPwm-lastRightPwm;
-    rightPwm = rightPwm + min(1, max(-1, deltaRightPwm));    
+    rightPwm = lastRightPwm + min(10, max(-10, deltaRightPwm));
   }
   if (mowDriverChip.usePwmRamp){
     int deltaMowPwm = mowPwm-lastMowPwm;
-    mowPwm = mowPwm + min(1, max(-1, deltaMowPwm));      
-  }  
+    mowPwm = lastMowPwm + min(1, max(-1, deltaMowPwm));      
+  }
 
   // remember last PWM values
   lastLeftPwm = leftPwm;  
@@ -517,6 +522,7 @@ void AmMotorDriver::resetMotorFaults(){
 }
 
 void AmMotorDriver::getMotorCurrent(float &leftCurrent, float &rightCurrent, float &mowCurrent){
+  
   leftCurrent = pow(
       ((float)ADC2voltage(analogRead(pinMotorLeftSense))) + gearsDriverChip.adcVoltToAmpOfs, gearsDriverChip.adcVoltToAmpPow
       )  * gearsDriverChip.adcVoltToAmpScale;
@@ -525,7 +531,14 @@ void AmMotorDriver::getMotorCurrent(float &leftCurrent, float &rightCurrent, flo
       )  * gearsDriverChip.adcVoltToAmpScale;
   mowCurrent = pow(
             ((float)ADC2voltage(analogRead(pinMotorMowSense))) + mowDriverChip.adcVoltToAmpOfs, mowDriverChip.adcVoltToAmpPow
-      )  * mowDriverChip.adcVoltToAmpScale; 
+      )  * mowDriverChip.adcVoltToAmpScale;
+
+  // CONSOLE.print("motor sense ");
+  // CONSOLE.print(leftCurrent);
+  // CONSOLE.print(" ");
+  // CONSOLE.print(rightCurrent);
+  // CONSOLE.print(" ");
+  // CONSOLE.println(mowCurrent);
 }
 
 void AmMotorDriver::getMotorEncoderTicks(int &leftTicks, int &rightTicks, int &mowTicks){
