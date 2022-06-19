@@ -269,6 +269,24 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035.adcVoltToAmpScale = 1.0; // ADC voltage to amps (scale)
   MOW800_MC33035.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
 
+  // MOW800_MC33035_MOW brushless driver mow motor 
+  MOW800_MC33035_MOW.driverName = "MOW800_MC33035_MOW";    // just a name for your driver
+  MOW800_MC33035_MOW.forwardPwmInvert = true; // invert PWM signal for forward? (false or true)
+  MOW800_MC33035_MOW.forwardDirLevel = HIGH;    // logic level for forward (LOW or HIGH)
+  MOW800_MC33035_MOW.reversePwmInvert = true; // invert PWM signal for reverse? (false or true)
+  MOW800_MC33035_MOW.reverseDirLevel = LOW;   // logic level for reverse (LOW or HIGH)
+  MOW800_MC33035_MOW.usePwmRamp = false;       // use a ramp to get to PWM value?    
+  MOW800_MC33035_MOW.faultActive = LOW;        // fault active level (LOW or HIGH)
+  MOW800_MC33035_MOW.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
+  MOW800_MC33035_MOW.enableActive = LOW;       // enable active level (LOW or HIGH)
+  MOW800_MC33035_MOW.disableAtPwmZeroSpeed = true;  // disable driver at PWM zero speed? (brake function)
+  MOW800_MC33035_MOW.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
+  MOW800_MC33035_MOW.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
+  MOW800_MC33035_MOW.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
+  MOW800_MC33035_MOW.adcVoltToAmpOfs = 0.0;      // ADC voltage to amps (offset)
+  MOW800_MC33035_MOW.adcVoltToAmpScale = 1.0; // ADC voltage to amps (scale)
+  MOW800_MC33035_MOW.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
+
   // your custom brushed/brushless driver (ACT-8015A, JYQD_V7.3E3, etc.)
   CUSTOM.driverName = "CUSTOM";    // just a name for your driver
   CUSTOM.forwardPwmInvert = false; // invert PWM signal for forward? (false or true)
@@ -311,7 +329,7 @@ void AmMotorDriver::begin(){
     #elif MOTOR_DRIVER_BRUSHLESS_MOW_JYQD
       mowDriverChip = JYQD;
     #elif MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035 
-      mowDriverChip = MOW800_MC33035;    
+      mowDriverChip = MOW800_MC33035_MOW;    
     #else 
       mowDriverChip = CUSTOM;
     #endif
@@ -335,11 +353,6 @@ void AmMotorDriver::begin(){
   #endif
 
 
-#ifdef __MOW800__
-  pinMode(pinMotorBrakeDisable, OUTPUT);
-  digitalWrite(pinMotorBrakeDisable, HIGH);
-#endif
-
   pinMode(pinMotorEnable, OUTPUT);
   digitalWrite(pinMotorEnable, gearsDriverChip.disableAtPwmZeroSpeed ? !gearsDriverChip.enableActive : gearsDriverChip.enableActive);
 
@@ -362,8 +375,18 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorMowRpm, INPUT);
   pinMode(pinMotorMowRpm, INPUT_PULLUP);  
   pinMode(pinMotorMowEnable, OUTPUT);
-  digitalWrite(pinMotorMowEnable, mowDriverChip.enableActive);
+  digitalWrite(pinMotorMowEnable, !mowDriverChip.enableActive);
   pinMode(pinMotorMowFault, INPUT);
+
+#ifdef __MOW800__
+  pinMode(pinMotorMowFault, INPUT_PULLDOWN);
+
+  pinMode(pinMotorBrakeDisable, OUTPUT);
+  digitalWrite(pinMotorBrakeDisable, HIGH);
+
+  pinMode(pinMotorMowBrakeDisable, OUTPUT);
+  digitalWrite(pinMotorMowBrakeDisable, HIGH);
+#endif
 
   // odometry
   pinMode(pinOdometryLeft, INPUT_PULLUP);
@@ -379,8 +402,8 @@ void AmMotorDriver::begin(){
   attachInterrupt(pinOdometryRight, OdometryRightISR, CHANGE);  
   attachInterrupt(pinMotorMowRpm, OdometryMowISR, CHANGE);  
     
-	//pinMan.setDebounce(pinOdometryLeft, 100);  // reject spikes shorter than usecs on pin
-	//pinMan.setDebounce(pinOdometryRight, 100);  // reject spikes shorter than usecs on pin	
+	// pinMan.setDebounce(pinOdometryLeft, 100);  // reject spikes shorter than usecs on pin
+	// pinMan.setDebounce(pinOdometryRight, 100);  // reject spikes shorter than usecs on pin	
   
   leftSpeedSign = rightSpeedSign = mowSpeedSign = 1;
   lastRightPwm = lastLeftPwm = lastMowPwm = 0;
@@ -463,6 +486,13 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
   lastRightPwm = rightPwm;
   lastMowPwm = mowPwm;
 
+  // CONSOLE.print("PWM ");
+  // CONSOLE.print(leftPwm);
+  // CONSOLE.print(" ");
+  // CONSOLE.print(rightPwm);
+  // CONSOLE.print(" ");
+  // CONSOLE.println(mowPwm);
+  
   // apply motor PWMs
   setMotorDriver(pinMotorLeftDir, pinMotorLeftPWM, leftPwm, gearsDriverChip, leftSpeedSign);
   setMotorDriver(pinMotorRightDir, pinMotorRightPWM, rightPwm, gearsDriverChip, rightSpeedSign);
@@ -484,7 +514,7 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
       }
     }      
     digitalWrite(pinMotorMowEnable, enableMow);
-  }  
+  }
 }
 
 
@@ -587,7 +617,13 @@ void AmBatteryDriver::begin(){
 
   pinMode(pinChargeRelay, OUTPUT);
   pinMode(pinBatteryVoltage, INPUT);
+
+#if defined(pinChargeVoltage)
   pinMode(pinChargeVoltage, INPUT);
+#elif defined(pinChargeIsConnected)
+  pinMode(pinChargeIsConnected, INPUT);
+#endif
+
   pinMode(pinChargeCurrent, INPUT);  
   myHumidity.begin();      
 }
@@ -603,7 +639,12 @@ float AmBatteryDriver::getBatteryVoltage(){
 }
 
 float AmBatteryDriver::getChargeVoltage(){
+#if defined(pinChargeVoltage)
   float voltage = ((float)ADC2voltage(analogRead(pinChargeVoltage))) * batteryFactor;
+#elif defined(pinChargeIsConnected)
+  float voltage = digitalRead(pinChargeIsConnected) == LOW ? 24.0 : 0.0; // for Matrix MOW800
+#endif
+
   return voltage;
 }
 
