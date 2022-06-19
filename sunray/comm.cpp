@@ -736,10 +736,10 @@ void processCmd(bool checkCrc, bool decrypt){
             cmd[i] = char(code);  
           }
         }
-        #ifdef VERBOSE
+        //#ifdef VERBOSE
           CONSOLE.print("decrypt:");
           CONSOLE.println(cmd);
-        #endif
+        //#endif
       }
     } 
   }
