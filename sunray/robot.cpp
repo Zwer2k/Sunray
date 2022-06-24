@@ -224,10 +224,14 @@ void sensorTest(){
         CONSOLE.print("\t");
       }    
       if (BUMPER_ENABLE){
+        bool leftBumper, rightBumper;
+        bumper.getTriggeredBumper(leftBumper, rightBumper);
         CONSOLE.print("bumper (triggered): ");
         CONSOLE.print(((int)bumper.obstacle()));
-        CONSOLE.print("\t");
-       
+        CONSOLE.print("\tleft ");
+        CONSOLE.print(leftBumper);
+        CONSOLE.print("\tright ");
+        CONSOLE.print(rightBumper);
       } 
       CONSOLE.println();  
       watchdogReset();
@@ -605,7 +609,7 @@ void start(){
   #ifdef ENABLE_NTRIP
     ntrip.begin();  
   #endif
-  
+
   watchdogEnable(10000L);   // 10 seconds  
   
   startIMU(false);        

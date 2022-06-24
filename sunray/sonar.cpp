@@ -152,9 +152,9 @@ void Sonar::begin()
   pinMode(pinSonarCenterEcho , INPUT);
   pinMode(pinSonarRightEcho , INPUT);
 
-  attachInterrupt(pinSonarLeftEcho, echoLeft, CHANGE);
-  attachInterrupt(pinSonarCenterEcho, echoCenter, CHANGE);
-  attachInterrupt(pinSonarRightEcho, echoRight, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pinSonarLeftEcho), echoLeft, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pinSonarCenterEcho), echoCenter, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pinSonarRightEcho), echoRight, CHANGE);
 
 
   //pinMan.setDebounce(pinSonarCenterEcho, 100);  // reject spikes shorter than usecs on pin
