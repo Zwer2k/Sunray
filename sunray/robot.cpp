@@ -242,7 +242,7 @@ void sensorTest(){
         CONSOLE.print(((int)liftDriver.triggered()));	
         CONSOLE.print("\t");							            
       #endif  
-	
+      	
       CONSOLE.println();  
       watchdogReset();
       robotDriver.run();   
