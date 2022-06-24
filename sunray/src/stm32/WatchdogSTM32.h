@@ -3,7 +3,19 @@
 #ifndef WATCHDOGSTM32_H
 #define WATCHDOGSTM32_H
 
-//#include <stm32f1xx_hal_iwdg.h>
+#include "Arduino.h"
+
+#if !defined(IWDG) && defined(IWDG1)
+  #define IWDG IWDG1
+#endif
+
+// Minimal timeout in microseconds
+#define IWDG_TIMEOUT_MIN    ((4*1000000)/LSI_VALUE)
+// Maximal timeout in microseconds
+#define IWDG_TIMEOUT_MAX    (((256*1000000)/LSI_VALUE)*IWDG_RLR_RL)
+
+#define IS_IWDG_TIMEOUT(X)  (((X) >= IWDG_TIMEOUT_MIN) &&\
+                             ((X) <= IWDG_TIMEOUT_MAX))
 
 class WatchdogSTM32 {
 public:
@@ -19,13 +31,21 @@ public:
   //
   // The actual period (in milliseconds) before a watchdog timer reset is
   // returned.
-  int enable(int maxPeriodMS = 0, bool isForSleep = false);
+  void begin(uint32_t timeout, uint32_t window = IWDG_TIMEOUT_MAX);
+  
+  void set(uint32_t timeout, uint32_t window = IWDG_TIMEOUT_MAX);
+  void get(uint32_t *timeout, uint32_t *window = NULL);
+  
+  void reload(void);
 
-  // Reset or 'kick' the watchdog timer to prevent a reset of the device.
-  void reset();
-
+  bool isEnabled(void)
+  {
+    return _enabled;
+  };
+  bool isReset(bool clear = false);
+  void clearReset(void);
 private:
-  //IWDG_HandleTypeDef hiwdg;
+  static bool _enabled;
 };
 
 #endif //WATCHDOGSTM32_H

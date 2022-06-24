@@ -25,11 +25,11 @@ WatchdogSTM32 watchdog;
 
 
 void watchdogReset(){
-  watchdog.reset();
+  watchdog.reload();
 }
 
 void watchdogEnable(uint32_t timeout){
-  watchdog.enable(timeout);
+  watchdog.begin(timeout * 1000);
 }
 
 

@@ -64,7 +64,9 @@ void TC3_Handler() {
   STM32Timer timer1(TIM1);
 #endif 
 
-
+#ifndef bumerUseInterrupt
+  #define bumerUseInterrupt true
+#endif
 
 
 void AmRobotDriver::begin(){
@@ -266,8 +268,8 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035.faultActive = LOW;        // fault active level (LOW or HIGH)
   MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
   MOW800_MC33035.enableActive = HIGH;       // enable active level (LOW or HIGH)
-  MOW800_MC33035.disableAtPwmZeroSpeed = true;  // disable driver at PWM zero speed? (brake function)
-  MOW800_MC33035.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
+  MOW800_MC33035.disableAtPwmZeroSpeed = false;  // disable driver at PWM zero speed? (brake function)
+  MOW800_MC33035.keepPwmZeroSpeed = false;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
   MOW800_MC33035.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
   MOW800_MC33035.adcVoltToAmpOfs = 0.0;      // ADC voltage to amps (offset)
@@ -360,33 +362,42 @@ void AmMotorDriver::begin(){
     gearsDriverChip = MC33926;
   #endif
 
-
-  pinMode(pinMotorEnable, OUTPUT);
-  digitalWrite(pinMotorEnable, gearsDriverChip.disableAtPwmZeroSpeed ? !gearsDriverChip.enableActive : gearsDriverChip.enableActive);
+  pinMode(pinMotorMowEnable, OUTPUT);
+  digitalWrite(pinMotorMowEnable, !mowDriverChip.enableActive);
+  pinMode(pinMotorMowFault, INPUT);
 
   // left wheel motor
   pinMode(pinMotorLeftPWM, OUTPUT);
+  pinMan.analogWrite(pinMotorLeftPWM, gearsDriverChip.forwardPwmInvert ? 255 : 0, gearsDriverChip.pwmFreq);
   pinMode(pinMotorLeftDir, OUTPUT);
+  digitalWrite(pinMotorLeftDir, gearsDriverChip.forwardDirLevel);
   pinMode(pinMotorLeftSense, INPUT);
   pinMode(pinMotorLeftFault, INPUT);
 
   // right wheel motor
   pinMode(pinMotorRightPWM, OUTPUT);
+  pinMan.analogWrite(pinMotorRightPWM, gearsDriverChip.forwardPwmInvert ? 255 : 0, gearsDriverChip.pwmFreq);
   pinMode(pinMotorRightDir, OUTPUT);
+  digitalWrite(pinMotorLeftDir, gearsDriverChip.reverseDirLevel);
   pinMode(pinMotorRightSense, INPUT);
   pinMode(pinMotorRightFault, INPUT);
+
+  pinMode(pinMotorEnable, OUTPUT);
+  digitalWrite(pinMotorEnable, gearsDriverChip.disableAtPwmZeroSpeed ? !gearsDriverChip.enableActive : gearsDriverChip.enableActive);
+
 
   // mower motor
   pinMode(pinMotorMowDir, OUTPUT);
   pinMode(pinMotorMowPWM, OUTPUT);
   pinMode(pinMotorMowSense, INPUT);
+#ifdef __MOW800__
   pinMode(pinMotorMowRpm, INPUT);
+#else
   pinMode(pinMotorMowRpm, INPUT_PULLUP);  
-  pinMode(pinMotorMowEnable, OUTPUT);
-  digitalWrite(pinMotorMowEnable, !mowDriverChip.enableActive);
-  pinMode(pinMotorMowFault, INPUT);
+#endif
 
 #ifdef __MOW800__
+  delay(100); // verhindert kurzes einschalten der Motoren
   pinMode(pinMotorMowFault, INPUT_PULLDOWN);
 
   pinMode(pinMotorBrakeDisable, OUTPUT);
@@ -397,18 +408,24 @@ void AmMotorDriver::begin(){
 #endif
 
   // odometry
+
+#ifdef __MOW800__
+  pinMode(pinOdometryLeft, INPUT);
+  pinMode(pinOdometryRight, INPUT);
+#else
   pinMode(pinOdometryLeft, INPUT_PULLUP);
   //pinMode(pinOdometryLeft2, INPUT_PULLUP);
   pinMode(pinOdometryRight, INPUT_PULLUP);
   //pinMode(pinOdometryRight2, INPUT_PULLUP);
+#endif
 
   // lift sensor
   pinMode(pinLift, INPUT_PULLUP);
 
   // enable interrupts
-  attachInterrupt(pinOdometryLeft, OdometryLeftISR, CHANGE);  
-  attachInterrupt(pinOdometryRight, OdometryRightISR, CHANGE);  
-  attachInterrupt(pinMotorMowRpm, OdometryMowISR, CHANGE);  
+  attachInterrupt(digitalPinToInterrupt(pinOdometryLeft), OdometryLeftISR, CHANGE);  
+  attachInterrupt(digitalPinToInterrupt(pinOdometryRight), OdometryRightISR, CHANGE);  
+  attachInterrupt(digitalPinToInterrupt(pinMotorMowRpm), OdometryMowISR, CHANGE);  
     
 	// pinMan.setDebounce(pinOdometryLeft, 100);  // reject spikes shorter than usecs on pin
 	// pinMan.setDebounce(pinOdometryRight, 100);  // reject spikes shorter than usecs on pin	
@@ -450,7 +467,9 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // reverse
-    digitalWrite(pinDir, chip.reverseDirLevel) ;
+    if (speed != 0) // verhindert, dass der Motor beim stoppen durch umkehren der Richtung bremst
+      digitalWrite(pinDir, chip.reverseDirLevel) ;
+
     if (chip.reversePwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
     else 
@@ -464,7 +483,9 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // forward
-    digitalWrite(pinDir, chip.forwardDirLevel) ;
+    if (speed != 0) // verhindert, dass der Motor beim stoppen durch umkehren der Richtung bremst
+      digitalWrite(pinDir, chip.forwardDirLevel) ;
+
     if (chip.forwardPwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
     else 
@@ -481,9 +502,11 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
   // limit pwm to ramp if required
   if (gearsDriverChip.usePwmRamp){
     int deltaLeftPwm = leftPwm-lastLeftPwm;
-    leftPwm = lastLeftPwm + min(10, max(-10, deltaLeftPwm));
+    int leftStepPwm = max(1, abs(deltaLeftPwm) / 5);
+    leftPwm = lastLeftPwm + min(leftStepPwm, max(-leftStepPwm, deltaLeftPwm));
     int deltaRightPwm = rightPwm-lastRightPwm;
-    rightPwm = lastRightPwm + min(10, max(-10, deltaRightPwm));
+    int rightStepPwm = max(1, abs(deltaRightPwm) / 5);
+    rightPwm = lastRightPwm + min(rightStepPwm, max(-rightStepPwm, deltaRightPwm));
   }
   if (mowDriverChip.usePwmRamp){
     int deltaMowPwm = mowPwm-lastMowPwm;
@@ -683,30 +706,51 @@ void AmBatteryDriver::keepPowerOn(bool flag){
   digitalWrite(pinBatterySwitch, flag);
 }
 
+#ifndef bumperTriggerdLevel
+  #define bumperTriggerdLevel LOW
+#endif 
 
 // ------------------------------------------------------------------------------------
 void BumperLeftInterruptRoutine(){
-  leftPressed = (digitalRead(pinBumperLeft) == LOW);  
+  leftPressed = (digitalRead(pinBumperLeft) == bumperTriggerdLevel);  
 }
 
 void BumperRightInterruptRoutine(){
-  rightPressed = (digitalRead(pinBumperRight) == LOW);  
+  rightPressed = (digitalRead(pinBumperRight) == bumperTriggerdLevel);  
 }
 
 
 void AmBumperDriver::begin(){	
+#ifdef __MOW800__
+  pinMode(pinBumperLeft, INPUT);                   
+  pinMode(pinBumperRight, INPUT);
+#else
   pinMode(pinBumperLeft, INPUT_PULLUP);                   
   pinMode(pinBumperRight, INPUT_PULLUP);                   
-  attachInterrupt(pinBumperLeft, BumperLeftInterruptRoutine, CHANGE);
-	attachInterrupt(pinBumperRight, BumperRightInterruptRoutine, CHANGE);
+#endif  
+
+#if bumerUseInterrupt == true
+    attachInterrupt(digitalPinToInterrupt(pinBumperLeft), BumperLeftInterruptRoutine, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(pinBumperRight), BumperRightInterruptRoutine, CHANGE);
+#endif
 }
 
 void AmBumperDriver::getTriggeredBumper(bool &leftBumper, bool &rightBumper){
+#if bumerUseInterrupt != true
+  obstacle();
+#endif
+
   leftBumper = leftPressed;
   rightBumper = rightPressed;
 }
 
 bool AmBumperDriver::obstacle(){
+#if bumerUseInterrupt != true
+    leftPressed = (digitalRead(pinBumperLeft) == bumperTriggerdLevel);  
+    rightPressed = (digitalRead(pinBumperRight) == bumperTriggerdLevel);
+#endif
+
+
   return (leftPressed || rightPressed);
 }
     

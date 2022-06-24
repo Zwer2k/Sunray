@@ -636,7 +636,7 @@ void start(){
   #ifdef ENABLE_NTRIP
     ntrip.begin();  
   #endif
-  
+
   watchdogEnable(10000L);   // 10 seconds  
   
   startIMU(false);        
