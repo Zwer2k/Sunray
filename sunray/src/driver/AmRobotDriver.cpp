@@ -364,15 +364,22 @@ void AmMotorDriver::begin(){
 
   pinMode(pinMotorMowEnable, OUTPUT);
   digitalWrite(pinMotorMowEnable, !mowDriverChip.enableActive);
+#ifdef pinMotorMowFault
   pinMode(pinMotorMowFault, INPUT);
-
+#else
+  CONSOLE.println("Motor mow fault PIN not defined");
+#endif
   // left wheel motor
   pinMode(pinMotorLeftPWM, OUTPUT);
   pinMan.analogWrite(pinMotorLeftPWM, gearsDriverChip.forwardPwmInvert ? 255 : 0, gearsDriverChip.pwmFreq);
   pinMode(pinMotorLeftDir, OUTPUT);
   digitalWrite(pinMotorLeftDir, gearsDriverChip.forwardDirLevel);
   pinMode(pinMotorLeftSense, INPUT);
+#ifdef pinMotorLeftFault
   pinMode(pinMotorLeftFault, INPUT);
+#else
+  CONSOLE.println("Motor left fault PIN not defined");
+#endif
 
   // right wheel motor
   pinMode(pinMotorRightPWM, OUTPUT);
@@ -380,25 +387,29 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorRightDir, OUTPUT);
   digitalWrite(pinMotorLeftDir, gearsDriverChip.reverseDirLevel);
   pinMode(pinMotorRightSense, INPUT);
+#ifdef pinMotorRightFault
   pinMode(pinMotorRightFault, INPUT);
+#else
+  CONSOLE.println("Motor left fault PIN not defined");
+#endif
 
   pinMode(pinMotorEnable, OUTPUT);
   digitalWrite(pinMotorEnable, gearsDriverChip.disableAtPwmZeroSpeed ? !gearsDriverChip.enableActive : gearsDriverChip.enableActive);
 
 
   // mower motor
-  pinMode(pinMotorMowDir, OUTPUT);
-  pinMode(pinMotorMowPWM, OUTPUT);
   pinMode(pinMotorMowSense, INPUT);
 #ifdef __MOW800__
   pinMode(pinMotorMowRpm, INPUT);
 #else
+  pinMode(pinMotorMowDir, OUTPUT);
+  pinMode(pinMotorMowPWM, OUTPUT);
   pinMode(pinMotorMowRpm, INPUT_PULLUP);  
 #endif
 
 #ifdef __MOW800__
   delay(100); // verhindert kurzes einschalten der Motoren
-  pinMode(pinMotorMowFault, INPUT_PULLDOWN);
+  //pinMode(pinMotorMowFault, INPUT_PULLDOWN);
 
   pinMode(pinMotorBrakeDisable, OUTPUT);
   digitalWrite(pinMotorBrakeDisable, HIGH);
@@ -528,8 +539,10 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
   // apply motor PWMs
   setMotorDriver(pinMotorLeftDir, pinMotorLeftPWM, leftPwm, gearsDriverChip, leftSpeedSign);
   setMotorDriver(pinMotorRightDir, pinMotorRightPWM, rightPwm, gearsDriverChip, rightSpeedSign);
+#ifdef pinMotorMowDir
   setMotorDriver(pinMotorMowDir, pinMotorMowPWM, mowPwm, mowDriverChip, mowSpeedSign);
-  
+#endif
+
   // disable driver at zero speed (brake function)    
   bool enableGears = gearsDriverChip.enableActive;
   bool enableMow = mowDriverChip.enableActive;  
@@ -551,36 +564,52 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
 
 
 void AmMotorDriver::getMotorFaults(bool &leftFault, bool &rightFault, bool &mowFault){ 
+#ifdef pinMotorLeftFault
   if (digitalRead(pinMotorLeftFault) == gearsDriverChip.faultActive) {
     leftFault = true;
   }
+#endif
+
+#ifdef pinMotorRightFault
   if  (digitalRead(pinMotorRightFault) == gearsDriverChip.faultActive) {
     rightFault = true;
   }
+#endif
+
+#ifdef pinMotorMowFault
   if (digitalRead(pinMotorMowFault) == mowDriverChip.faultActive) {
     mowFault = true;
   }
+#endif
 }
 
-void AmMotorDriver::resetMotorFaults(){  
+void AmMotorDriver::resetMotorFaults(){
+#ifdef pinMotorLeftFault  
   if (digitalRead(pinMotorLeftFault) == gearsDriverChip.faultActive) {
     if (gearsDriverChip.resetFaultByToggleEnable){
       digitalWrite(pinMotorEnable, !gearsDriverChip.enableActive);
       digitalWrite(pinMotorEnable, gearsDriverChip.enableActive);
     }
   }
+#endif
+
+#ifdef pinMotorRightFault
   if  (digitalRead(pinMotorRightFault) == gearsDriverChip.faultActive) {
     if (gearsDriverChip.resetFaultByToggleEnable){
       digitalWrite(pinMotorEnable, !gearsDriverChip.enableActive);
       digitalWrite(pinMotorEnable, gearsDriverChip.enableActive);
     }
   }
+#endif
+
+#ifdef pinMotorMowFault
   if (digitalRead(pinMotorMowFault) == mowDriverChip.faultActive) {
     if (mowDriverChip.resetFaultByToggleEnable){
       digitalWrite(pinMotorMowEnable, !mowDriverChip.enableActive);
       digitalWrite(pinMotorMowEnable, mowDriverChip.enableActive);
     }
   }
+#endif
 }
 
 void AmMotorDriver::getMotorCurrent(float &leftCurrent, float &rightCurrent, float &mowCurrent){
@@ -627,8 +656,12 @@ void AmMotorDriver::getMotorEncoderTicks(int &leftTicks, int &rightTicks, int &m
 
 void AmBatteryDriver::begin(){
   // keep battery switched ON
+#ifdef pinBatterySwitch
   pinMode(pinBatterySwitch, OUTPUT);    
-  digitalWrite(pinBatterySwitch, HIGH);  
+  digitalWrite(pinBatterySwitch, HIGH);
+#else
+  CONSOLE.println("Battery switch pin not defined");
+#endif  
   batteryFactor = (100+10) / 10;    // ADC voltage to battery voltage
 
   //INA169:  A precision amplifier measures the voltage across the Rs=0.1 ohm, 1% sense resistor. 
@@ -649,7 +682,12 @@ void AmBatteryDriver::begin(){
   
   currentFactor = CURRENT_FACTOR;         // ADC voltage to current ampere  (0.5 for non-bridged)
 
+#ifdef pinChargeRelay
   pinMode(pinChargeRelay, OUTPUT);
+#else
+  CONSOLE.println("Charge PIN relay not defined");
+#endif
+
   pinMode(pinBatteryVoltage, INPUT);
 
 #if defined(pinChargeVoltage)
@@ -699,11 +737,15 @@ float AmBatteryDriver::getBatteryTemperature(){
 }
 
 void AmBatteryDriver::enableCharging(bool flag){
-  digitalWrite(pinChargeRelay, flag);      
+#ifdef pinChargeRelay
+  digitalWrite(pinChargeRelay, flag);
+#endif      
 }
 
 void AmBatteryDriver::keepPowerOn(bool flag){
+#ifdef pinBatterySwitch
   digitalWrite(pinBatterySwitch, flag);
+#endif
 }
 
 #ifndef bumperTriggerdLevel
@@ -764,15 +806,21 @@ void AmBumperDriver::run(){
 
 void AmStopButtonDriver::begin(){
   nextControlTime = 0;
-  pressed = false;  
-  pinMode(pinButton, INPUT_PULLUP);  
+  pressed = false;
+#ifdef pinButton
+  pinMode(pinButton, INPUT_PULLUP);
+#else
+  CONSOLE.println("Bitton PIN not defined");
+#endif  
 }
 
 void AmStopButtonDriver::run(){
   unsigned long t = millis();
   if (t < nextControlTime) return;
   nextControlTime = t + 100;                                       // save CPU resources by running at 10 Hz
+#ifdef pinButton
   pressed = (digitalRead(pinButton)== LOW);
+#endif
 }
 
 bool AmStopButtonDriver::triggered(){
