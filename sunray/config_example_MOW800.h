@@ -519,9 +519,6 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorLeftPWM PA0          // M1_IN1 left motor PWM pin
   #define pinMotorLeftDir PC8         // M1_IN2 left motor Dir pin
   #define pinMotorLeftSense PC1       // M1_FB  left motor current sense
-  //#define pinMotorLeftFault 25       // M1_SF  left motor fault
-                                                              
-  #define pinMotorRightPWM  PA1        // M2_IN1 right motor PWM pin
   #define pinMotorRightDir PF5        // M2_IN2 right motor Dir pin
   #define pinMotorRightSense PA6      // M2_FB  right motor current sense
   //#define pinMotorRightFault 27      // M2_SF  right motor fault
