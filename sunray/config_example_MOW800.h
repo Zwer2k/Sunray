@@ -84,7 +84,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define MPU9150
 //#define MPU9250   // also choose this for MPU9255
 //#define BNO055
-#define MPU_ADDR 0x69  // I2C address (0x68 if AD0=LOW, 0x69 if AD0=HIGH)
+#define MPU_ADDR 0x68  // I2C address (0x68 if AD0=LOW, 0x69 if AD0=HIGH)
 
 // should the mower turn off if IMU is tilt over? (yes: uncomment line, no: comment line)
 #define ENABLE_TILT_DETECTION  1
@@ -121,8 +121,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // NOTE: if using non-default Ardumower chassis and your freewheel is at frontside (gear motors at backside), have may have to swap motor cables, 
 // more info here: https://wiki.ardumower.de/index.php?title=Ardumower_Chassis_%27mountain_mod%27)
 #define FREEWHEEL_IS_AT_BACKSIDE   true   // default Ardumower: true   (change to false, if your freewheel is at frontside) - this is used for obstacle avoidance
-#define WHEEL_BASE_CM         36         // wheel-to-wheel distance (cm)        
-#define WHEEL_DIAMETER        250        // wheel diameter (mm)                 
+#define WHEEL_BASE_CM         32         // wheel-to-wheel distance (cm)        
+#define WHEEL_DIAMETER        215        // wheel diameter (mm)                 
 
 //#define ENABLE_ODOMETRY_ERROR_DETECTION  true    // use this to detect odometry erros
 #define ENABLE_ODOMETRY_ERROR_DETECTION  false
@@ -265,7 +265,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // robot1/gps/sol       (current gps solution as text)
 // robot1/gps/pos       (current gps position as text)
 //#define ENABLE_MQTT  true                           // start MQTT client?  (true for yes, false for no)
-#define ENABLE_MQTT  true
+#define ENABLE_MQTT  false
 #define MQTT_TOPIC_PREFIX  "robot1"                 // the MQTT topic prefix for your robot 
 #define MQTT_SERVER  "192.168.44.7"                 // your MQTT broker IP or hostname (e.g. "broker.mqtt-dashboard.com")
 #define MQTT_PORT  1883
@@ -298,8 +298,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // see Wiki on how to install bumperduino or freewheel sensor:
 // https://wiki.ardumower.de/index.php?title=Bumper_sensor
 // https://wiki.ardumower.de/index.php?title=Free_wheel_sensor
-// #define BUMPER_ENABLE true
-#define BUMPER_ENABLE false
+#define BUMPER_ENABLE true
+//#define BUMPER_ENABLE false
 #define BUMPER_DEADTIME 1000  // linear motion dead-time (ms) after bumper is allowed to trigger
 
 
@@ -426,7 +426,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // more details: https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#R.2FC_model
 //#define RCMODEL_ENABLE 1  // uncomment line to turn on R/C control
 
-#define BUZZER_ENABLE 1 // uncomment to disable
+// #define BUZZER_ENABLE 1 // uncomment to disable
 
 
 // ------ experimental options  -------------------------
@@ -512,6 +512,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #ifdef __linux__
   // ...
 #else
+  #define pinAllMotorBrakeDisable PD4
+
   #define pinMotorBrakeDisable PB12    // brake disabled pin
   #define pinMotorEnable  PB13         // EN motors enable
   #define pinMotorLeftPWM PA0          // M1_IN1 left motor PWM pin
@@ -535,7 +537,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //  #define pinFreeWheel 8             // front/rear free wheel sensor    
   #define pinBumperLeft PD9           // bumper pins
   #define pinBumperRight PD8
-  #define bumperTriggerdLevel LOW     // level of pressed bumper
+  #define bumperTriggerdLevel HIGH     // level of pressed bumper
   #define bumerUseInterrupt false     // use interrrupt for bumper trigger
 
   // #define pinDropLeft 45           // drop pins                                                                                          Dropsensor - Absturzsensor
