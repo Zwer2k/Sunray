@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "unordered_map": "cpp",
-        "initializer_list": "cpp"
+        "initializer_list": "cpp",
+        "tuple": "cpp"
     }
 }

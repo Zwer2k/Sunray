@@ -245,19 +245,19 @@ void Motor::setLinearAngularSpeed(float linear, float angular, bool useLinearRam
      linearSpeedSet = linear;
    }
    angularSpeedSet = angular;   
-   float rspeed = linearSpeedSet + angularSpeedSet * (wheelBaseCm /100.0 /2);          
-   float lspeed = linearSpeedSet - angularSpeedSet * (wheelBaseCm /100.0 /2);          
+   float rspeed = (abs(linearSpeedSet) + angularSpeedSet * (wheelBaseCm /100.0 /2)) * (linearSpeedSet < 0 ? -1 : 1);          
+   float lspeed = (abs(linearSpeedSet) - angularSpeedSet * (wheelBaseCm /100.0 /2)) * (linearSpeedSet < 0 ? -1 : 1);          
    // RPM = V / (2*PI*r) * 60
    motorRightRpmSet =  rspeed / (PI*(((float)wheelDiameter)/1000.0)) * 60.0;   
    motorLeftRpmSet = lspeed / (PI*(((float)wheelDiameter)/1000.0)) * 60.0;   
-//   CONSOLE.print("setLinearAngularSpeed ");
-//   CONSOLE.print(linear);
-//   CONSOLE.print(",");
-//   CONSOLE.print(angular); 
-//   CONSOLE.print(",");
-//   CONSOLE.print(lspeed);
-//   CONSOLE.print(",");
-//   CONSOLE.println(rspeed);
+  // CONSOLE.print("setLinearAngularSpeed ");
+  // CONSOLE.print(linear);
+  // CONSOLE.print(",");
+  // CONSOLE.print(angular); 
+  // CONSOLE.print(",");
+  // CONSOLE.print(lspeed);
+  // CONSOLE.print(",");
+  // CONSOLE.println(rspeed);
 }
 
 

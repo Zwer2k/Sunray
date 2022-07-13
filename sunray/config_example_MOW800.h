@@ -91,7 +91,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 // --------- lift sensor (e.g. Alfred mower) ---------------------------------------------
 // should the lift sensor be enabled? (yes: uncomment line, no: comment line)
-//#define ENABLE_LIFT_DETECTION  1
+#define ENABLE_LIFT_DETECTION  1
 // should the lift sensor be used for obstacle avoidance (if not, mower will simply go into error if lifted)
 #define LIFT_OBSTACLE_AVOIDANCE 1  
 
@@ -220,7 +220,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define MAX_MOW_RPM 255   // maximum value is 255
 
 // set maximum gear motors RPM
-#define MAX_GEAR_PWM 130 // maximum value is 255
+#define MAX_GEAR_PWM 255 // maximum value is 255
 
 // ------ WIFI module (ESP8266 ESP-01 with ESP firmware 2.2.1) --------------------------------
 // NOTE: all settings (maps, absolute position source etc.) are stored in your phone - when using another
@@ -377,7 +377,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 #define OBSTACLE_AVOIDANCE true   // try to find a way around obstacle
 //#define OBSTACLE_AVOIDANCE false  // stop robot on obstacle
-#define OBSTACLE_DIAMETER 1.2   // choose diameter of obstacles placed in front of robot (m) for obstacle avoidance
+#define OBSTACLE_DIAMETER 0.8   // choose diameter of obstacles placed in front of robot (m) for obstacle avoidance
 
 // detect robot being kidnapped? robot will try GPS recovery if distance to tracked path is greater than a certain value
 // (false GPS fix recovery), and if that fails go into error 
@@ -518,7 +518,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorEnable  PB13         // EN motors enable
   #define pinMotorLeftPWM PA0          // M1_IN1 left motor PWM pin
   #define pinMotorLeftDir PC8         // M1_IN2 left motor Dir pin
-  #define pinMotorLeftSense PC2       // M1_FB  left motor current sense
+  #define pinMotorLeftSense PC1       // M1_FB  left motor current sense
   //#define pinMotorLeftFault 25       // M1_SF  left motor fault
                                                               
   #define pinMotorRightPWM  PA1        // M2_IN1 right motor PWM pin
@@ -529,7 +529,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorMowBrakeDisable PC12
   //#define pinMotorMowPWM 2           // M1_IN1 mower motor PWM pin (if using MOSFET, use this pin)
   //#define pinMotorMowDir 29          // M1_IN2 mower motor Dir pin (if using MOSFET, keep unconnected)
-  #define pinMotorMowSense PC4        // M1_FB  mower motor current sense  
+  #define pinMotorMowSense PA7        // M1_FB  mower motor current sense  
   //#define pinMotorMowFault 26        // M1_SF  mower motor fault   (if using MOSFET/L298N, keep unconnected)
   #define pinMotorMowEnable PC13       // EN mower motor enable      (if using MOSFET/L298N, keep unconnected)
   #define pinMotorMowRpm PD1
