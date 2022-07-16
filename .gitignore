@@ -1,0 +1,6 @@
+config.h
+.pio
+.vscode/c_cpp_properties.json
+.vscode/extensions.json
+.vscode/launch.jso
+.vscode/launch.json

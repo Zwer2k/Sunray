@@ -15,7 +15,9 @@
 #if defined(_SAM3XA_)                 // Arduino Due
   #define CONSOLE SerialUSB
 #else
-  #define CONSOLE Serial
+  #ifndef CONSOLE
+    #define CONSOLE Serial
+  #endif
 #endif
 
 

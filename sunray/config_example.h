@@ -525,12 +525,12 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorMowEnable 28       // EN mower motor enable      (if using MOSFET/L298N, keep unconnected)
   #define pinMotorMowRpm A11
       
-  #define pinFreeWheel 8             // front/rear free wheel sensor    
+//  #define pinFreeWheel 8             // front/rear free wheel sensor    
   #define pinBumperLeft 39           // bumper pins
   #define pinBumperRight 38
 
-  #define pinDropLeft 45           // drop pins                                                                                          Dropsensor - Absturzsensor
-  #define pinDropRight 23          // drop pins                                                                                          Dropsensor - Absturzsensor
+  // #define pinDropLeft 45           // drop pins                                                                                          Dropsensor - Absturzsensor
+  // #define pinDropRight 23          // drop pins                                                                                          Dropsensor - Absturzsensor
 
   #define pinSonarCenterTrigger 24   // ultrasonic sensor pins
   #define pinSonarCenterEcho 22
@@ -538,9 +538,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinSonarRightEcho 32
   #define pinSonarLeftTrigger 34         
   #define pinSonarLeftEcho 36
-  #define pinPerimeterRight A4       // perimeter
-  #define pinDockingReflector A4     // docking IR reflector
-  #define pinPerimeterLeft A5
+  // #define pinPerimeterRight A4       // perimeter
+  // #define pinDockingReflector A4     // docking IR reflector
+  // #define pinPerimeterLeft A5
 
   #define pinLED 13                  // LED
   #define pinBuzzer 53               // Buzzer
