@@ -1,29 +1,35 @@
-STM32F103ZET6	main CPU
-MC33035DW 		Brushless DC Motor Controller
-MC33039 		Closed loop speed control adapter
-FDD8424H 		Dual MOSFET
-MMA8452Q		3-axis, 12-bit/8-bit digital accelerometer
+# Matrix MOW800 Reverse Engineering / Pinbelegung
+
+## Mainboard / Motertreiber-Board
+3x MC33035DW 	Brushless DC Motor Controller
+3x MC33039 		Closed loop speed control adapter
+9x FDD8424H 	Dual MOSFET
 74HC4052		Perimer Schleife Anbindung
 TPS3840 (ZA80)	Spannungsüberwachung 4x
 
-## CPU-Board PIN Belegung
+---------------
+## CPU-Board
+STM32F103ZET6	main CPU (72MHz, 512KB Flash, 64KB SRAM, 2x I2C, 5x USART)
+MMA8452Q		3-axis, 12-bit/8-bit digital accelerometer
+BUZZER
+
 ### USB_USART Stecker
 1 +5V
 2 CPU-138 (BOOT0) 
-3 CPU-25  (NRST = RESET)    	+ SWD-Stecker-4 
+3 CPU-25  (NRST = RESET) 
 4 +3.3V (VDD)
 5 CPU-102 (PA10 = USART1-RxD)
 6 CPU-101 (PA9  = USART1-TxD)
 7 GND
 
-### SWD Stecker
+### SWD Stecker (Programmierung CPU)
 1 +3.3V (VDD)
 2 CPU-105 (PA13 = SWDIO)
 3 CPU-109 (PA14 = SWCLK)
 4 CPU-25 (NRST = RESET)
 5 GND
 
-### J1 Stecker
+### J1 Stecker (zum Main-Board)
 | Stecker PIN | Verbindung auf dem CPU-Board | Verbindung auf dem Mainboard |
 |-------------|------------------------------|------------------------------|
 | 1  (GND)    |   |   |
@@ -49,17 +55,17 @@ TPS3840 (ZA80)	Spannungsüberwachung 4x
 | 21 (ADDR1)  |	CPU-115 (PD1) |	PWM Mähmotor (Eigenbelegung) |
 | 22 (CHARGE_1) | CPU-26 (PC0) | (Ladestrommessung) |
 
-### Data Stecker
+### Data Stecker (zu LCD Platiene)
 1 	J1-Stecker-5 (ON/OFF) 1kOhm
 2	CPU-70	(PB11) 	1kOhm (Pin auf meiner komischerweise Platine unterbrocen)
 3	CPU-69	(PB10)	1kOhm
 
-### J2 Stecker
-| Stecker PIN       |   |   |
+### J2 Stecker (zum Main-Board)
+| Stecker PIN       | Verbindung auf dem CPU-Board | Verbindung auf dem Mainboard |
 |-------------------|---|---|
-| 1	 (IROUT)        | Infrearet-STecker-2 |
+| 1	 (IROUT)        | Infrearet-Stecker-2 |
 | 2	 (-)	        | CPU-73 (PB12) | (Motor L+R Bremse aus ?) |
-| 3	 (IR RECIVE)    | Infrearet-STecker-3 |
+| 3	 (IR RECIVE)    | Infrearet-Stecker-3 |
 | 4	 (-)		    | CPU-74 (PB13) | (Motor L+R ON/OFF) |
 | 5	 (CK-RF)        | CPU-139 (PB8) |  |
 | 6	 (-)		    | CPU-75 (PB14) |  |				(Perimeter Schlefen Soensor select ?) |
@@ -95,14 +101,16 @@ TPS3840 (ZA80)	Spannungsüberwachung 4x
 SDA CPU-137  (PB7 = SDA)
 SCL CPU-136  (PB6 = SCL)
 
-### Crash Stecker							Crash Platine
-1 CPU-36 (PA2) 							1 CPU-16 (PA6) über 10k Wiederstand
-2 CPU-84 (VDD +3.3V)					2 VDD +3.3V
-3 CPU-77 (PD8)							3 HAL rechts
-4 CPU-78 (PD9)							4 HAL links
-5 CPU-47 (PB1)							5 CPU-26 (PB13) SPI2-SCK
-6 CPU-46 (PB0)							6 CPU-27 (PB14) SPI2-MISO
-7 GND									7 GND
+### Crash Stecker
+| Stecker Pin | Verbindung auf dem CPU-Board | Verbindung auf der Crash Platine |
+|-------------|------------------------------|---|
+| 1 | CPU-36 (PA2) | CPU-16 (PA6) über 10k Wiederstand
+| 2 | VDD +3.3V | VDD +3.3V
+| 3 | CPU-77 (PD8) | HAL rechts
+| 4 | CPU-78 (PD9) | HAL links
+| 5 | CPU-47 (PB1) | CPU-26 (PB13) SPI2-SCK
+| 6 | CPU-46 (PB0) | CPU-27 (PB14) SPI2-MISO
+| 7 | GND | GND
 
 ### CPU
 89 (PG4)  BUZZER
