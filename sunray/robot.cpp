@@ -395,6 +395,9 @@ void outputConfig(){
   #ifdef MOTOR_DRIVER_BRUSHLESS_GEARS_JYQD
     CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_GEARS_JYQD");
   #endif
+  #ifdef MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035
+    CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035");
+  #endif 
   
   CONSOLE.print("MOTOR_FAULT_CURRENT: ");
   CONSOLE.println(MOTOR_FAULT_CURRENT);
@@ -530,7 +533,9 @@ void start(){
       I2Creset();  
       Wire.begin();    
       #ifdef I2C_SPEED
-        Wire.setClock(I2C_SPEED);     
+        #ifndef ARDUINO_ARCH_STM32
+          Wire.setClock(I2C_SPEED);     
+        #endif
       #endif
     } else break;
   }  
