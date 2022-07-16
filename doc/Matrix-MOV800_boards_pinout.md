@@ -6,7 +6,6 @@
 9x FDD8424H 	Dual MOSFET
 74HC4052		Perimer Schleife Anbindung
 TPS3840 (ZA80)	Spannungsüberwachung 4x
-s
 ---------------
 ## CPU-Board
 STM32F103ZET6	main CPU (72MHz, 512KB Flash, 64KB SRAM, 2x I2C, 5x USART)
