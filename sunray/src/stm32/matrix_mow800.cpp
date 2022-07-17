@@ -7,10 +7,10 @@
 // FIFO size can be adjusted here (click on Arduino IDE->File->Preferences to jump into that folder):
 // C:\Users\alex\AppData\Local\Arduino15\packages\adafruit\hardware\samd\1.6.0\cores\arduino\RingBuffer.h
 
+#if defined(__MOW800__)
 #include "../../config.h"
 #include "WatchdogSTM32.h"
 
-#if defined(__MOW800__)
 
 //HardwareSerial Serial1(PIN_SERIAL_RX, PIN_SERIAL_TX);
 //HardwareSerial Serial2(PIN_SERIAL2_RX, PIN_SERIAL2_TX);
