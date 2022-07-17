@@ -161,6 +161,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define MOTOR_DRIVER_BRUSHLESS_GEARS_BLDC8015A 1   // uncomment for brushless BLDC8015A driver and gear/traction motors
 #define MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035 1   // uncomment for Matrix MOW800 brushless MC3305 driver and gear/traction motors
 
+#define MOTOR_FAULT_CURRENT 6.0    // gear motors fault current (amps)
 #define MOTOR_OVERLOAD_CURRENT 0.8    // gear motors overload current (amps)
 
 //#define USE_LINEAR_SPEED_RAMP  true      // use a speed ramp for the linear speed
@@ -194,6 +195,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // certain time (normally a few seconds) and the mower will try again and set a virtual obstacle after too many tries
 // On the other hand, the overload detection will detect situations the fault signal cannot detect: slightly higher current for a longer time 
 
+#define MOW_FAULT_CURRENT 8.0       // mowing motor fault current (amps)
 #define MOW_OVERLOAD_CURRENT 2.0    // mowing motor overload current (amps)
 
 // should the direction of mowing motor toggle each start? (yes: true, no: false)
@@ -207,6 +209,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // should the motor fault (error) detection be enabled? 
 #define ENABLE_FAULT_DETECTION  true
 //#define ENABLE_FAULT_DETECTION  false       // use this if you keep getting 'motor error'
+
+#define ENABLE_RPM_FAULT_DETECTION  true     // use mow rpm signal to detect a motor fault (requires mowing motor with rpm output!)
+//#define ENABLE_RPM_FAULT_DETECTION  false     // do not use mow rpm signal to detect a motor fault
 
 // should the robot trigger obstacle avoidance on motor errors if motor recovery failed?
 #define ENABLE_FAULT_OBSTACLE_AVOIDANCE true  
@@ -519,6 +524,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorLeftPWM PA0          // M1_IN1 left motor PWM pin
   #define pinMotorLeftDir PC8         // M1_IN2 left motor Dir pin
   #define pinMotorLeftSense PC1       // M1_FB  left motor current sense
+  //#define pinMotorLeftFault 25       // M1_SF  left motor fault
+                                                              
+  #define pinMotorRightPWM  PA1        // M2_IN1 right motor PWM pin
   #define pinMotorRightDir PF5        // M2_IN2 right motor Dir pin
   #define pinMotorRightSense PA6      // M2_FB  right motor current sense
   //#define pinMotorRightFault 27      // M2_SF  right motor fault
