@@ -1,16 +1,16 @@
 # Matrix MOW800 Reverse Engineering / Pinbelegung
 
 ## Mainboard / Motertreiber-Board
-3x MC33035DW 	Brushless DC Motor Controller
-3x MC33039 		Closed loop speed control adapter
-9x FDD8424H 	Dual MOSFET
-74HC4052		Perimer Schleife Anbindung
+3x MC33035DW 	Brushless DC Motor Controller  
+3x MC33039 		Closed loop speed control adapter  
+9x FDD8424H 	Dual MOSFET  
+74HC4052		Perimer Schleife Anbindung  
 TPS3840 (ZA80)	Spannungsüberwachung 4x
 
 ---------------
 ## CPU-Board
-STM32F103ZET6	main CPU (72MHz, 512KB Flash, 64KB SRAM, 2x I2C, 5x USART)
-MMA8452Q		3-axis, 12-bit/8-bit digital accelerometer
+STM32F103ZET6	main CPU (72MHz, 512KB Flash, 64KB SRAM, 2x I2C, 5x USART)  
+MMA8452Q		3-axis, 12-bit/8-bit digital accelerometer  
 BUZZER
 
 ### USB_USART Stecker
