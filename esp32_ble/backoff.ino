@@ -1,9 +1,11 @@
+#include <Arduino.h>
+
 class Backoff
 {
   private:
+    float factor;
     uint32_t min;
     uint32_t max;
-    float factor;
 
     bool active;
     uint32_t last_time;
