@@ -1,4 +1,5 @@
 // watchdog for STM32 
+#if defined(ARDUINO_ARCH_STM32)
 
 #ifndef WATCHDOGSTM32_H
 #define WATCHDOGSTM32_H
@@ -49,3 +50,5 @@ private:
 };
 
 #endif //WATCHDOGSTM32_H
+
+#endif //ARDUINO_ARCH_STM32

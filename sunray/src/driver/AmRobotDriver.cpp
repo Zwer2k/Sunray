@@ -64,8 +64,8 @@ void TC3_Handler() {
   STM32Timer timer1(TIM1);
 #endif 
 
-#ifndef bumerUseInterrupt
-  #define bumerUseInterrupt true
+#ifndef pinBumerUseInterrupt
+  #define pinBumerUseInterrupt true
 #endif
 
 
@@ -436,7 +436,11 @@ void AmMotorDriver::begin(){
 #endif
 
   // lift sensor
+#if pinLiftDisablePullUp == true
+  pinMode(pinLift, INPUT);
+#else
   pinMode(pinLift, INPUT_PULLUP);
+#endif
 
   // enable interrupts
   attachInterrupt(digitalPinToInterrupt(pinOdometryLeft), OdometryLeftISR, CHANGE);  
@@ -753,22 +757,26 @@ void AmBatteryDriver::keepPowerOn(bool flag){
 #endif
 }
 
-#ifndef bumperTriggerdLevel
-  #define bumperTriggerdLevel LOW
+#ifndef pinBumperTriggerdLevel
+  #define pinBumperTriggerdLevel LOW
+#endif 
+
+#ifndef pinLiftTriggerdLevel
+  #define pinLiftTriggerdLevel LOW
 #endif 
 
 // ------------------------------------------------------------------------------------
 void BumperLeftInterruptRoutine(){
-  leftPressed = (digitalRead(pinBumperLeft) == bumperTriggerdLevel);  
+  leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
 }
 
 void BumperRightInterruptRoutine(){
-  rightPressed = (digitalRead(pinBumperRight) == bumperTriggerdLevel);  
+  rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);  
 }
 
 
 void AmBumperDriver::begin(){	
-#ifdef __MOW800__
+#if pinBumerDisablePullUp == true
   pinMode(pinBumperLeft, INPUT);                   
   pinMode(pinBumperRight, INPUT);
 #else
@@ -776,14 +784,14 @@ void AmBumperDriver::begin(){
   pinMode(pinBumperRight, INPUT_PULLUP);                   
 #endif  
 
-#if bumerUseInterrupt == true
+#if pinBumerUseInterrupt == true
     attachInterrupt(digitalPinToInterrupt(pinBumperLeft), BumperLeftInterruptRoutine, CHANGE);
     attachInterrupt(digitalPinToInterrupt(pinBumperRight), BumperRightInterruptRoutine, CHANGE);
 #endif
 }
 
 void AmBumperDriver::getTriggeredBumper(bool &leftBumper, bool &rightBumper){
-#if bumerUseInterrupt != true
+#if pinBumerUseInterrupt != true
   obstacle();
 #endif
 
@@ -792,9 +800,9 @@ void AmBumperDriver::getTriggeredBumper(bool &leftBumper, bool &rightBumper){
 }
 
 bool AmBumperDriver::obstacle(){
-#if bumerUseInterrupt != true
-    leftPressed = (digitalRead(pinBumperLeft) == bumperTriggerdLevel);  
-    rightPressed = (digitalRead(pinBumperRight) == bumperTriggerdLevel);
+#if pinBumerUseInterrupt != true
+    leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
+    rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);
 #endif
 
 
@@ -865,7 +873,7 @@ void AmLiftSensorDriver::run(){
   unsigned long t = millis();
   if (t < nextControlTime) return;
   nextControlTime = t + 100;                                       // save CPU resources by running at 10 Hz
-  isLifted = (digitalRead(pinLift)== LOW);
+  isLifted = (digitalRead(pinLift)== pinLiftTriggerdLevel);
 }
 
 bool AmLiftSensorDriver::triggered(){

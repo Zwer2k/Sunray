@@ -519,6 +519,13 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //  #define pinFreeWheel 8             // front/rear free wheel sensor    
   #define pinBumperLeft 39           // bumper pins
   #define pinBumperRight 38
+  // #define pinBumperTriggerdLevel HIGH // level of pressed bumper
+  // #define pinBumerUseInterrupt false  // use interrrupt for bumper trigger
+  // #define pinBumerDisablePullUp true  // disable pull up for bumper pin (deafult pull up is enabled) 
+
+  #define pinLift 35                 // Lift sensor (marked as 'Tilt' on PCB1.3/1.4) 
+  // #define pinLiftTriggerdLevel LOW    // robot lifted pin state 
+  // #define pinLiftDisablePullUp true   // disable pull up for bumper pin (deafult pull up is enabled)
 
   // #define pinDropLeft 45           // drop pins                                                                                          Dropsensor - Absturzsensor
   // #define pinDropRight 23          // drop pins                                                                                          Dropsensor - Absturzsensor
@@ -536,7 +543,6 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinLED 13                  // LED
   #define pinBuzzer 53               // Buzzer
   //#define pinTilt 35                 // Tilt sensor (required for TC-G158 board)  
-  #define pinLift 35                 // Lift sensor (marked as 'Tilt' on PCB1.3/1.4) 
   #define pinButton 51               // digital ON/OFF button
   #define pinBatteryVoltage A2       // battery voltage sensor
   #define pinBatterySwitch 4         // battery-OFF switch   

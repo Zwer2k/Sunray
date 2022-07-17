@@ -203,6 +203,14 @@ float GetCPUTemperature(){
   return temp;
 }
 
+#elif defined(ARDUINO_ARCH_STM32)
+  #include "src/stm32/CpuInfoSTM32.h"
+  void LogCPUHealth(){}
+  float GetCPUTemperature(){
+    float vdd = readVdd();
+    return readTempSensor(vdd);
+  }
+
 #else
   void LogCPUHealth(){}
   float GetCPUTemperature(){

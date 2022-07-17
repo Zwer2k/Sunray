@@ -6,6 +6,7 @@
 9x FDD8424H 	Dual MOSFET
 74HC4052		Perimer Schleife Anbindung
 TPS3840 (ZA80)	Spannungsüberwachung 4x
+
 ---------------
 ## CPU-Board
 STM32F103ZET6	main CPU (72MHz, 512KB Flash, 64KB SRAM, 2x I2C, 5x USART)
@@ -13,20 +14,24 @@ MMA8452Q		3-axis, 12-bit/8-bit digital accelerometer
 BUZZER
 
 ### USB_USART Stecker
-1 +5V
-2 CPU-138 (BOOT0) 
-3 CPU-25  (NRST = RESET) 
-4 +3.3V (VDD)
-5 CPU-102 (PA10 = USART1-RxD)
-6 CPU-101 (PA9  = USART1-TxD)
-7 GND
+| Pin | Verbindung auf dem CPU-Board |
+|---|---|
+| 1 | +5V |
+| 2 | CPU-138 (BOOT0) | 
+| 3 | CPU-25  (NRST = RESET) | 
+| 4 | +3.3V (VDD) |
+| 5 | CPU-102 (PA10 = USART1-RxD) |
+| 6 | CPU-101 (PA9  = USART1-TxD) |
+| 7 | GND |
 
 ### SWD Stecker (Programmierung CPU)
-1 +3.3V (VDD)
-2 CPU-105 (PA13 = SWDIO)
-3 CPU-109 (PA14 = SWCLK)
-4 CPU-25 (NRST = RESET)
-5 GND
+| Pin | Verbindung auf dem CPU-Board |
+|---|---|
+| 1 | +3.3V (VDD) |
+| 2 | CPU-105 (PA13 = SWDIO) |
+| 3 | CPU-109 (PA14 = SWCLK) |
+| 4 | CPU-25 (NRST = RESET) |
+| 5 | GND |
 
 ### J1 Stecker (zum Main-Board)
 | Stecker PIN | Verbindung auf dem CPU-Board | Verbindung auf dem Mainboard |
@@ -55,9 +60,11 @@ BUZZER
 | 22 (CHARGE_1) | CPU-26 (PC0) | (Ladestrommessung) |
 
 ### Data Stecker (zu LCD Platiene)
-1 	J1-Stecker-5 (ON/OFF) 1kOhm
-2	CPU-70	(PB11) 	1kOhm (Pin auf meiner komischerweise Platine unterbrocen)
-3	CPU-69	(PB10)	1kOhm
+| Pin | Verbindung auf dem CPU-Board |
+|---|---|
+| 1 | J1-Stecker-5 (ON/OFF) 1kOhm |
+| 2	| CPU-70	(PB11) 	1kOhm (Pin auf meiner komischerweise Platine unterbrocen) |
+| 3 | CPU-69	(PB10)	1kOhm |
 
 ### J2 Stecker (zum Main-Board)
 | Stecker PIN       | Verbindung auf dem CPU-Board | Verbindung auf dem Mainboard |
@@ -87,18 +94,24 @@ BUZZER
 
 
 ### HMC5883L Stecker
-1 GND
-2 CPU-116 (PD2)
-3 CPU-117 (PD3)
-4 +3,3V
+| Pin | Verbindung auf dem CPU-Board |
+|---|---|
+| 1 | GND |
+| 2 | CPU-116 (PD2) |
+| 3 | CPU-117 (PD3) |
+| 4 | +3,3V |
 
 ### Dub-Stecker
-1 GND (PE2)
-2 CPU-1
+| Pin | Verbindung auf dem CPU-Board |
+|---|---|
+| 1 | GND (PE2) |
+| 2 | CPU-1 |
 
 ### MMA8452Q Chip
-SDA CPU-137  (PB7 = SDA)
-SCL CPU-136  (PB6 = SCL)
+| Pin | Verbindung auf dem CPU-Board |
+|---|---|
+| SDA | CPU-137  (PB7 = SDA) |
+| SCL | CPU-136  (PB6 = SCL) |
 
 ### Crash Stecker
 | Stecker Pin | Verbindung auf dem CPU-Board | Verbindung auf der Crash Platine |
@@ -112,10 +125,9 @@ SCL CPU-136  (PB6 = SCL)
 | 7 | GND | GND
 
 ### CPU
-89 (PG4)  BUZZER
-
-### BUZZER
-CPU-89  (PG4)
+| Pin | Verbindung auf dem CPU-Board |
+|---|---|
+| 89 (PG4) | BUZZER |
 
 
 ---------------
@@ -123,11 +135,15 @@ CPU-89  (PG4)
 CPU STM32F103C86
 
 ### J1 Stecker
-1 +3,3V
-2 CPU-34 (PA13 = SWDIO)
-3 CPU-37 (PA14 = SWCLK)
-4 GND
+| Pin | Verbindung auf dem Board |
+|---|---|
+| 1 | +3,3V |
+| 2 | CPU-34 (PA13 = SWDIO) |
+| 3 | CPU-37 (PA14 = SWCLK) |
+| 4 | GND |
 
 ### CPU 
-40 (PB4)  LED
+| Pin | Verbindung auf dem Board |
+|---|---|
+| 40 (PB4) | LED |
 
