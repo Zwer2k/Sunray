@@ -314,14 +314,15 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // so we are using the INA169 in non-bridged mode (max. 2.5A)
 // ( https://www.marotronics.de/INA169-Analog-DC-Current-Sensor-Breakout-60V-25A-5A-Marotronics )
 
-#define CURRENT_FACTOR 0.5     // PCB1.3 (non-bridged INA169, max. 2.5A)
+//#define CURRENT_FACTOR 0.5     // PCB1.3 (non-bridged INA169, max. 2.5A)
 //#define CURRENT_FACTOR 1.0   // PCB1.3 (bridged INA169, max. 5A)
 //#define CURRENT_FACTOR 1.98   // PCB1.4 (non-bridged INA169, max. 2.5A)
 //#define CURRENT_FACTOR 2.941  // PCB1.4 (bridged INA169, max. 5A)
+#define CURRENT_FACTOR 0.85     // MOW800 current factor
 
 #define GO_HOME_VOLTAGE   21.5  // start going to dock below this voltage
 // The battery will charge if both battery voltage is below that value and charging current is above that value.
-#define BAT_FULL_VOLTAGE  28.7  // start mowing again at this voltage
+#define BAT_FULL_VOLTAGE  26.0  // start mowing again at this voltage
 #define BAT_FULL_CURRENT  0.2   // start mowing again below this charging current (amps)
 
 // https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#Automatic_battery_switch_off
@@ -527,8 +528,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   //#define pinMotorLeftFault 25       // M1_SF  left motor fault
                                                               
   #define pinMotorRightPWM  PA1        // M2_IN1 right motor PWM pin
-  #define pinMotorRightDir PF5        // M2_IN2 right motor Dir pin
-  #define pinMotorRightSense PA6      // M2_FB  right motor current sense
+  #define pinMotorRightDir PF5         // M2_IN2 right motor Dir pin
+  #define pinMotorRightSense PC3       // M2_FB  right motor current sense
   //#define pinMotorRightFault 27      // M2_SF  right motor fault
                                       
   #define pinMotorMowBrakeDisable PC12
@@ -537,13 +538,13 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorMowSense PA7        // M1_FB  mower motor current sense  
   //#define pinMotorMowFault 26        // M1_SF  mower motor fault   (if using MOSFET/L298N, keep unconnected)
   #define pinMotorMowEnable PC13       // EN mower motor enable      (if using MOSFET/L298N, keep unconnected)
-  #define pinMotorMowRpm PD1
+  #define pinMotorMowRpm PC4
       
 //  #define pinFreeWheel 8             // front/rear free wheel sensor    
   #define pinBumperLeft PD9           // bumper pins
   #define pinBumperRight PD8
   #define pinBumperTriggerdLevel HIGH // level of pressed bumper
-  #define pinBumerUseInterrupt false  // use interrrupt for bumper trigger
+  #define pinBumerUseInterrupt true  // use interrrupt for bumper trigger
   #define pinBumerDisablePullUp true  // disable pull up for bumper pin (deafult pull up is enabled) 
 
   #define pinLift PE7                 // Lift sensor (marked as 'Tilt' on PCB1.3/1.4)
@@ -584,8 +585,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
     #define pinReservedP46 CANTX     // reserved
     #define pinReservedP48 DAC1      // reserved
   #elif defined(__MOW800__)              // Arduino Due
-    #define pinOdometryLeft PF8     // left odometry sensor
-    #define pinOdometryRight PF9   // right odometry sensor  
+    #define pinOdometryLeft PC2     // left odometry sensor
+    #define pinOdometryRight PA6   // right odometry sensor  
   #else                              // Adafruit Grand Central M4 
     #define pinOdometryLeft A12      // left odometry sensor
     #define pinOdometryRight A14     // right odometry sensor 
