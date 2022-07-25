@@ -273,8 +273,8 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035.maxPwmSpeed = 255;            
   MOW800_MC33035.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
-  MOW800_MC33035.adcVoltToAmpOfs = 0.0;      // ADC voltage to amps (offset)
-  MOW800_MC33035.adcVoltToAmpScale = 1.0; // ADC voltage to amps (scale)
+  MOW800_MC33035.adcVoltToAmpOfs = -0.045;      // ADC voltage to amps (offset)
+  MOW800_MC33035.adcVoltToAmpScale = 3.8; // ADC voltage to amps (scale)
   MOW800_MC33035.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
 
   // MOW800_MC33035_MOW brushless driver mow motor 
@@ -292,8 +292,8 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035_MOW.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035_MOW.maxPwmSpeed = 255;            
   MOW800_MC33035_MOW.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
-  MOW800_MC33035_MOW.adcVoltToAmpOfs = 0.0;      // ADC voltage to amps (offset)
-  MOW800_MC33035_MOW.adcVoltToAmpScale = 1.0; // ADC voltage to amps (scale)
+  MOW800_MC33035_MOW.adcVoltToAmpOfs = -0.045;      // ADC voltage to amps (offset)
+  MOW800_MC33035_MOW.adcVoltToAmpScale = 3.8; // ADC voltage to amps (scale)
   MOW800_MC33035_MOW.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
 
   // your custom brushed/brushless driver (ACT-8015A, JYQD_V7.3E3, etc.)
