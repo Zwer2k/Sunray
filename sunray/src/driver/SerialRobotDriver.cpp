@@ -20,8 +20,8 @@ void SerialRobotDriver::begin(){
   encoderTicksMow = 0;
   chargeVoltage = 0;
   chargeCurrent = 0;  
-  batteryVoltage = 0;
-  cpuTemp = 0;
+  batteryVoltage = 28;
+  cpuTemp = 30;
   mowCurr = 0;
   motorLeftCurr = 0;
   motorRightCurr = 0;
@@ -517,9 +517,9 @@ void SerialRobotDriver::run(){
   if (millis() > nextTempTime){
     nextTempTime = millis() + 59000; // 59 sec
     updateCpuTemperature();
-    if (cpuTemp < 65){      
+    if (cpuTemp < 50){      
       setFanPowerState(false);
-    } else if (cpuTemp > 70){
+    } else if (cpuTemp > 55){
       setFanPowerState(true);
     }
   }
