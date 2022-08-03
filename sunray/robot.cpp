@@ -961,14 +961,14 @@ void run(){
       activeOp->onBatteryUndervoltage();
     } 
     else {      
-      if (USE_TEMP_SENSOR){
+#if USE_TEMP_SENSOR == 1 || USE_TEMP_SENSOR == true
         if (stateTemp > DOCK_OVERHEAT_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         } 
         else if (stateTemp < DOCK_TOO_COLD_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         }
-      }
+#endif
       if (RAIN_ENABLE){
         if (rainDriver.triggered()){
           //CONSOLE.println("RAIN TRIGGERED");
