@@ -541,8 +541,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorMowRpm PC4
       
 //  #define pinFreeWheel 8             // front/rear free wheel sensor    
-  #define pinBumperLeft PD9           // bumper pins
-  #define pinBumperRight PD8
+  #define pinBumperLeft PD8           // bumper pins
+  #define pinBumperRight PD9
   #define pinBumperTriggerdLevel HIGH // level of pressed bumper
   #define pinBumerUseInterrupt true  // use interrrupt for bumper trigger
   #define pinBumerDisablePullUp true  // disable pull up for bumper pin (deafult pull up is enabled) 

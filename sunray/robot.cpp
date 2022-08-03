@@ -230,8 +230,10 @@ void sensorTest(){
       if (BUMPER_ENABLE){
         bool leftBumper, rightBumper;
         bumper.getTriggeredBumper(leftBumper, rightBumper);
-        CONSOLE.print("bumper (triggered): ");
-        CONSOLE.print(((int)bumper.obstacle()));
+        CONSOLE.print("bumper (triggered) left: ");
+        CONSOLE.print(leftBumper);
+        CONSOLE.print(" right: ");
+        CONSOLE.print(rightBumper);
         CONSOLE.print("\t");
        
       }
@@ -757,7 +759,7 @@ bool detectObstacle(){
   #endif
 
   if (BUMPER_ENABLE){
-    if ( (millis() > linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){  
+    if ( (millis() > linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){
       CONSOLE.println("bumper obstacle!");    
       statMowBumperCounter++;
       triggerObstacle();    
@@ -953,14 +955,14 @@ void run(){
       activeOp->onBatteryUndervoltage();
     } 
     else {      
-      if (USE_TEMP_SENSOR){
+#if USE_TEMP_SENSOR == 1 || USE_TEMP_SENSOR == true
         if (stateTemp > DOCK_OVERHEAT_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         } 
         else if (stateTemp < DOCK_TOO_COLD_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         }
-      }
+#endif
       if (RAIN_ENABLE){
         if (rainDriver.triggered()){
           //CONSOLE.println("RAIN TRIGGERED");

@@ -768,10 +768,12 @@ void AmBatteryDriver::keepPowerOn(bool flag){
 // ------------------------------------------------------------------------------------
 void BumperLeftInterruptRoutine(){
   leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
+  if (leftPressed) motor.setLinearAngularSpeed(0,0, false);
 }
 
 void BumperRightInterruptRoutine(){
   rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);  
+  if (rightPressed) motor.setLinearAngularSpeed(0,0, false);
 }
 
 
@@ -803,9 +805,9 @@ bool AmBumperDriver::obstacle(){
 #if pinBumerUseInterrupt != true
     leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
     rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);
+    if ((leftPressed) || (rightPressed)) motor.setLinearAngularSpeed(0,0, false);
 #endif
-
-
+  
   return (leftPressed || rightPressed);
 }
     
