@@ -46,14 +46,14 @@ BUZZER
 | 8	 (+5V)    |   |   |
 | 9	 (CK_W)   | CPU-45 (PC5)  |	(Regensensor) |
 | 10 (+5V)    |   |   |
-| 11 (MC12)	  |	CPU-44 (PC4)  |	(Brücke zu pin 12 getrennt = R159 0Ohm entfernt) PWM Mähmotor (Eigenbelegung) |
+| 11 (MC12)	  |	CPU-44 (PC4)  |	(Brücke zu pin 12 getrennt = R159 0Ohm entfernt) Mähmotor Drehzahl (Eigenbelegung) |
 | 12 (MC1)	  |	CPU-43 (PA7)  |	(Brücke zu pin 11 getrennt = R159 0Ohm entfernt) (Strommessung Mähmotor) |
 | 13 (SPDR)   |	CPU-35 (PA1)  |	(Motor R speed)    |
-| 14 (RR12)	  | CPU-42 (PA6)  |	(Brücke zu pin 16 getrennt = R161 0Ohm entfernt) PWM Motor R (Eigenbelegung) |
+| 14 (RR12)	  | CPU-42 (PA6)  |	(Brücke zu pin 16 getrennt = R161 0Ohm entfernt) Motor R Drehzahl (Eigenbelegung) |
 | 15 (CK_V)   |	CPU-37 (PA3)  |	(Messung der Batteriespannung) |
 | 16 (RR1)    |	CPU-29 (PC3)  |	(Brücke zu pin 14 getrennt = R161 0Ohm entfernt) (Strommessung Motor R) |
 | 17 (DIRR0)  |	CPU-15 (PF5)  |	(Motor R direction) |
-| 18 (RL12)	  |	CPU-28 	(PC2) |	(Brücke zu pin 20 getrennt = R160 0Ohm entfernt) PWM Motor L (Eigenbelegung) |
+| 18 (RL12)	  |	CPU-28 	(PC2) |	(Brücke zu pin 20 getrennt = R160 0Ohm entfernt) Motor L Drehzahl (Eigenbelegung) |
 | 19 (C_ADY3) |	CPU-21 (PF9)  | |
 | 20 (RL1)	  |	CPU-27 (PC1)  |	(Brücke zu pin 18 getrennt = R160 0Ohm entfernt) (Strommessung Motor L) |
 | 21 (ADDR1)  |	CPU-115 (PD1) |	|
