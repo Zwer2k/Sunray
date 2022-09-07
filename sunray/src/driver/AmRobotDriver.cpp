@@ -833,19 +833,6 @@ void AmStopButtonDriver::begin(){
   pinMode(pinButton, INPUT_PULLUP);
 #else
   CONSOLE.println("Button PIN not defined");
-<<<<<<<
-
-
-
-
-
-
- HEAD
-  CONSOLE.println("Button PIN not defined");
-=======
-  CONSOLE.println("Bitton PIN not defined");
->>>>>>> f67113b (recreate config.h)
-#endif  
 #endif
 }
 
