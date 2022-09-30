@@ -43,7 +43,7 @@
 #include "cpu.h"
 #include "i2c.h"
 #include "src/test/test.h"
-
+#include "bumper.h"
 
 // #define I2C_SPEED  10000
 #define _BV(x) (1 << (x))
@@ -65,7 +65,7 @@ const signed char orientationMatrix[9] = {
   SerialRobotDriver robotDriver;
   SerialMotorDriver motorDriver(robotDriver);
   SerialBatteryDriver batteryDriver(robotDriver);
-  SerialBumperDriver bumper(robotDriver);
+  SerialBumperDriver bumperDriver(robotDriver);
   SerialStopButtonDriver stopButton(robotDriver);
   SerialRainSensorDriver rainDriver(robotDriver);
   SerialLiftSensorDriver liftDriver(robotDriver);
@@ -74,7 +74,7 @@ const signed char orientationMatrix[9] = {
   SimRobotDriver robotDriver;
   SimMotorDriver motorDriver(robotDriver);
   SimBatteryDriver batteryDriver(robotDriver);
-  SimBumperDriver bumper(robotDriver);
+  SimBumperDriver bumperDriver(robotDriver);
   SimStopButtonDriver stopButton(robotDriver);
   SimRainSensorDriver rainDriver(robotDriver);
   SimLiftSensorDriver liftDriver(robotDriver);
@@ -83,7 +83,7 @@ const signed char orientationMatrix[9] = {
   AmRobotDriver robotDriver;
   AmMotorDriver motorDriver;
   AmBatteryDriver batteryDriver;
-  AmBumperDriver bumper;
+  AmBumperDriver bumperDriver;
   AmStopButtonDriver stopButton;
   AmRainSensorDriver rainDriver;
   AmLiftSensorDriver liftDriver;
@@ -102,6 +102,7 @@ PinManager pinMan;
 BLEConfig bleConfig;
 Buzzer buzzer;
 Sonar sonar;
+Bumper bumper;
 VL53L0X tof(VL53L0X_ADDRESS_DEFAULT);
 Map maps;
 RCModel rcmodel;
@@ -203,7 +204,7 @@ void sensorTest(){
   while (millis() < stopTime){
     sonar.run();
     bumper.run();
-	liftDriver.run();
+    liftDriver.run();
     if (millis() > nextMeasureTime){
       nextMeasureTime = millis() + 1000;      
       if (SONAR_ENABLE){
@@ -228,19 +229,20 @@ void sensorTest(){
         CONSOLE.print("\t");
       }    
       if (BUMPER_ENABLE){
-        bool leftBumper, rightBumper;
-        bumper.getTriggeredBumper(leftBumper, rightBumper);
-        CONSOLE.print("bumper (triggered): ");
-        CONSOLE.print(((int)bumper.obstacle()));
+        CONSOLE.print("bumper (left,right,triggered): ");
+        CONSOLE.print(((int)bumper.testLeft()));
         CONSOLE.print("\t");
-       
+        CONSOLE.print(((int)bumper.testRight()));
+        CONSOLE.print("\t");
+        CONSOLE.print(((int)bumper.obstacle()));
+        CONSOLE.print("\t");       
       }
-	#ifdef ENABLE_LIFT_DETECTION 
+	    #ifdef ENABLE_LIFT_DETECTION 
         CONSOLE.print("lift sensor (triggered): ");		
         CONSOLE.print(((int)liftDriver.triggered()));	
         CONSOLE.print("\t");							            
-    #endif  
-	
+      #endif  
+      	
       CONSOLE.println();  
       watchdogReset();
       robotDriver.run();   
@@ -449,6 +451,12 @@ void outputConfig(){
   CONSOLE.println(RAIN_ENABLE);
   CONSOLE.print("BUMPER_ENABLE: ");
   CONSOLE.println(BUMPER_ENABLE);
+  CONSOLE.print("BUMPER_DEADTIME: ");
+  CONSOLE.println(BUMPER_DEADTIME);
+  CONSOLE.print("BUMPER_TRIGGER_DELAY: ");
+  CONSOLE.println(BUMPER_TRIGGER_DELAY);
+  CONSOLE.print("BUMPER_MAX_TRIGGER_TIME: ");
+  CONSOLE.println(BUMPER_MAX_TRIGGER_TIME);  
   CONSOLE.print("CURRENT_FACTOR: ");
   CONSOLE.println(CURRENT_FACTOR);
   CONSOLE.print("GO_HOME_VOLTAGE: ");
@@ -756,14 +764,13 @@ bool detectObstacle(){
     #endif
   #endif
 
-  if (BUMPER_ENABLE){
-    if ( (millis() > linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){  
-      CONSOLE.println("bumper obstacle!");    
-      statMowBumperCounter++;
-      triggerObstacle();    
-      return true;
-    }
+  if ( (millis() > linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){  
+    CONSOLE.println("bumper obstacle!");    
+    statMowBumperCounter++;
+    triggerObstacle();    
+    return true;
   }
+  
   if (sonar.obstacle() && (maps.wayMode != WAY_DOCK)){
     CONSOLE.println("sonar obstacle!");    
     statMowSonarCounter++;
@@ -862,6 +869,7 @@ void run(){
   sonar.run();
   maps.run();  
   rcmodel.run();
+  bumper.run();
   
   // state saving
   if (millis() >= nextSaveTime){  
@@ -875,7 +883,7 @@ void run(){
     float batTemp = batteryDriver.getBatteryTemperature();
     float cpuTemp = robotDriver.getCpuTemperature();    
     CONSOLE.print("batTemp=");
-    CONSOLE.print(stateTemp,0);
+    CONSOLE.print(batTemp,0);
     CONSOLE.print("  cpuTemp=");
     CONSOLE.print(cpuTemp,0);    
     //logCPUHealth();
@@ -953,14 +961,14 @@ void run(){
       activeOp->onBatteryUndervoltage();
     } 
     else {      
-      if (USE_TEMP_SENSOR){
+#if USE_TEMP_SENSOR == 1 || USE_TEMP_SENSOR == true
         if (stateTemp > DOCK_OVERHEAT_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         } 
         else if (stateTemp < DOCK_TOO_COLD_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         }
-      }
+#endif
       if (RAIN_ENABLE){
         if (rainDriver.triggered()){
           //CONSOLE.println("RAIN TRIGGERED");
@@ -989,17 +997,17 @@ void run(){
     if (stateButton == 5){
       stateButton = 0; // reset button state
       stateSensor = SENS_STOP_BUTTON;
-      setOperation(OP_DOCK, false, true);
+      setOperation(OP_DOCK, false);
     } else if (stateButton == 6){ 
       stateButton = 0; // reset button state        
       stateSensor = SENS_STOP_BUTTON;
-      setOperation(OP_MOW, false, true);
+      setOperation(OP_MOW, false);
     } 
     //else if (stateButton > 0){  // stateButton 1 (or unknown button state)        
     else if (stateButton == 1){  // stateButton 1                   
       stateButton = 0;  // reset button state
       stateSensor = SENS_STOP_BUTTON;
-      setOperation(OP_IDLE, false, true);                             
+      setOperation(OP_IDLE, false);                             
     } else if (stateButton == 9){
       stateButton = 0;  // reset button state
       stateSensor = SENS_STOP_BUTTON;
@@ -1050,12 +1058,11 @@ void run(){
 
 
 // set new robot operation
-void setOperation(OperationType op, bool allowRepeat, bool initiatedbyOperator){  
+void setOperation(OperationType op, bool allowRepeat){  
   if ((stateOp == op) && (!allowRepeat)) return;  
   CONSOLE.print("setOperation op=");
   CONSOLE.println(op);
   stateOp = op;  
-  activeOp->changeOperationType(stateOp, initiatedbyOperator);
+  activeOp->changeOperationTypeByOperator(stateOp);
   saveState();
 }
-

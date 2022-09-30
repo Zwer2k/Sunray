@@ -16,7 +16,12 @@ String ChargeOp::name(){
 
 
 void ChargeOp::begin(){
-    CONSOLE.println("OP_CHARGE");
+    CONSOLE.print("OP_CHARGE");
+    CONSOLE.print(" dockOp.initiatedByOperator=");
+    CONSOLE.print(dockOp.initiatedByOperator);
+    CONSOLE.print(" dockReasonRainTriggered=");
+    CONSOLE.println(dockOp.dockReasonRainTriggered);
+
     //motor.stopImmediately(true); // do not use PID to get to stop 
     motor.setLinearAngularSpeed(0,0, false); 
     motor.setMowState(false);     
@@ -41,7 +46,7 @@ void ChargeOp::run(){
         //float tempY;
         //maps.setRobotStatePosToDockingPos(tempX, tempY, stateDelta);                                            
         if (battery.chargingHasCompleted()){
-            if ((DOCKING_STATION) && (!dockOp.dockingInitiatedByOperator)) {
+            if ((DOCKING_STATION) && (!dockOp.initiatedByOperator)) {
                 if (maps.mowPointsIdx > 0){  // if mowing not completed yet
                     if ((DOCK_AUTO_START) && (!dockOp.dockReasonRainTriggered)) { // automatic continue mowing allowed?
                         CONSOLE.println("DOCK_AUTO_START: will automatically continue mowing now");
