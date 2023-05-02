@@ -123,6 +123,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define FREEWHEEL_IS_AT_BACKSIDE   true   // default Ardumower: true   (change to false, if your freewheel is at frontside) - this is used for obstacle avoidance
 #define WHEEL_BASE_CM         32         // wheel-to-wheel distance (cm)        
 #define WHEEL_DIAMETER        215        // wheel diameter (mm)                 
+#define MOWER_SIZE            60         // mower / chassis size / length in cm
 
 //#define ENABLE_ODOMETRY_ERROR_DETECTION  true    // use this to detect odometry erros
 #define ENABLE_ODOMETRY_ERROR_DETECTION  false
@@ -162,6 +163,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035 1   // uncomment for Matrix MOW800 brushless MC3305 driver and gear/traction motors
 
 #define MOTOR_FAULT_CURRENT 6.0    // gear motors fault current (amps)
+#define MOTOR_TOO_LOW_CURRENT 0.005   // gear motor too low current (amps)
 #define MOTOR_OVERLOAD_CURRENT 0.8    // gear motors overload current (amps)
 
 //#define USE_LINEAR_SPEED_RAMP  true      // use a speed ramp for the linear speed
@@ -196,6 +198,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // On the other hand, the overload detection will detect situations the fault signal cannot detect: slightly higher current for a longer time 
 
 #define MOW_FAULT_CURRENT 8.0       // mowing motor fault current (amps)
+#define MOW_TOO_LOW_CURRENT 0.005   // mowing motor too low current (amps)
 #define MOW_OVERLOAD_CURRENT 2.0    // mowing motor overload current (amps)
 
 // should the direction of mowing motor toggle each start? (yes: true, no: false)
@@ -406,6 +409,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define DOCK_AUTO_START true     // robot will automatically continue mowing after docked automatically
 #define DOCK_AUTO_START false      // robot will not automatically continue mowing after docked automatically
 
+//#define DOCK_RETRY_TOUCH true   // robot will retry touching docking contacts (max. 1cm) if loosing docking contacts during charging
+#define DOCK_RETRY_TOUCH false   // robot will not retry touching docking contacts (max. 1cm) if loosing docking contacts during charging
+
 #define DOCK_UNDOCK_TRACKSLOW_DISTANCE 5 // set distance (m) from dock for trackslow (speed limit)
 
 #define UNDOCK_IGNORE_GPS_DISTANCE 2 // set distance (m) from dock to ignore gps while undocking
@@ -430,7 +436,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
                                  //  1 beep=stop, 6 beeps=start, 5 beeps=dock, 3 beeps=R/C mode ON/OFF), 9 beeps=shutdown
 #define BUTTON_CONTROL false   // additional features deactivated
 
-//#define USE_TEMP_SENSOR 1   // only activate if temp sensor (htu21d) connected
+//#define USE_TEMP_SENSOR true  // only activate if temp sensor (htu21d) connected
+#define USE_TEMP_SENSOR false  
 
 // activate support for model R/C control?
 // use PCB pin 'mow' for R/C model control speed and PCB pin 'steering' for R/C model control steering, 

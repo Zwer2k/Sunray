@@ -230,10 +230,8 @@ void sensorTest(){
         CONSOLE.print("\t");
       }    
       if (BUMPER_ENABLE){
-        bool leftBumper, rightBumper;
-        bumper.getTriggeredBumper(leftBumper, rightBumper);
-        CONSOLE.print("bumper (triggered): ");
-        CONSOLE.print(((int)bumper.obstacle()));
+        CONSOLE.print("bumper (left,right,triggered): ");
+        CONSOLE.print(((int)bumper.testLeft()));
         CONSOLE.print("\t");
         CONSOLE.print(((int)bumper.testRight()));
         CONSOLE.print("\t");
