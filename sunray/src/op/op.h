@@ -20,7 +20,7 @@ class Op {
     virtual String name();
     // -------- transitions ----------------------------------       
     // op inititated by operator?
-    bool initiatedbyOperator;
+    bool initiatedByOperator;
     // should this operation stop?
     bool shouldStop;
     // op start time
@@ -42,12 +42,13 @@ class Op {
 
     Op();
     // trigger op exit (optionally allow returning back on called operation exit, e.g. generate an op chain)
-    virtual void changeOp(Op &anOp, bool returnBackOnExit = false, bool initiatedbyOperatorFlag = false);
+    virtual void changeOp(Op &anOp, bool returnBackOnExit = false);
 
     // trigger op exit (optionally allow returning back on called operation exit, e.g. generate an op chain)
-    virtual void changeOperationType(OperationType op, bool initiatedbyOperatorFlag = false);
+    virtual void changeOperationTypeByOperator(OperationType op);
     virtual OperationType getGoalOperationType();
-    
+
+    virtual void setInitiatedByOperator(bool flag);    
     // op entry code
     virtual void begin();
     // checks if active operation should stop and if so, makes transition to new one
@@ -74,10 +75,12 @@ class Op {
     virtual void onBatteryUndervoltage();
     virtual void onBatteryLowShouldDock();    
     virtual void onChargerDisconnected();
+    virtual void onBadChargingContactDetected();    
     virtual void onChargerConnected();    
     virtual void onChargingCompleted();              
     virtual void onImuTilt();
     virtual void onImuError();
+    virtual float getDockDistance();
 };
 
 
@@ -96,7 +99,7 @@ class ImuCalibrationOp: public Op {
     unsigned long nextImuCalibrationSecond;
     int imuCalibrationSeconds;
     virtual String name() override;
-    virtual void changeOp(Op &anOp, bool initiatedbyOperatorFlag = false, bool returnBackOnExit = false) override;
+    virtual void changeOp(Op &anOp, bool returnBackOnExit = false) override;
     virtual void begin() override;
     virtual void end() override;
     virtual void run() override;
@@ -132,8 +135,8 @@ class MowOp: public Op {
 // dock op (driving to first dock point and following dock points until charging point)
 class DockOp: public Op {
   public:        
-    bool dockingInitiatedByOperator;            
     bool dockReasonRainTriggered;
+    unsigned long dockReasonRainAutoStartTime;
     bool lastMapRoutingFailed;
     int mapRoutingFailedCounter;
     DockOp();
@@ -145,7 +148,6 @@ class DockOp: public Op {
     virtual void onObstacleRotation() override;
     virtual void onTargetReached() override;    
     virtual void onGpsFixTimeout() override;
-    virtual void onChargingCompleted() override;
     virtual void onNoFurtherWaypoints() override;              
     virtual void onGpsNoSignal() override;
     virtual void onKidnapped(bool state) override;
@@ -154,13 +156,21 @@ class DockOp: public Op {
 
 // charging op
 class ChargeOp: public Op {
-  public:        
+  public:     
+    unsigned long retryTouchDockStopTime;
+    unsigned long betterTouchDockStopTime;
+    bool retryTouchDock;
+    bool betterTouchDock;
+    unsigned long nextConsoleDetailsTime;   
     virtual String name() override;
     virtual void begin() override;
     virtual void end() override;
     virtual void run() override;
     virtual void onChargerDisconnected() override;
+    virtual void onBadChargingContactDetected() override;
     virtual void onBatteryUndervoltage() override;    
+    virtual void onRainTriggered() override;   
+    virtual void onChargerConnected() override; 
 };
 
 // wait for undo kidnap (gps jump) 

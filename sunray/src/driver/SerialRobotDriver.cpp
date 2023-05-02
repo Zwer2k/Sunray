@@ -10,7 +10,7 @@
 
 #define COMM  ROBOT
 
-
+//#define DEBUG_SERIAL_ROBOT 1
 
 void SerialRobotDriver::begin(){
   CONSOLE.println("using robot driver: SerialRobotDriver");
@@ -229,7 +229,10 @@ void SerialRobotDriver::sendRequest(String s){
   if (crc <= 0xF) s += F("0");
   s += String(crc, HEX);  
   s += F("\r\n");             
-  //CONSOLE.print(s);  
+  #ifdef DEBUG_SERIAL_ROBOT
+    CONSOLE.print("SerialRobot request: ");
+    CONSOLE.println(s);  
+  #endif
   //cmdResponse = s;
   COMM.print(s);  
 }
@@ -409,10 +412,12 @@ void SerialRobotDriver::processResponse(bool checkCrc){
         return;  
       }      
     } else {
-      // remove CRC
-      cmd = cmd.substring(0, idx);
-      //CONSOLE.print("SerialRobot resp:");
-      //CONSOLE.println(cmd);
+      #ifdef DEBUG_SERIAL_ROBOT
+        CONSOLE.print("SerialRobot resp:");
+        CONSOLE.println(cmd);
+      #endif
+      // remove CRC      
+      cmd = cmd.substring(0, idx);      
     }    
   }     
   if (cmd[0] == 'M') motorResponse();
@@ -495,7 +500,7 @@ void SerialRobotDriver::run(){
       resetMotorTicks = true;
       mcuCommunicationLost = true;
     }    
-    if ( (cmdMotorResponseCounter < 30) || (cmdSummaryResponseCounter == 0) ){
+    if ( (cmdMotorResponseCounter < 30) ) { // || (cmdSummaryResponseCounter == 0) ){
       CONSOLE.print("WARN: SerialRobot unmet communication frequency: motorFreq=");
       CONSOLE.print(cmdMotorCounter);
       CONSOLE.print("/");
@@ -517,9 +522,9 @@ void SerialRobotDriver::run(){
   if (millis() > nextTempTime){
     nextTempTime = millis() + 59000; // 59 sec
     updateCpuTemperature();
-    if (cpuTemp < 50){      
+    if (cpuTemp < 60){      
       setFanPowerState(false);
-    } else if (cpuTemp > 55){
+    } else if (cpuTemp > 65){
       setFanPowerState(true);
     }
   }
@@ -548,6 +553,9 @@ void SerialMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
   //serialRobot.requestMotorPwm(leftPwm, rightPwm, mowPwm);
   serialRobot.requestLeftPwm = leftPwm;
   serialRobot.requestRightPwm = rightPwm;
+  // Alfred mowing motor driver seem to start start mowing motor more successfully with full PWM (100%) values...  
+  if (mowPwm > 0) mowPwm = 255;
+    else if (mowPwm < 0) mowPwm = -255;
   serialRobot.requestMowPwm = mowPwm;
 }
 
@@ -756,6 +764,14 @@ void SerialBumperDriver::run(){
 bool SerialBumperDriver::obstacle(){
   return (serialRobot.triggeredLeftBumper || serialRobot.triggeredRightBumper); 
 }
+
+bool SerialBumperDriver::getLeftBumper(){
+  return (serialRobot.triggeredLeftBumper);
+}
+
+bool SerialBumperDriver::getRightBumper(){
+  return (serialRobot.triggeredRightBumper);
+}	
 
 void SerialBumperDriver::getTriggeredBumper(bool &leftBumper, bool &rightBumper){
   leftBumper = serialRobot.triggeredLeftBumper;

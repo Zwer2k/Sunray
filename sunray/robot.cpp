@@ -43,7 +43,7 @@
 #include "cpu.h"
 #include "i2c.h"
 #include "src/test/test.h"
-
+#include "bumper.h"
 
 // #define I2C_SPEED  10000
 #define _BV(x) (1 << (x))
@@ -65,7 +65,7 @@ const signed char orientationMatrix[9] = {
   SerialRobotDriver robotDriver;
   SerialMotorDriver motorDriver(robotDriver);
   SerialBatteryDriver batteryDriver(robotDriver);
-  SerialBumperDriver bumper(robotDriver);
+  SerialBumperDriver bumperDriver(robotDriver);
   SerialStopButtonDriver stopButton(robotDriver);
   SerialRainSensorDriver rainDriver(robotDriver);
   SerialLiftSensorDriver liftDriver(robotDriver);
@@ -74,7 +74,7 @@ const signed char orientationMatrix[9] = {
   SimRobotDriver robotDriver;
   SimMotorDriver motorDriver(robotDriver);
   SimBatteryDriver batteryDriver(robotDriver);
-  SimBumperDriver bumper(robotDriver);
+  SimBumperDriver bumperDriver(robotDriver);
   SimStopButtonDriver stopButton(robotDriver);
   SimRainSensorDriver rainDriver(robotDriver);
   SimLiftSensorDriver liftDriver(robotDriver);
@@ -83,7 +83,7 @@ const signed char orientationMatrix[9] = {
   AmRobotDriver robotDriver;
   AmMotorDriver motorDriver;
   AmBatteryDriver batteryDriver;
-  AmBumperDriver bumper;
+  AmBumperDriver bumperDriver;
   AmStopButtonDriver stopButton;
   AmRainSensorDriver rainDriver;
   AmLiftSensorDriver liftDriver;
@@ -102,6 +102,7 @@ PinManager pinMan;
 BLEConfig bleConfig;
 Buzzer buzzer;
 Sonar sonar;
+Bumper bumper;
 VL53L0X tof(VL53L0X_ADDRESS_DEFAULT);
 Map maps;
 RCModel rcmodel;
@@ -133,6 +134,7 @@ unsigned long nextGPSMotionCheckTime = 0;
 
 bool finishAndRestart = false;
 
+unsigned long nextBadChargingContactCheck = 0;
 unsigned long nextToFTime = 0;
 unsigned long linearMotionStartTime = 0;
 unsigned long angularMotionStartTime = 0;
@@ -203,7 +205,7 @@ void sensorTest(){
   while (millis() < stopTime){
     sonar.run();
     bumper.run();
-	liftDriver.run();
+    liftDriver.run();
     if (millis() > nextMeasureTime){
       nextMeasureTime = millis() + 1000;      
       if (SONAR_ENABLE){
@@ -233,13 +235,16 @@ void sensorTest(){
         CONSOLE.print("bumper (triggered): ");
         CONSOLE.print(((int)bumper.obstacle()));
         CONSOLE.print("\t");
-       
+        CONSOLE.print(((int)bumper.testRight()));
+        CONSOLE.print("\t");
+        CONSOLE.print(((int)bumper.obstacle()));
+        CONSOLE.print("\t");       
       }
-	#ifdef ENABLE_LIFT_DETECTION 
+	    #ifdef ENABLE_LIFT_DETECTION 
         CONSOLE.print("lift sensor (triggered): ");		
         CONSOLE.print(((int)liftDriver.triggered()));	
         CONSOLE.print("\t");							            
-    #endif  
+      #endif  
 	
       CONSOLE.println();  
       watchdogReset();
@@ -252,6 +257,7 @@ void sensorTest(){
 
 void startWIFI(){
 #ifdef __linux__
+  WiFi.begin();
   wifiFound = true;
 #else  
   CONSOLE.println("probing for ESP8266 (NOTE: will fail for ESP32)...");
@@ -422,8 +428,10 @@ void outputConfig(){
   #ifdef MOTOR_RIGHT_SWAP_DIRECTION
     CONSOLE.println("MOTOR_RIGHT_SWAP_DIRECTION");
   #endif
-  CONSOLE.print("ENABLE_DYNAMIC_MOWER_SPEED: ");
-  CONSOLE.println(ENABLE_DYNAMIC_MOWER_SPEED);
+  #ifdef MAX_MOW_PWM
+    CONSOLE.print("MAX_MOW_PWM: ");
+    CONSOLE.println(MAX_MOW_PWM);
+  #endif
   CONSOLE.print("MOW_FAULT_CURRENT: ");
   CONSOLE.println(MOW_FAULT_CURRENT);
   CONSOLE.print("MOW_OVERLOAD_CURRENT: ");
@@ -436,8 +444,6 @@ void outputConfig(){
   CONSOLE.println(ENABLE_FAULT_OBSTACLE_AVOIDANCE);
   CONSOLE.print("ENABLE_RPM_FAULT_DETECTION: ");
   CONSOLE.println(ENABLE_RPM_FAULT_DETECTION);
-  CONSOLE.print("ENABLE_DYNAMIC_MOWMOTOR: ");
-  CONSOLE.println(ENABLE_DYNAMIC_MOWMOTOR);
   #ifdef SONAR_INSTALLED
     CONSOLE.println("SONAR_INSTALLED");
     CONSOLE.print("SONAR_ENABLE: ");  
@@ -449,6 +455,12 @@ void outputConfig(){
   CONSOLE.println(RAIN_ENABLE);
   CONSOLE.print("BUMPER_ENABLE: ");
   CONSOLE.println(BUMPER_ENABLE);
+  CONSOLE.print("BUMPER_DEADTIME: ");
+  CONSOLE.println(BUMPER_DEADTIME);
+  CONSOLE.print("BUMPER_TRIGGER_DELAY: ");
+  CONSOLE.println(BUMPER_TRIGGER_DELAY);
+  CONSOLE.print("BUMPER_MAX_TRIGGER_TIME: ");
+  CONSOLE.println(BUMPER_MAX_TRIGGER_TIME);  
   CONSOLE.print("CURRENT_FACTOR: ");
   CONSOLE.println(CURRENT_FACTOR);
   CONSOLE.print("GO_HOME_VOLTAGE: ");
@@ -511,9 +523,8 @@ void outputConfig(){
   CONSOLE.println(STANLEY_CONTROL_K_SLOW);
   CONSOLE.print("BUTTON_CONTROL: ");
   CONSOLE.println(BUTTON_CONTROL);
-  #ifdef USE_TEMP_SENSOR
-    CONSOLE.println("USE_TEMP_SENSOR");
-  #endif
+  CONSOLE.print("USE_TEMP_SENSOR: ");
+  CONSOLE.println(USE_TEMP_SENSOR);
   #ifdef BUZZER_ENABLE
     CONSOLE.println("BUZZER_ENABLE");    
   #endif
@@ -756,14 +767,13 @@ bool detectObstacle(){
     #endif
   #endif
 
-  if (BUMPER_ENABLE){
-    if ( (millis() > linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){  
-      CONSOLE.println("bumper obstacle!");    
-      statMowBumperCounter++;
-      triggerObstacle();    
-      return true;
-    }
+  if ( (millis() > linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){  
+    CONSOLE.println("bumper obstacle!");    
+    statMowBumperCounter++;
+    triggerObstacle();    
+    return true;
   }
+  
   if (sonar.obstacle() && (maps.wayMode != WAY_DOCK)){
     CONSOLE.println("sonar obstacle!");    
     statMowSonarCounter++;
@@ -862,6 +872,7 @@ void run(){
   sonar.run();
   maps.run();  
   rcmodel.run();
+  bumper.run();
   
   // state saving
   if (millis() >= nextSaveTime){  
@@ -875,7 +886,7 @@ void run(){
     float batTemp = batteryDriver.getBatteryTemperature();
     float cpuTemp = robotDriver.getCpuTemperature();    
     CONSOLE.print("batTemp=");
-    CONSOLE.print(stateTemp,0);
+    CONSOLE.print(batTemp,0);
     CONSOLE.print("  cpuTemp=");
     CONSOLE.print(cpuTemp,0);    
     //logCPUHealth();
@@ -947,6 +958,12 @@ void run(){
       } else {
         activeOp->onChargerDisconnected();
       }            
+    }
+    if (millis() > nextBadChargingContactCheck) {
+      if (battery.badChargerContact()){
+        nextBadChargingContactCheck = millis() + 60000; // 1 min.
+        activeOp->onBadChargingContactDetected();
+      }
     } 
 
     if (battery.underVoltage()){
@@ -962,10 +979,12 @@ void run(){
         }
       }
       if (RAIN_ENABLE){
-        if (rainDriver.triggered()){
-          //CONSOLE.println("RAIN TRIGGERED");
-          activeOp->onRainTriggered();
-        }
+        // rain sensor should trigger serveral times to robustly detect rain (robust rain detection)
+        // it should not trigger if one rain drop or wet tree leaves touches the sensor  
+        if (rainDriver.triggered()){  
+          //CONSOLE.print("RAIN TRIGGERED ");
+          activeOp->onRainTriggered();                                                                              
+        }                           
       }    
       if (battery.shouldGoHome()){
         if (DOCKING_STATION){
@@ -989,17 +1008,17 @@ void run(){
     if (stateButton == 5){
       stateButton = 0; // reset button state
       stateSensor = SENS_STOP_BUTTON;
-      setOperation(OP_DOCK, false, true);
+      setOperation(OP_DOCK, false);
     } else if (stateButton == 6){ 
       stateButton = 0; // reset button state        
       stateSensor = SENS_STOP_BUTTON;
-      setOperation(OP_MOW, false, true);
+      setOperation(OP_MOW, false);
     } 
     //else if (stateButton > 0){  // stateButton 1 (or unknown button state)        
     else if (stateButton == 1){  // stateButton 1                   
       stateButton = 0;  // reset button state
       stateSensor = SENS_STOP_BUTTON;
-      setOperation(OP_IDLE, false, true);                             
+      setOperation(OP_IDLE, false);                             
     } else if (stateButton == 9){
       stateButton = 0;  // reset button state
       stateSensor = SENS_STOP_BUTTON;
@@ -1050,12 +1069,11 @@ void run(){
 
 
 // set new robot operation
-void setOperation(OperationType op, bool allowRepeat, bool initiatedbyOperator){  
+void setOperation(OperationType op, bool allowRepeat){  
   if ((stateOp == op) && (!allowRepeat)) return;  
   CONSOLE.print("setOperation op=");
   CONSOLE.println(op);
   stateOp = op;  
-  activeOp->changeOperationType(stateOp, initiatedbyOperator);
+  activeOp->changeOperationTypeByOperator(stateOp);
   saveState();
 }
-

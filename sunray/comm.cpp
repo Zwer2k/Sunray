@@ -6,10 +6,12 @@
 #include "Stats.h"
 #include "src/op/op.h"
 #include "reset.h"
+
 #ifdef __linux__
   #include <BridgeClient.h>
   #include <Process.h>
   #include <WiFi.h>
+  #include <sys/resource.h>
 #else
   #include "src/esp/WiFiEsp.h"
 #endif
@@ -43,7 +45,8 @@ float statMaxControlCycleTime = 0;
 // mqtt
 #define MSG_BUFFER_SIZE	(50)
 char mqttMsg[MSG_BUFFER_SIZE];
-unsigned long nextPublishTime = 0;
+unsigned long nextMQTTPublishTime = 0;
+unsigned long nextMQTTLoopTime = 0;
 
 // wifi client
 WiFiEspClient wifiClient;
@@ -159,7 +162,7 @@ void cmdControl(){
     // certain operations may require a start from IDLE state (https://github.com/Ardumower/Sunray/issues/66)
     setOperation(OP_IDLE);    
   }
-  if (op >= 0) setOperation((OperationType)op, false, true); // new operation by operator
+  if (op >= 0) setOperation((OperationType)op, false); // new operation by operator
     else if (restartRobot){     // no operation given by operator, continue current operation from IDLE state
       setOperation(oldStateOp);    
     }  
@@ -423,6 +426,20 @@ void cmdObstacle(){
   triggerObstacle();  
 }
 
+// request rain
+void cmdRain(){
+  String s = F("O2");
+  cmdAnswer(s);  
+  activeOp->onRainTriggered();  
+}
+
+// request battery low
+void cmdBatteryLow(){
+  String s = F("O3");
+  cmdAnswer(s);  
+  activeOp->onBatteryLowShouldDock();  
+}
+
 // perform pathfinder stress test
 void cmdStressTest(){
   String s = F("Z");
@@ -496,6 +513,24 @@ void cmdToggleGPSSolution(){
   }
 }
 
+
+// request obstacles
+void cmdObstacles(){
+  String s = F("S2,");
+  s += maps.obstacles.numPolygons;
+  for (int idx=0; idx < maps.obstacles.numPolygons; idx++){
+    s += ",0.5,0.5,1,"; // red,green,blue (0-1)    
+    s += maps.obstacles.polygons[idx].numPoints;    
+    for (int idx2=0 ; idx2 < maps.obstacles.polygons[idx].numPoints; idx2++){
+      s += ",";
+      s += maps.obstacles.polygons[idx].points[idx2].x();
+      s += ",";
+      s += maps.obstacles.polygons[idx].points[idx2].y();
+    }    
+  }
+
+  cmdAnswer(s);
+}
 
 // request summary
 void cmdSummary(){
@@ -592,12 +627,15 @@ void cmdStats(){
   s += statMowBumperCounter;
   s += ",";
   s += statMowGPSMotionTimeoutCounter;
+  s += ",";
+  s += statMowDurationMotorRecovery;
   cmdAnswer(s);  
 }
 
 // clear statistics
 void cmdClearStats(){
   String s = F("L");
+  statMowDurationMotorRecovery = 0;
   statIdleDuration = 0;
   statChargeDuration = 0;
   statMowDuration = 0;
@@ -776,7 +814,13 @@ void processCmd(bool checkCrc, bool decrypt){
   if (cmd[0] != 'A') return;
   if (cmd[1] != 'T') return;
   if (cmd[2] != '+') return;
-  if (cmd[3] == 'S') cmdSummary();
+  if (cmd[3] == 'S') {
+    if (cmd.length() <= 4){
+      cmdSummary(); 
+    } else {
+      if (cmd[4] == '2') cmdObstacles();      
+    }
+  }
   if (cmd[3] == 'M') cmdMotor();
   if (cmd[3] == 'C'){ 
     if ((cmd.length() > 4) && (cmd[4] == 'T')) cmdTuneParam();
@@ -791,7 +835,14 @@ void processCmd(bool checkCrc, bool decrypt){
   if (cmd[3] == 'L') cmdClearStats();
   if (cmd[3] == 'E') cmdMotorTest();  
   if (cmd[3] == 'Q') cmdMotorPlot();  
-  if (cmd[3] == 'O') cmdObstacle();  
+  if (cmd[3] == 'O'){
+    if (cmd.length() <= 4){
+      cmdObstacle();   // for developers
+    } else {
+      if (cmd[4] == '2') cmdRain();   // for developers
+      if (cmd[4] == '3') cmdBatteryLow();   // for developers
+    }    
+  }   
   if (cmd[3] == 'F') cmdSensorTest(); 
   if (cmd[3] == 'B') {
     if (cmd[4] == '1') cmdWiFiScan();
@@ -1014,10 +1065,13 @@ void mqttReconnect() {
   if (!mqttClient.connected()) {
     CONSOLE.println("MQTT: Attempting connection...");
     // Create a random client ID
-    String clientId = "ESP8266Client-";
-    clientId += String(random(0xffff), HEX);
+    String clientId = "sunray-ardumower";
     // Attempt to connect
+#ifdef MQTT_USER
+    if (mqttClient.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
+#else
     if (mqttClient.connect(clientId.c_str())) {
+#endif
       CONSOLE.println("MQTT: connected");
       // Once connected, publish an announcement...
       //mqttClient.publish("outTopic", "hello world");
@@ -1042,34 +1096,92 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   CONSOLE.println(cmd);
   if (cmd == "dock") {
-    setOperation(OP_DOCK, false, true);
+    setOperation(OP_DOCK, false);
   } else if (cmd ==  "stop") {
-    setOperation(OP_IDLE, false, true);
+    setOperation(OP_IDLE, false);
   } else if (cmd == "start"){
-    setOperation(OP_MOW, false, true);
+    setOperation(OP_MOW, false);
   }
 }
+
+// define a macro so avoid repetitive code lines for sending single values via MQTT
+#define MQTT_PUBLISH(VALUE, FORMAT, TOPIC) \
+      snprintf (mqttMsg, MSG_BUFFER_SIZE, FORMAT, VALUE); \
+      mqttClient.publish(MQTT_TOPIC_PREFIX TOPIC, mqttMsg);    
+
 
 // process MQTT input/output (subcriber/publisher)
 void processWifiMqttClient()
 {
   if (!ENABLE_MQTT) return; 
-  if (millis() >= nextPublishTime){
-    nextPublishTime = millis() + 10000;
+  if (millis() >= nextMQTTPublishTime){
+    nextMQTTPublishTime = millis() + 20000;
     if (mqttClient.connected()) {
       updateStateOpText();
-      snprintf (mqttMsg, MSG_BUFFER_SIZE, "%s", stateOpText.c_str());                
+      // operational state
       //CONSOLE.println("MQTT: publishing " MQTT_TOPIC_PREFIX "/status");      
-      mqttClient.publish(MQTT_TOPIC_PREFIX "/op", mqttMsg);      
+      MQTT_PUBLISH(stateOpText.c_str(), "%s", "/op")
+      MQTT_PUBLISH(maps.percentCompleted, "%d", "/progress")
+
+      // GPS related information
       snprintf (mqttMsg, MSG_BUFFER_SIZE, "%.2f, %.2f", gps.relPosN, gps.relPosE);          
       mqttClient.publish(MQTT_TOPIC_PREFIX "/gps/pos", mqttMsg);
-      snprintf (mqttMsg, MSG_BUFFER_SIZE, "%s", gpsSolText.c_str());          
-      mqttClient.publish(MQTT_TOPIC_PREFIX "/gps/sol", mqttMsg);    
+      MQTT_PUBLISH(gpsSolText.c_str(), "%s", "/gps/sol")
+      MQTT_PUBLISH(gps.iTOW, "%lu", "/gps/tow")
+      
+      MQTT_PUBLISH(gps.lon, "%.8f", "/gps/lon")
+      MQTT_PUBLISH(gps.lat, "%.8f", "/gps/lat")
+      MQTT_PUBLISH(gps.height, "%.1f", "/gps/height")
+      MQTT_PUBLISH(gps.relPosN, "%.4f", "/gps/relNorth")
+      MQTT_PUBLISH(gps.relPosE, "%.4f", "/gps/relEast")
+      MQTT_PUBLISH(gps.relPosD, "%.2f", "/gps/relDist")
+      MQTT_PUBLISH((millis()-gps.dgpsAge)/1000.0, "%.2f","/gps/ageDGPS")
+      MQTT_PUBLISH(gps.accuracy, "%.2f", "/gps/accuracy")
+      MQTT_PUBLISH(gps.groundSpeed, "%.4f", "/gps/groundSpeed")
+      
+      // power related information      
+      MQTT_PUBLISH(battery.batteryVoltage, "%.2f", "/power/battery/voltage")
+      MQTT_PUBLISH(motor.motorsSenseLP, "%.2f", "/power/motor/current")
+      MQTT_PUBLISH(battery.chargingVoltage, "%.2f", "/power/battery/charging/voltage")
+      MQTT_PUBLISH(battery.chargingCurrent, "%.2f", "/power/battery/charging/current")
+
+      // map related information
+      MQTT_PUBLISH(maps.targetPoint.x(), "%.2f", "/map/targetPoint/X")
+      MQTT_PUBLISH(maps.targetPoint.y(), "%.2f", "/map/targetPoint/Y")
+      MQTT_PUBLISH(stateX, "%.2f", "/map/pos/X")
+      MQTT_PUBLISH(stateY, "%.2f", "/map/pos/Y")
+      MQTT_PUBLISH(stateDelta, "%.2f", "/map/pos/Dir")
+
+      // statistics
+      MQTT_PUBLISH(statIdleDuration, "%d", "/stats/idleDuration")
+      MQTT_PUBLISH(statChargeDuration, "%d", "/stats/chargeDuration")
+      MQTT_PUBLISH(statMowDuration, "%d", "/stats/mow/totalDuration")
+      MQTT_PUBLISH(statMowDurationInvalid, "%d", "/stats/mow/invalidDuration")
+      MQTT_PUBLISH(statMowDurationFloat, "%d", "/stats/mow/floatDuration")
+      MQTT_PUBLISH(statMowDurationFix, "%d", "/stats/mow/fixDuration")
+      MQTT_PUBLISH(statMowFloatToFixRecoveries, "%d", "/stats/mow/floatToFixRecoveries")
+      MQTT_PUBLISH(statMowObstacles, "%d", "/stats/mow/obstacles")
+      MQTT_PUBLISH(statMowGPSMotionTimeoutCounter, "%d", "/stats/mow/gpsMotionTimeouts")
+      MQTT_PUBLISH(statMowBumperCounter, "%d", "/stats/mow/bumperEvents")
+      MQTT_PUBLISH(statMowSonarCounter, "%d", "/stats/mow/sonarEvents")
+      MQTT_PUBLISH(statMowLiftCounter, "%d", "/stats/mow/liftEvents")
+      MQTT_PUBLISH(statMowMaxDgpsAge, "%.2f", "/stats/mow/maxDgpsAge")
+      MQTT_PUBLISH(statMowDistanceTraveled, "%.1f", "/stats/mow/distanceTraveled")
+      MQTT_PUBLISH(statMowInvalidRecoveries, "%d", "/stats/mow/invalidRecoveries")
+      MQTT_PUBLISH(statImuRecoveries, "%d", "/stats/imuRecoveries")
+      MQTT_PUBLISH(statGPSJumps, "%d", "/stats/gpsJumps")      
+      MQTT_PUBLISH(statTempMin, "%.1f", "/stats/tempMin")
+      MQTT_PUBLISH(statTempMax, "%.1f", "/stats/tempMax")
+      MQTT_PUBLISH(stateTemp, "%.1f", "/stats/curTemp")
+
     } else {
       mqttReconnect();  
     }
   }
-  mqttClient.loop();
+  if (millis() > nextMQTTLoopTime){
+    nextMQTTLoopTime = millis() + 20000;
+    mqttClient.loop();
+  }
 }
 
 
@@ -1119,22 +1231,31 @@ void outputConsole(){
     CONSOLE.print (" op=");    
     CONSOLE.print (activeOp->getOpChain());    
     //CONSOLE.print (stateOp);
-    CONSOLE.print (" freem=");
-    CONSOLE.print (freeMemory ());
-    #ifndef __linux__
+    #ifdef __linux__
+      CONSOLE.print (" mem=");
+      struct rusage r_usage;
+      getrusage(RUSAGE_SELF,&r_usage);
+      CONSOLE.print(r_usage.ru_maxrss);
+    #else
+      CONSOLE.print (" freem=");
+      CONSOLE.print (freeMemory());  
       uint32_t *spReg = (uint32_t*)__get_MSP();   // stack pointer
       CONSOLE.print (" sp=");
       CONSOLE.print (*spReg, HEX);
     #endif
     CONSOLE.print(" bat=");
     CONSOLE.print(battery.batteryVoltage);
+    CONSOLE.print(",");
+    CONSOLE.print(battery.batteryVoltageSlope, 3);    
     CONSOLE.print("(");    
     CONSOLE.print(motor.motorsSenseLP);    
     CONSOLE.print(") chg=");
     CONSOLE.print(battery.chargingVoltage);    
     CONSOLE.print("(");
     CONSOLE.print(battery.chargingCurrent);    
-    CONSOLE.print(") tg=");
+    CONSOLE.print(") diff=");
+    CONSOLE.print(battery.chargingVoltBatteryVoltDiff, 3);
+    CONSOLE.print(" tg=");
     CONSOLE.print(maps.targetPoint.x());
     CONSOLE.print(",");
     CONSOLE.print(maps.targetPoint.y());

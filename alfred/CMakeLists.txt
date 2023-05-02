@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.7)
 
 project(sunray)
 
-SET(FIRMWARE_PATH /home/$ENV{USER}/Sunray/sunray)
+SET(FIRMWARE_PATH ${CMAKE_SOURCE_DIR}/../sunray)
 
 set(CMAKE_CXX_STANDARD 14)
 SET(EXCLUDE_REGEX "agcm4|due|esp")
@@ -40,6 +40,7 @@ SET(CMAKE_BUILD_TYPE Debug)
 
 message("CMAKE_SOURCE_DIR ${CMAKE_SOURCE_DIR}")
 message("Using firmware path ${FIRMWARE_PATH}")
+message("CMAKE_SYSTEM_PROCESSOR ${CMAKE_SYSTEM_PROCESSOR}")
 
 file(GLOB_RECURSE sunray_cpp ${FIRMWARE_PATH}/**.cpp)
 list(FILTER sunray_cpp EXCLUDE REGEX ${EXCLUDE_REGEX})
@@ -62,6 +63,9 @@ foreach (filename ${pi_sources})
     message(${filename})
 endforeach()
 
+message("--copy config.h to sunray source--")
+configure_file(${CMAKE_SOURCE_DIR}/config.h ${FIRMWARE_PATH}/config.h COPYONLY)
+
 message("main file ${FIRMWARE_PATH}/sunray.ino")
 
 ## set_source_files_properties({sunray_c} PROPERTIES LANGUAGE C)
@@ -77,7 +81,7 @@ set_source_files_properties(${FIRMWARE_PATH}/sunray.ino PROPERTIES COMPILE_FLAGS
 
 add_executable(sunray ${pi_sources} ${sunray_cpp} ${sunray_c} ${FIRMWARE_PATH}/sunray.ino)
 target_include_directories(sunray PRIVATE src ${FIRMWARE_PATH}/src)
-target_link_libraries(sunray "${CMAKE_SOURCE_DIR}/lib/libarduino_linux.a")
+# target_link_libraries(sunray "${CMAKE_SOURCE_DIR}/lib/libarduino_${CMAKE_SYSTEM_PROCESSOR}.a")
 
 # target_include_directories(sunray PUBLIC ${LIBNL_INCLUDE_DIR})
 # target_link_libraries(sunray ${LIBIW_LIB} ${LIBNL_LIB} ${LIBNL_GENL_LIB})
