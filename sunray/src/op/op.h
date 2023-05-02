@@ -75,6 +75,7 @@ class Op {
     virtual void onBatteryUndervoltage();
     virtual void onBatteryLowShouldDock();    
     virtual void onChargerDisconnected();
+    virtual void onBadChargingContactDetected();    
     virtual void onChargerConnected();    
     virtual void onChargingCompleted();              
     virtual void onImuTilt();
@@ -135,6 +136,7 @@ class MowOp: public Op {
 class DockOp: public Op {
   public:        
     bool dockReasonRainTriggered;
+    unsigned long dockReasonRainAutoStartTime;
     bool lastMapRoutingFailed;
     int mapRoutingFailedCounter;
     DockOp();
@@ -154,13 +156,21 @@ class DockOp: public Op {
 
 // charging op
 class ChargeOp: public Op {
-  public:        
+  public:     
+    unsigned long retryTouchDockStopTime;
+    unsigned long betterTouchDockStopTime;
+    bool retryTouchDock;
+    bool betterTouchDock;
+    unsigned long nextConsoleDetailsTime;   
     virtual String name() override;
     virtual void begin() override;
     virtual void end() override;
     virtual void run() override;
     virtual void onChargerDisconnected() override;
+    virtual void onBadChargingContactDetected() override;
     virtual void onBatteryUndervoltage() override;    
+    virtual void onRainTriggered() override;   
+    virtual void onChargerConnected() override; 
 };
 
 // wait for undo kidnap (gps jump) 

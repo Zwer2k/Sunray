@@ -32,8 +32,7 @@ void MowOp::begin(){
 
     // plan route to next target point 
 
-    //dockingInitiatedByOperator = false;
-    //dockReasonRainTriggered = false;
+    dockOp.dockReasonRainTriggered = false;    
 
     if (((initiatedByOperator) && (previousOp == &idleOp)) || (lastMapRoutingFailed))  maps.clearObstacles();
 
@@ -92,6 +91,7 @@ void MowOp::onRainTriggered(){
         CONSOLE.println("RAIN TRIGGERED");
         stateSensor = SENS_RAIN;
         dockOp.dockReasonRainTriggered = true;
+        dockOp.dockReasonRainAutoStartTime = millis() + 60000 * 60; // try again after one hour 
         dockOp.setInitiatedByOperator(false);
         changeOp(dockOp);              
     }
@@ -102,12 +102,14 @@ void MowOp::onTempOutOfRangeTriggered(){
         CONSOLE.println("TEMP OUT-OF-RANGE TRIGGERED");
         stateSensor = SENS_TEMP_OUT_OF_RANGE;
         dockOp.dockReasonRainTriggered = true;
+        dockOp.dockReasonRainAutoStartTime = millis() + 60000 * 60; // try again after one hour      
         dockOp.setInitiatedByOperator(false);
         changeOp(dockOp);              
     }
 }
 
 void MowOp::onBatteryLowShouldDock(){    
+    CONSOLE.println("BATTERY LOW TRIGGERED - DOCKING");
     dockOp.setInitiatedByOperator(false);
     changeOp(dockOp);
 }
