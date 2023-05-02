@@ -245,7 +245,7 @@ void sensorTest(){
         CONSOLE.print(((int)liftDriver.triggered()));	
         CONSOLE.print("\t");							            
       #endif  
-	
+      	
       CONSOLE.println();  
       watchdogReset();
       robotDriver.run();   
@@ -970,14 +970,14 @@ void run(){
       activeOp->onBatteryUndervoltage();
     } 
     else {      
-      if (USE_TEMP_SENSOR){
+#if USE_TEMP_SENSOR == 1 || USE_TEMP_SENSOR == true
         if (stateTemp > DOCK_OVERHEAT_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         } 
         else if (stateTemp < DOCK_TOO_COLD_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         }
-      }
+#endif
       if (RAIN_ENABLE){
         // rain sensor should trigger serveral times to robustly detect rain (robust rain detection)
         // it should not trigger if one rain drop or wet tree leaves touches the sensor  

@@ -269,7 +269,7 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
   MOW800_MC33035.enableActive = LOW;       // enable active level (LOW or HIGH)
   MOW800_MC33035.disableAtPwmZeroSpeed = false;  // disable driver at PWM zero speed? (brake function)
-  MOW800_MC33035.keepPwmZeroSpeed = false;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
+  MOW800_MC33035.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
   MOW800_MC33035.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035.maxPwmSpeed = 255;            
   MOW800_MC33035.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
@@ -768,10 +768,12 @@ void AmBatteryDriver::keepPowerOn(bool flag){
 // ------------------------------------------------------------------------------------
 void BumperLeftInterruptRoutine(){
   leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
+  if (leftPressed) motor.setLinearAngularSpeed(0,0, false);
 }
 
 void BumperRightInterruptRoutine(){
   rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);  
+  if (rightPressed) motor.setLinearAngularSpeed(0,0, false);
 }
 
 
@@ -803,9 +805,9 @@ bool AmBumperDriver::obstacle(){
 #if pinBumerUseInterrupt != true
     leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
     rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);
+    if ((leftPressed) || (rightPressed)) motor.setLinearAngularSpeed(0,0, false);
 #endif
-
-
+  
   return (leftPressed || rightPressed);
 }
     
@@ -831,7 +833,7 @@ void AmStopButtonDriver::begin(){
   pinMode(pinButton, INPUT_PULLUP);
 #else
   CONSOLE.println("Button PIN not defined");
-#endif  
+#endif
 }
 
 void AmStopButtonDriver::run(){

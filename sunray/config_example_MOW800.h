@@ -303,9 +303,11 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // see Wiki on how to install bumperduino or freewheel sensor:
 // https://wiki.ardumower.de/index.php?title=Bumper_sensor
 // https://wiki.ardumower.de/index.php?title=Free_wheel_sensor
-#define BUMPER_ENABLE true
-//#define BUMPER_ENABLE false
+//#define BUMPER_ENABLE true
+#define BUMPER_ENABLE false
 #define BUMPER_DEADTIME 1000  // linear motion dead-time (ms) after bumper is allowed to trigger
+#define BUMPER_TRIGGER_DELAY  0 // bumper must be active for (ms) to trigger
+#define BUMPER_MAX_TRIGGER_TIME 30  // if bumpersensor stays permanent triggered mower will stop with bumper error (time in seconds; 0 = disabled)
 
 
 // ----- battery charging current measurement (INA169) --------------
@@ -344,25 +346,25 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define GPS_USE_TCP 1                    // comment out for serial gps, activate for TCP client-based GPS
 //#define GPS_SKYTRAQ  1               // comment out for ublox gps, uncomment for skytraq gps/NMEA
 
-//#define REQUIRE_VALID_GPS  true       // mower will pause if no float and no fix GPS solution during mowing (recommended)
-#define REQUIRE_VALID_GPS  false    // mower will continue to mow if no float or no fix solution (not recommended)
+#define REQUIRE_VALID_GPS  true       // mower will pause if no float and no fix GPS solution during mowing (recommended)
+//#define REQUIRE_VALID_GPS  false    // mower will continue to mow if no float or no fix solution (not recommended)
 
-//#define GPS_SPEED_DETECTION true  // will detect obstacles via GPS feedback (no speed)  - recommended
-#define GPS_SPEED_DETECTION false
+#define GPS_SPEED_DETECTION true  // will detect obstacles via GPS feedback (no speed)  - recommended
+//#define GPS_SPEED_DETECTION false
 
 // detect if robot is actually moving (obstacle detection via GPS feedback)
-//#define GPS_MOTION_DETECTION          true    // if robot is not moving trigger obstacle avoidance (recommended)
-#define GPS_MOTION_DETECTION        false   // ignore if robot is not moving
+#define GPS_MOTION_DETECTION          true    // if robot is not moving trigger obstacle avoidance (recommended)
+//#define GPS_MOTION_DETECTION        false   // ignore if robot is not moving
 #define GPS_MOTION_DETECTION_TIMEOUT  5      // timeout for motion (secs)
 
 // configure ublox f9p with optimal settings (will be stored in f9p RAM only)
 // NOTE: due to a PCB1.3 bug GPS_RX pin is not working and you have to fix this by a wire:
 // https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#PCB1.3_GPS_pin_fix_and_wire_fix   (see 'GPS wire fix')
-//#define GPS_REBOOT_RECOVERY  true // allow GPS receiver rebooting (recommended - requires GPS wire fix above! otherwise firmware will stuck at boot!)
-#define GPS_REBOOT_RECOVERY   false  // do not allow rebooting GPS receiver (no GPS wire fix required)
+#define GPS_REBOOT_RECOVERY  true // allow GPS receiver rebooting (recommended - requires GPS wire fix above! otherwise firmware will stuck at boot!)
+//#define GPS_REBOOT_RECOVERY   false  // do not allow rebooting GPS receiver (no GPS wire fix required)
 
-//#define GPS_CONFIG   true     // configure GPS receiver (recommended - requires GPS wire fix above! otherwise firmware will stuck at boot!)
-#define GPS_CONFIG   false  // do not configure GPS receiver (no GPS wire fix required)
+#define GPS_CONFIG   true     // configure GPS receiver (recommended - requires GPS wire fix above! otherwise firmware will stuck at boot!)
+//#define GPS_CONFIG   false  // do not configure GPS receiver (no GPS wire fix required)
 
 #define GPS_CONFIG_FILTER   true     // use signal strength filter? (recommended to get rid of 'FIX jumps') - adjust filter settings below
 //#define GPS_CONFIG_FILTER   false     // use this if you have difficulties to get a FIX solution (uses ublox default filter settings)
@@ -390,7 +392,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define KIDNAP_DETECT true  // recommended
 //#define KIDNAP_DETECT false
 #define KIDNAP_DETECT_ALLOWED_PATH_TOLERANCE 1.0  // allowed path tolerance (m) 
-
+#define KIDNAP_DETECT_ALLOWED_PATH_TOLERANCE_DOCK_UNDOCK 0.2  // allowed path tolerance (m) 
+#define KIDNAP_DETECT_DISTANCE_DOCK_UNDOCK 2  // distance from dock in (m) to use KIDNAP_DETECT_ALLOWED_PATH_TOLERANCE_DOCK_UNDOCK
 
 // ------ docking --------------------------------------
 // is a docking station available?
@@ -403,6 +406,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define DOCK_AUTO_START true     // robot will automatically continue mowing after docked automatically
 #define DOCK_AUTO_START false      // robot will not automatically continue mowing after docked automatically
 
+#define DOCK_UNDOCK_TRACKSLOW_DISTANCE 5 // set distance (m) from dock for trackslow (speed limit)
+
+#define UNDOCK_IGNORE_GPS_DISTANCE 2 // set distance (m) from dock to ignore gps while undocking
 
 // ---- path tracking -----------------------------------
 
@@ -541,8 +547,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinMotorMowRpm PC4
       
 //  #define pinFreeWheel 8             // front/rear free wheel sensor    
-  #define pinBumperLeft PD9           // bumper pins
-  #define pinBumperRight PD8
+  #define pinBumperLeft PD8           // bumper pins
+  #define pinBumperRight PD9
   #define pinBumperTriggerdLevel HIGH // level of pressed bumper
   #define pinBumerUseInterrupt true  // use interrrupt for bumper trigger
   #define pinBumerDisablePullUp true  // disable pull up for bumper pin (deafult pull up is enabled) 
