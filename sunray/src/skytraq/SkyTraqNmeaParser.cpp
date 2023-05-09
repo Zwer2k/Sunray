@@ -201,7 +201,7 @@ void GnssData::CopyWorkingBeidouSatellites(bool reversion)
 }
 #endif  //#if (_SUPPORT_BEIDOU_SATELLITES_)
 
-bool GnssData::SetDate(U16 y, U16 m, U16 d) 
+bool GnssData::SetDate(TU16 y, TU16 m, TU16 d) 
 { 
   if(year == y && month == m && day == d)
   {
@@ -214,7 +214,7 @@ bool GnssData::SetDate(U16 y, U16 m, U16 d)
   return true;
 }
 
-bool GnssData::SetTime(U16 h, U16 m, D64 s) 
+bool GnssData::SetTime(TU16 h, TU16 m, TD64 s) 
 { 
   if(hour == h && minute == m && second == s)
   {
@@ -301,7 +301,7 @@ bool GnssData::SetGeoidalSeparationInMeter(double gs)
   return true;
 }
 
-bool GnssData::SetCourse(D64 c) 
+bool GnssData::SetCourse(TD64 c) 
 { 
   if(courseOverGround == c)
   {
@@ -311,7 +311,7 @@ bool GnssData::SetCourse(D64 c)
   return true;
 }
 
-bool GnssData::SetSpeedInKnots(D64 s) 
+bool GnssData::SetSpeedInKnots(TD64 s) 
 { 
   if(speedKnot == s)
   {
@@ -321,7 +321,7 @@ bool GnssData::SetSpeedInKnots(D64 s)
   return true;
 }
 
-bool GnssData::SetNumberOfSv(U16 n)
+bool GnssData::SetNumberOfSv(TU16 n)
 { 
   if(numSV == n)
   {
@@ -331,7 +331,7 @@ bool GnssData::SetNumberOfSv(U16 n)
   return true;
 }
 
-bool GnssData::SetHdop(D64 h)
+bool GnssData::SetHdop(TD64 h)
 {
   if(hdop == h)
   {
@@ -341,7 +341,7 @@ bool GnssData::SetHdop(D64 h)
   return true;
 }
 
-bool GnssData::SetPdop(D64 p)
+bool GnssData::SetPdop(TD64 p)
 {
   if(pdop == p)
   {
@@ -351,7 +351,7 @@ bool GnssData::SetPdop(D64 p)
   return true;
 }
 
-bool GnssData::SetVdop(D64 v)
+bool GnssData::SetVdop(TD64 v)
 {
   if(vdop == v)
   {
@@ -382,7 +382,7 @@ bool GnssData::AddAnInUsePrnToSatellites(SatelliteInfo* s, int p)
   return false;
 }
 
-void GnssData::AddAnInUsePrn(U16* s, int p)
+void GnssData::AddAnInUsePrn(TU16* s, int p)
 {
   for(int i = 0; i < MaxSatelliteNum; ++i)
   {
@@ -429,7 +429,7 @@ bool GnssData::UpdateSatellites(SatelliteInfo* s, int sv, int elv, int az, int c
 }
 
 
-void GnssData::UpdateInUseToSatellites(SatelliteInfo* s, const U16* inUse)
+void GnssData::UpdateInUseToSatellites(SatelliteInfo* s, const TU16* inUse)
 {
   int i = 0, j = 0;
   for(; i < MaxSatelliteNum; ++i)
@@ -461,7 +461,7 @@ bool GnssData::SetEnuVelocity(double ev, double nv, double uv)
   return true;
 }
 
-bool GnssData::SetRtkAge(D64 r)
+bool GnssData::SetRtkAge(TD64 r)
 {
   if(rtkAge == r)
   {
@@ -471,7 +471,7 @@ bool GnssData::SetRtkAge(D64 r)
   return true;
 }
 
-bool GnssData::SetRtkRatio(D64 r)
+bool GnssData::SetRtkRatio(TD64 r)
 {
   if(rtkRatio == r)
   {
@@ -493,7 +493,7 @@ bool GnssData::SetEnuProjection(double ep, double np, double up)
   return true;
 }
 
-bool GnssData::SetBaselineLength(D64 b)
+bool GnssData::SetBaselineLength(TD64 b)
 {
   if(baselineLength == b)
   {
@@ -503,7 +503,7 @@ bool GnssData::SetBaselineLength(D64 b)
   return true;
 }
 
-bool GnssData::SetBaselineCourse(D64 b)
+bool GnssData::SetBaselineCourse(TD64 b)
 {
   if(baselineCourse == b)
   {
@@ -529,7 +529,7 @@ void GnssData::ClearSatellites(SatelliteInfo* s)
   }
 }
 
-void GnssData::ClearInUseSatellites(U16* s)
+void GnssData::ClearInUseSatellites(TU16* s)
 {
   for(int i = 0; i < MaxSatelliteNum; ++i)
   {
@@ -548,7 +548,7 @@ SkyTraqNmeaParser::~SkyTraqNmeaParser(void)
 {
 }
 
-ParsingType SkyTraqNmeaParser::Encode(U08 b)
+ParsingType SkyTraqNmeaParser::Encode(TU08 b)
 {
   buffer[bufferIndex++] = b;
   //Received one line
@@ -726,7 +726,7 @@ GnssSystem SkyTraqNmeaParser::GetGNSSSystem(int prn)
   return GsBeidou;
 }
 
-ParsingType SkyTraqNmeaParser::MessageType(U08* pt, int len)
+ParsingType SkyTraqNmeaParser::MessageType(TU08* pt, int len)
 {
   struct NmeaTypeEntry
   {
@@ -777,7 +777,7 @@ ParsingType SkyTraqNmeaParser::MessageType(U08* pt, int len)
   parsingType = MessageUnknown;
   while(nmeaTable[i].subNmea != NULL)
   {
-    if(0==StrHeaderCompare(pt, (const U08*)nmeaTable[i].subNmea, strlen(nmeaTable[i].subNmea)))
+    if(0==StrHeaderCompare(pt, (const TU08*)nmeaTable[i].subNmea, strlen(nmeaTable[i].subNmea)))
     {
       parsingType = nmeaTable[i].type;
       break;
@@ -788,10 +788,10 @@ ParsingType SkyTraqNmeaParser::MessageType(U08* pt, int len)
   return parsingType;
 }
 
-int SkyTraqNmeaParser::StrHeaderCompare(const U08* pt, const U08* header, int len) const
+int SkyTraqNmeaParser::StrHeaderCompare(const TU08* pt, const TU08* header, int len) const
 {
-  const U08* p1 = pt;
-  const U08* p2 = header;
+  const TU08* p1 = pt;
+  const TU08* p2 = header;
   int cl = 0;
   while(*p1 != 0 && *p2 != 0 && cl < len)
   {
@@ -814,7 +814,7 @@ int SkyTraqNmeaParser::StrHeaderCompare(const U08* pt, const U08* header, int le
   return -1;
 }
 
-bool SkyTraqNmeaParser::VarifyNmeaChecksum(U08* pt, int len) const
+bool SkyTraqNmeaParser::VarifyNmeaChecksum(TU08* pt, int len) const
 {
   char checksum = 0;  
   for(int j = 1; j < len - 3; ++j)
@@ -846,7 +846,7 @@ int SkyTraqNmeaParser::HexChar2Int(char c) const
   return 0;
 }
 
-void SkyTraqNmeaParser::ScanCommaPos(const U08* pt, int len)
+void SkyTraqNmeaParser::ScanCommaPos(const TU08* pt, int len)
 {
   int pos = 0;
   EmptyCommaPos();
@@ -862,7 +862,7 @@ void SkyTraqNmeaParser::ScanCommaPos(const U08* pt, int len)
   commaNum = pos;
 }
 
-static int GetParamInt(const U08* pt, int start, int end, int defaultValue)
+static int GetParamInt(const TU08* pt, int start, int end, int defaultValue)
 {
   const int MaxIntStringSize = 16;
   char buf[MaxIntStringSize] = { 0 };
@@ -876,7 +876,7 @@ static int GetParamInt(const U08* pt, int start, int end, int defaultValue)
   return atoi(buf);
 }
 
-static D64 GetParamDouble(const U08* pt, int start, int end, double defaultValue)
+static TD64 GetParamDouble(const TU08* pt, int start, int end, double defaultValue)
 {
   const int MaxIntStringSize = 16;
   char buf[MaxIntStringSize] = { 0 };
@@ -890,12 +890,12 @@ static D64 GetParamDouble(const U08* pt, int start, int end, double defaultValue
   return atof(buf);
 }
 
-static char GetParamChar(const U08* pt, int start, int end, char defaultValue)
+static char GetParamChar(const TU08* pt, int start, int end, char defaultValue)
 {
   return (end = start) ? pt[start] : defaultValue;
 }
 
-void SkyTraqNmeaParser::ProcessingGGA(const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingGGA(const TU08* pt, int len)
 {
   int hour = GetParamInt(pt, commaPos[0] + 1, commaPos[0] + 2, 0);
   int min = GetParamInt(pt, commaPos[0] + 3, commaPos[0] + 4, 0);
@@ -924,7 +924,7 @@ void SkyTraqNmeaParser::ProcessingGGA(const U08* pt, int len)
     updateFlag |= UpdateQualitMode;
   }
 
-  U16 n = GetParamInt(pt, commaPos[6] + 1, commaPos[7] - 1, 0);
+  TU16 n = GetParamInt(pt, commaPos[6] + 1, commaPos[7] - 1, 0);
   if(gnssData.SetNumberOfSv(n))
   {
     updateFlag |= UpdateNumberOfSv;
@@ -948,7 +948,7 @@ void SkyTraqNmeaParser::ProcessingGGA(const U08* pt, int len)
   }
 }
 
-void SkyTraqNmeaParser::ProcessingGLL(const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingGLL(const TU08* pt, int len)
 {
   double latitude = 0, lontitude = 0, altAboveMsl = 0, gs = 0;
   latitude = GetParamDouble(pt, commaPos[0] + 1, commaPos[1] - 1, 0);
@@ -972,7 +972,7 @@ void SkyTraqNmeaParser::ProcessingGLL(const U08* pt, int len)
   }
 }
 
-void SkyTraqNmeaParser::ProcessingGSA(GnssSystem gs, const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingGSA(GnssSystem gs, const TU08* pt, int len)
 {
   bool gpCleared = false, glCleared = false, bdCleared = false;  
   char navMode = GetParamChar(pt, commaPos[1] + 1, commaPos[2] - 1, 0);
@@ -1090,7 +1090,7 @@ void SkyTraqNmeaParser::ProcessingGSA(GnssSystem gs, const U08* pt, int len)
 
 }
 
-void SkyTraqNmeaParser::ProcessingGSV(GnssSystem gs, const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingGSV(GnssSystem gs, const TU08* pt, int len)
 {
   const int MaxSateNumInGsv = 4;
   static bool updated = false;
@@ -1200,7 +1200,7 @@ void SkyTraqNmeaParser::ProcessingGSV(GnssSystem gs, const U08* pt, int len)
   }
 }
 
-void SkyTraqNmeaParser::ProcessingRMC(const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingRMC(const TU08* pt, int len)
 {
   int hour = GetParamInt(pt, commaPos[0] + 1, commaPos[0] + 2, 0);
   int min = GetParamInt(pt, commaPos[0] + 3, commaPos[0] + 4, 0);
@@ -1251,7 +1251,7 @@ void SkyTraqNmeaParser::ProcessingRMC(const U08* pt, int len)
 }
 
 
-void SkyTraqNmeaParser::ProcessingVTG(const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingVTG(const TU08* pt, int len)
 {
   double course = GetParamDouble(pt, commaPos[0] + 1, commaPos[1] - 1, 0);
   if(gnssData.SetCourse(course))
@@ -1266,7 +1266,7 @@ void SkyTraqNmeaParser::ProcessingVTG(const U08* pt, int len)
   }
 }
 
-void SkyTraqNmeaParser::ProcessingZDA(const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingZDA(const TU08* pt, int len)
 {
   int hour = GetParamInt(pt, commaPos[0] + 1, commaPos[0] + 2, 0);
   int min = GetParamInt(pt, commaPos[0] + 3, commaPos[0] + 4, 0);
@@ -1285,7 +1285,7 @@ void SkyTraqNmeaParser::ProcessingZDA(const U08* pt, int len)
   }
 }
 
-void SkyTraqNmeaParser::ProcessingPSTI30(const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingPSTI30(const TU08* pt, int len)
 {
   int hour = GetParamInt(pt, commaPos[1] + 1, commaPos[1] + 2, 0);
   int min = GetParamInt(pt, commaPos[1] + 3, commaPos[1] + 4, 0);
@@ -1349,7 +1349,7 @@ void SkyTraqNmeaParser::ProcessingPSTI30(const U08* pt, int len)
   }
 }
 
-void SkyTraqNmeaParser::ProcessingPSTI32(const U08* pt, int len)
+void SkyTraqNmeaParser::ProcessingPSTI32(const TU08* pt, int len)
 {
   int hour = GetParamInt(pt, commaPos[1] + 1, commaPos[1] + 2, 0);
   int min = GetParamInt(pt, commaPos[1] + 3, commaPos[1] + 4, 0);

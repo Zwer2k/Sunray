@@ -55,7 +55,7 @@ class SKYTRAQ : public SkyTraqNotifyFun, public GpsDriver {
     // The SkyTraqNmeaParser result
     const GnssData* gdata;
     // Notification of SkyTraqNmeaParser
-    U32 gnssUpdateFlag;
+    TU32 gnssUpdateFlag;
     unsigned long solutionTimeout;
     
     void begin();
@@ -67,8 +67,8 @@ class SKYTRAQ : public SkyTraqNotifyFun, public GpsDriver {
     long unpack(int offset, int size);
     void parseBinary(int b);	 
 
-    virtual bool gnssUpdated(U32 f, const char* buf, ParsingType type);
-    bool processNmea(U32 f, const char* buf, ParsingType type); 	    
+    virtual bool gnssUpdated(TU32 f, const char* buf, ParsingType type);
+    bool processNmea(TU32 f, const char* buf, ParsingType type); 	    
 };
 
 #endif

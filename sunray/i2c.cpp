@@ -38,7 +38,7 @@ int I2CclearBus() {
   pinMode(SCL, INPUT_PULLUP);
 
   delay(2500);  // Wait 2.5 secs. This is strictly only necessary on the first power
-  // up of the DS3231 module to allow it to initialize properly,
+  // up of the DTS3231 module to allow it to initialize properly,
   // but is also assists in reliable programming of FioV3 boards as it gives the
   // IDE a chance to start uploaded the program
   // before existing sketch confuses the IDE by sending Serial data.
