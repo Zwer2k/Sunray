@@ -249,7 +249,7 @@ void SKYTRAQ::run()
 
 // --------- NMEA parser callback ----------
 
-bool SKYTRAQ::gnssUpdated(U32 f, const char* buf, ParsingType type)
+bool SKYTRAQ::gnssUpdated(TU32 f, const char* buf, ParsingType type)
 {
   gnssUpdateFlag |= f;
   gdata = parser.GetGnssData();
@@ -258,14 +258,14 @@ bool SKYTRAQ::gnssUpdated(U32 f, const char* buf, ParsingType type)
   return true;
 }
 
-bool SKYTRAQ::processNmea(U32 f, const char* buf, ParsingType type)
+bool SKYTRAQ::processNmea(TU32 f, const char* buf, ParsingType type)
 {
-  U32 i = 0;
+  TU32 i = 0;
   const GnssData& gnss = *gdata;
 
   for(; i < 32; ++i)
   {
-    U32 mask = (1 << i);
+    TU32 mask = (1 << i);
     switch((mask & f))
     {
     case SkyTraqNmeaParser::NoUpdate:

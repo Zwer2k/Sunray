@@ -936,7 +936,7 @@ static const struct {
 	{ 0xfd67, "Montblanc Simplo GmbH"			},
 	{ 0xfd66, "Zebra Technologies Corporation"		},
 	{ 0xfd65, "Razer Inc."					},
-	{ 0xfd64, "INRIA"					},
+	{ 0xfTD64, "INRIA"					},
 	{ 0xfd63, "Fitbit, Inc."				},
 	{ 0xfd62, "Fitbit, Inc."				},
 	{ 0xfd61, "Arendi AG"					},
