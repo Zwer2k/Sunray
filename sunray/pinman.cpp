@@ -19,7 +19,9 @@
 
 
 static uint8_t PWMEnabled = 0;
+#if defined(_SAM3XA_)
 static uint8_t pinEnabled[PINS_COUNT];
+#endif
 static uint8_t TCChanEnabled[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 
@@ -76,9 +78,11 @@ void PinManager::begin() {
   TCCR3B = (TCCR3B & 0xF8) | 0x02;    // set PWM frequency 3.9 Khz (pin2,3,5)
 #endif
 
+#if defined(_SAM3XA_)
   uint8_t i;
   for (i = 0; i < PINS_COUNT; i++)
     pinEnabled[i] = 0;
+#endif
 }
 
 

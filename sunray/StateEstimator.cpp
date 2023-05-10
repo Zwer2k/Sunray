@@ -64,7 +64,9 @@ bool startIMU(bool forceIMU){
      I2Creset();  
      Wire.begin();    
      #ifdef I2C_SPEED
-       Wire.setClock(I2C_SPEED);   
+        #ifndef ARDUINO_ARCH_STM32
+          Wire.setClock(I2C_SPEED);  
+        #endif
      #endif
      counter++;
      if (counter > 5){    
