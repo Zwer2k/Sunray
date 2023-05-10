@@ -107,7 +107,7 @@ void OdometryMowISR(){
     unsigned long duration = millis() - motorMowTransitionTime;
     if (duration > 5) duration = 0;
     motorMowTransitionTime = millis();
-    motorMowDurationMax = 0.7 * max(motorMowDurationMax, ((float)duration));
+    motorMowDurationMax = 0.7 * max((float)motorMowDurationMax, ((float)duration));
     motorMowTicksTimeout = millis() + motorMowDurationMax;
   #else
     motorMowTicksTimeout = millis() + 1;
@@ -123,7 +123,7 @@ void OdometryLeftISR(){
     unsigned long duration = millis() - motorLeftTransitionTime;
     if (duration > 5) duration = 0;
     motorLeftTransitionTime = millis();
-    motorLeftDurationMax = 0.7 * max(motorLeftDurationMax, ((float)duration));
+    motorLeftDurationMax = 0.7 * max((float)motorLeftDurationMax, ((float)duration));
     motorLeftTicksTimeout = millis() + motorLeftDurationMax;
   #else
     motorLeftTicksTimeout = millis() + 1;
@@ -138,7 +138,7 @@ void OdometryRightISR(){
     unsigned long duration = millis() - motorRightTransitionTime;
     if (duration > 5) duration = 0;  
     motorRightTransitionTime = millis();
-    motorRightDurationMax = 0.7 * max(motorRightDurationMax, ((float)duration));  
+    motorRightDurationMax = 0.7 * max((float)motorRightDurationMax, ((float)duration));  
     motorRightTicksTimeout = millis() + motorRightDurationMax;
   #else
     motorRightTicksTimeout = millis() + 1;
@@ -323,23 +323,42 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorLeftPWM, OUTPUT);
   pinMode(pinMotorLeftDir, OUTPUT);
   pinMode(pinMotorLeftSense, INPUT);
+#ifdef pinMotorLeftFault
   pinMode(pinMotorLeftFault, INPUT);
+#else
+  CONSOLE.println("Motor left fault PIN not defined");
+#endif
+
 
   // right wheel motor
   pinMode(pinMotorRightPWM, OUTPUT);
   pinMode(pinMotorRightDir, OUTPUT);
   pinMode(pinMotorRightSense, INPUT);
+#ifdef pinMotorRightFault
   pinMode(pinMotorRightFault, INPUT);
+#else
+  CONSOLE.println("Motor left fault PIN not defined");
+#endif
+
 
   // mower motor
+  pinMode(pinMotorMowSense, INPUT);
+#ifdef __MOW800__
+  pinMode(pinMotorMowRpm, INPUT);
+#else
   pinMode(pinMotorMowDir, OUTPUT);
   pinMode(pinMotorMowPWM, OUTPUT);
-  pinMode(pinMotorMowSense, INPUT);
   pinMode(pinMotorMowRpm, INPUT);
   pinMode(pinMotorMowRpm, INPUT_PULLUP);  
+#endif
+
   pinMode(pinMotorMowEnable, OUTPUT);
   digitalWrite(pinMotorMowEnable, mowDriverChip.enableActive);
+#ifdef pinMotorMowFault
   pinMode(pinMotorMowFault, INPUT);
+#else
+  CONSOLE.println("Motor mow fault PIN not defined");
+#endif
 
   // odometry
   pinMode(pinOdometryLeft, INPUT_PULLUP);
@@ -446,8 +465,10 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
   // apply motor PWMs
   setMotorDriver(pinMotorLeftDir, pinMotorLeftPWM, leftPwm, gearsDriverChip, leftSpeedSign);
   setMotorDriver(pinMotorRightDir, pinMotorRightPWM, rightPwm, gearsDriverChip, rightSpeedSign);
+#ifdef pinMotorMowDir
   setMotorDriver(pinMotorMowDir, pinMotorMowPWM, mowPwm, mowDriverChip, mowSpeedSign);
-  
+#endif
+
   // disable driver at zero speed (brake function)    
   bool enableGears = gearsDriverChip.enableActive;
   bool enableMow = mowDriverChip.enableActive;  
@@ -469,36 +490,52 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){
 
 
 void AmMotorDriver::getMotorFaults(bool &leftFault, bool &rightFault, bool &mowFault){ 
+#ifdef pinMotorLeftFault
   if (digitalRead(pinMotorLeftFault) == gearsDriverChip.faultActive) {
     leftFault = true;
   }
+#endif
+
+#ifdef pinMotorRightFault
   if  (digitalRead(pinMotorRightFault) == gearsDriverChip.faultActive) {
     rightFault = true;
   }
+#endif
+
+#ifdef pinMotorMowFault
   if (digitalRead(pinMotorMowFault) == mowDriverChip.faultActive) {
     mowFault = true;
   }
+#endif
 }
 
-void AmMotorDriver::resetMotorFaults(){  
+void AmMotorDriver::resetMotorFaults(){
+#ifdef pinMotorLeftFault  
   if (digitalRead(pinMotorLeftFault) == gearsDriverChip.faultActive) {
     if (gearsDriverChip.resetFaultByToggleEnable){
       digitalWrite(pinMotorEnable, !gearsDriverChip.enableActive);
       digitalWrite(pinMotorEnable, gearsDriverChip.enableActive);
     }
   }
+#endif 
+
+#ifdef pinMotorRightFault
   if  (digitalRead(pinMotorRightFault) == gearsDriverChip.faultActive) {
     if (gearsDriverChip.resetFaultByToggleEnable){
       digitalWrite(pinMotorEnable, !gearsDriverChip.enableActive);
       digitalWrite(pinMotorEnable, gearsDriverChip.enableActive);
     }
   }
+#endif 
+
+#ifdef pinMotorMowFault
   if (digitalRead(pinMotorMowFault) == mowDriverChip.faultActive) {
     if (mowDriverChip.resetFaultByToggleEnable){
       digitalWrite(pinMotorMowEnable, !mowDriverChip.enableActive);
       digitalWrite(pinMotorMowEnable, mowDriverChip.enableActive);
     }
   }
+#endif
 }
 
 void AmMotorDriver::getMotorCurrent(float &leftCurrent, float &rightCurrent, float &mowCurrent){
@@ -545,8 +582,12 @@ void AmMotorDriver::getMotorEncoderTicks(int &leftTicks, int &rightTicks, int &m
 
 void AmBatteryDriver::begin(){
   // keep battery switched ON
+#ifdef pinBatterySwitch
   pinMode(pinBatterySwitch, OUTPUT);    
-  digitalWrite(pinBatterySwitch, HIGH);  
+  digitalWrite(pinBatterySwitch, HIGH);
+#else
+  CONSOLE.println("Battery switch pin not defined");
+#endif 
   batteryFactor = (100+10) / 10;    // ADC voltage to battery voltage
 
   //INA169:  A precision amplifier measures the voltage across the Rs=0.1 ohm, 1% sense resistor. 
@@ -567,9 +608,20 @@ void AmBatteryDriver::begin(){
   
   currentFactor = CURRENT_FACTOR;         // ADC voltage to current ampere  (0.5 for non-bridged)
 
+#ifdef pinChargeRelay
   pinMode(pinChargeRelay, OUTPUT);
+#else
+  CONSOLE.println("Charge PIN relay not defined");
+#endif
+
   pinMode(pinBatteryVoltage, INPUT);
+
+#if defined(pinChargeVoltage)
   pinMode(pinChargeVoltage, INPUT);
+#elif defined(pinChargeIsConnected)
+  pinMode(pinChargeIsConnected, INPUT);
+#endif
+
   pinMode(pinChargeCurrent, INPUT);  
   myHumidity.begin();      
 }
@@ -585,8 +637,13 @@ float AmBatteryDriver::getBatteryVoltage(){
 }
 
 float AmBatteryDriver::getChargeVoltage(){
+#if defined(pinChargeVoltage)
   float voltage = ((float)ADC2voltage(analogRead(pinChargeVoltage))) * batteryFactor;
-  return voltage;
+#elif defined(pinChargeIsConnected)
+  float voltage = digitalRead(pinChargeIsConnected) == LOW ? 24.0 : 0.0; // for Matrix MOW800
+#endif
+
+return voltage;
 }
 
 
@@ -606,11 +663,15 @@ float AmBatteryDriver::getBatteryTemperature(){
 }
 
 void AmBatteryDriver::enableCharging(bool flag){
+#ifdef pinChargeRelay
   digitalWrite(pinChargeRelay, flag);      
+#endif
 }
 
 void AmBatteryDriver::keepPowerOn(bool flag){
+#ifdef pinBatterySwitch
   digitalWrite(pinBatterySwitch, flag);
+#endif
 }
 
 
@@ -658,14 +719,20 @@ void AmBumperDriver::run(){
 void AmStopButtonDriver::begin(){
   nextControlTime = 0;
   pressed = false;  
-  pinMode(pinButton, INPUT_PULLUP);  
+#ifdef pinButton
+  pinMode(pinButton, INPUT_PULLUP);
+#else
+  CONSOLE.println("Button PIN not defined");
+#endif  
 }
 
 void AmStopButtonDriver::run(){
   unsigned long t = millis();
   if (t < nextControlTime) return;
   nextControlTime = t + 100;                                       // save CPU resources by running at 10 Hz
+#ifdef pinButton
   pressed = (digitalRead(pinButton)== LOW);
+#endif
 }
 
 bool AmStopButtonDriver::triggered(){

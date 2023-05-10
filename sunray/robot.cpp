@@ -534,17 +534,22 @@ void start(){
     
   Wire.begin();      
   analogReadResolution(12);  // configure ADC 12 bit resolution
-  unsigned long timeout = millis() + 2000;
-  while (millis() < timeout){
-    if (!checkAT24C32()){
-      CONSOLE.println(F("PCB not powered ON or RTC module missing"));      
-      I2Creset();  
-      Wire.begin();    
-      #ifdef I2C_SPEED
-        Wire.setClock(I2C_SPEED);     
-      #endif
-    } else break;
-  }  
+  #if __MOW800__
+  #else
+    unsigned long timeout = millis() + 2000;
+    while (millis() < timeout){
+      if (!checkAT24C32()){
+        CONSOLE.println(F("PCB not powered ON or RTC module missing"));      
+        I2Creset();  
+        Wire.begin();    
+        #ifdef I2C_SPEED
+          #ifndef ARDUINO_ARCH_STM32
+            Wire.setClock(I2C_SPEED);
+          #endif     
+        #endif
+      } else break;
+    }
+  #endif  
   
   // give Arduino IDE users some time to open serial console to actually see very first console messages
   #ifndef __linux__

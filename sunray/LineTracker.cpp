@@ -230,7 +230,7 @@ void trackLine(bool runControl){
     } 
     else {
       if (gps.solution == SOL_FLOAT)        
-        linear = min(setSpeed, 0.1); // reduce speed for float solution
+        linear = min((TD64)setSpeed, 0.1); // reduce speed for float solution
       else
         linear = setSpeed;         // desired speed
       if (sonar.nearObstacle()) linear = 0.1; // slow down near obstacles
@@ -265,7 +265,7 @@ void trackLine(bool runControl){
     //CONSOLE.print(",");        
     //CONSOLE.println(angular/PI*180.0);            
     if (maps.trackReverse) linear *= -1;   // reverse line tracking needs negative speed
-    if (!SMOOTH_CURVES) angular = max(-PI/16, min(PI/16, angular)); // restrict steering angle for stanley
+    if (!SMOOTH_CURVES) angular = max(-PI/16, min(PI/16, (TD64)angular)); // restrict steering angle for stanley
   }
   // check some pre-conditions that can make linear+angular speed zero
   if (fixTimeout != 0){
