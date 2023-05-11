@@ -25,14 +25,14 @@ typedef struct {
 
 class Process : public Stream {
   private:
-    boolean         success;
-    boolean         executed;
+    bool         success;
+    bool         executed;
     StringArray     cmd_array;
     int             exec_pid;
     int             exec_result;
     process_pipes_t pipes;
     pthread_t       thread;
-    boolean         thread_running;
+    bool         thread_running;
 
   public:
     // Constructor with a user provided BridgeClass instance
@@ -45,7 +45,7 @@ class Process : public Stream {
     void close();
 
     void runAsynchronously();
-    boolean running();
+    bool running();
     unsigned int exitValue(){ return exec_result; }
 
     // Stream methods

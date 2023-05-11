@@ -4,8 +4,8 @@
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
 
-#include "Stats.h"
 #include "robot.h"
+#include "Stats.h"
 #include "motor.h"
 #include <Arduino.h>
 
@@ -60,6 +60,10 @@ void calcStats(){
         break;
       case OP_CHARGE:
         statChargeDuration++;
+        break;
+
+      case OP_ERROR:
+      case OP_DOCK:
         break;
     }     
   }   

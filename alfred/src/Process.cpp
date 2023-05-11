@@ -208,7 +208,7 @@ void Process::runAsynchronously(){
   pthread_detach(thread);
 }
 
-boolean Process::running(){
+bool Process::running(){
   if(thread_running)
     pthread_yield();
   //Serial.println("Process::running - thread finished");

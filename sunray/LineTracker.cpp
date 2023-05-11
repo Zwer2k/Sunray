@@ -3,9 +3,8 @@
 // Licensed GPLv3 for open source use
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
-
-#include "LineTracker.h"
 #include "robot.h"
+#include "LineTracker.h"
 #include "StateEstimator.h"
 #include "helper.h"
 #include "pid.h"

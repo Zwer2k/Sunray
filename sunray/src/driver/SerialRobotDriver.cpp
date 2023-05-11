@@ -224,7 +224,7 @@ void SerialRobotDriver::updateWifiConnectionState(){
 // send serial request to MCU
 void SerialRobotDriver::sendRequest(String s){
   byte crc = 0;
-  for (int i=0; i < s.length(); i++) crc += s[i];
+  for (int i=0; i < (int)s.length(); i++) crc += s[i];
   s += F(",0x");
   if (crc <= 0xF) s += F("0");
   s += String(crc, HEX);  
@@ -276,11 +276,11 @@ void SerialRobotDriver::motorResponse(){
   if (cmd.length()<6) return;  
   int counter = 0;
   int lastCommaIdx = 0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();      
       if (counter == 1){                            
@@ -315,11 +315,11 @@ void SerialRobotDriver::versionResponse(){
   if (cmd.length()<6) return;  
   int counter = 0;
   int lastCommaIdx = 0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       String s = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1);
       if (counter == 1){                            
         mcuFirmwareName = s;
@@ -345,7 +345,7 @@ void SerialRobotDriver::summaryResponse(){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();      
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();      
       if (counter == 1){                            

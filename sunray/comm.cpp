@@ -1,5 +1,5 @@
-#include "comm.h"
 #include "config.h"
+#include "comm.h"
 #include "robot.h"
 #include "StateEstimator.h"
 #include "LineTracker.h"
@@ -56,7 +56,7 @@ unsigned long nextWifiClientCheckTime = 0;
 // answer Bluetooth with CRC
 void cmdAnswer(String s){  
   byte crc = 0;
-  for (int i=0; i < s.length(); i++) crc += s[i];
+  for (int i=0; i < (int)s.length(); i++) crc += s[i];
   s += F(",0x");
   if (crc <= 0xF) s += F("0");
   s += String(crc, HEX);  
@@ -71,11 +71,11 @@ void cmdTuneParam(){
   int counter = 0;
   int paramIdx = -1;
   int lastCommaIdx = 0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
           paramIdx = floatValue;
@@ -120,7 +120,7 @@ void cmdControl(){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
@@ -177,11 +177,11 @@ void cmdMotor(){
   int lastCommaIdx = 0;
   float linear=0;
   float angular=0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       float value = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
           linear = value;
@@ -230,11 +230,11 @@ void cmdWaypoint(){
   float x=0;
   float y=0;
   bool success = true;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){            
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){            
       float intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
@@ -280,13 +280,13 @@ void cmdWayCount(){
   if (cmd.length()<6) return;  
   int counter = 0;
   int lastCommaIdx = 0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){            
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){            
       float intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
-      float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();      
+      //float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();      
       if (counter == 1){                            
           if (!maps.setWayCount(WAY_PERIMETER, intValue)) return;                
       } else if (counter == 2){
@@ -315,13 +315,13 @@ void cmdExclusionCount(){
   int counter = 0;
   int lastCommaIdx = 0;
   int widx=0;  
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
     if ((ch == ',') || (idx == cmd.length()-1)){            
       float intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
-      float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
+      //float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
           widx = intValue;
       } else if (counter == 2){
@@ -348,7 +348,7 @@ void cmdPosMode(){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
       double doubleValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toDouble();
       if (counter == 1){                            
@@ -766,7 +766,7 @@ void processCmd(bool checkCrc, bool decrypt){
     if ( s != "AT+V"){
       if (encryptMode == 1){
         // decrypt        
-        for (int i=0; i < cmd.length(); i++) {
+        for (int i=0; i < (int)cmd.length(); i++) {
           if ( (byte(cmd[i]) >= 32) && (byte(cmd[i]) <= 126) ){  // ASCII between 32..126
             int code = byte(cmd[i]);
             code -= encryptKey;
@@ -1091,7 +1091,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   CONSOLE.print(topic);
   CONSOLE.print("] ");
   String cmd = ""; 
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < (int)length; i++) {
     cmd += (char)payload[i];    
   }
   CONSOLE.println(cmd);
@@ -1153,23 +1153,23 @@ void processWifiMqttClient()
       MQTT_PUBLISH(stateDelta, "%.2f", "/map/pos/Dir")
 
       // statistics
-      MQTT_PUBLISH(statIdleDuration, "%d", "/stats/idleDuration")
-      MQTT_PUBLISH(statChargeDuration, "%d", "/stats/chargeDuration")
-      MQTT_PUBLISH(statMowDuration, "%d", "/stats/mow/totalDuration")
-      MQTT_PUBLISH(statMowDurationInvalid, "%d", "/stats/mow/invalidDuration")
-      MQTT_PUBLISH(statMowDurationFloat, "%d", "/stats/mow/floatDuration")
-      MQTT_PUBLISH(statMowDurationFix, "%d", "/stats/mow/fixDuration")
-      MQTT_PUBLISH(statMowFloatToFixRecoveries, "%d", "/stats/mow/floatToFixRecoveries")
-      MQTT_PUBLISH(statMowObstacles, "%d", "/stats/mow/obstacles")
-      MQTT_PUBLISH(statMowGPSMotionTimeoutCounter, "%d", "/stats/mow/gpsMotionTimeouts")
-      MQTT_PUBLISH(statMowBumperCounter, "%d", "/stats/mow/bumperEvents")
-      MQTT_PUBLISH(statMowSonarCounter, "%d", "/stats/mow/sonarEvents")
-      MQTT_PUBLISH(statMowLiftCounter, "%d", "/stats/mow/liftEvents")
+      MQTT_PUBLISH((int)statIdleDuration, "%d", "/stats/idleDuration")
+      MQTT_PUBLISH((int)statChargeDuration, "%d", "/stats/chargeDuration")
+      MQTT_PUBLISH((int)statMowDuration, "%d", "/stats/mow/totalDuration")
+      MQTT_PUBLISH((int)statMowDurationInvalid, "%d", "/stats/mow/invalidDuration")
+      MQTT_PUBLISH((int)statMowDurationFloat, "%d", "/stats/mow/floatDuration")
+      MQTT_PUBLISH((int)statMowDurationFix, "%d", "/stats/mow/fixDuration")
+      MQTT_PUBLISH((int)statMowFloatToFixRecoveries, "%d", "/stats/mow/floatToFixRecoveries")
+      MQTT_PUBLISH((int)statMowObstacles, "%d", "/stats/mow/obstacles")
+      MQTT_PUBLISH((int)statMowGPSMotionTimeoutCounter, "%d", "/stats/mow/gpsMotionTimeouts")
+      MQTT_PUBLISH((int)statMowBumperCounter, "%d", "/stats/mow/bumperEvents")
+      MQTT_PUBLISH((int)statMowSonarCounter, "%d", "/stats/mow/sonarEvents")
+      MQTT_PUBLISH((int)statMowLiftCounter, "%d", "/stats/mow/liftEvents")
       MQTT_PUBLISH(statMowMaxDgpsAge, "%.2f", "/stats/mow/maxDgpsAge")
       MQTT_PUBLISH(statMowDistanceTraveled, "%.1f", "/stats/mow/distanceTraveled")
-      MQTT_PUBLISH(statMowInvalidRecoveries, "%d", "/stats/mow/invalidRecoveries")
-      MQTT_PUBLISH(statImuRecoveries, "%d", "/stats/imuRecoveries")
-      MQTT_PUBLISH(statGPSJumps, "%d", "/stats/gpsJumps")      
+      MQTT_PUBLISH((int)statMowInvalidRecoveries, "%d", "/stats/mow/invalidRecoveries")
+      MQTT_PUBLISH((int)statImuRecoveries, "%d", "/stats/imuRecoveries")
+      MQTT_PUBLISH((int)statGPSJumps, "%d", "/stats/gpsJumps")      
       MQTT_PUBLISH(statTempMin, "%.1f", "/stats/tempMin")
       MQTT_PUBLISH(statTempMax, "%.1f", "/stats/tempMax")
       MQTT_PUBLISH(stateTemp, "%.1f", "/stats/curTemp")

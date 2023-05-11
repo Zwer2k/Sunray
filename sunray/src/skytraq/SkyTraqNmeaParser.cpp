@@ -950,7 +950,7 @@ void SkyTraqNmeaParser::ProcessingGGA(const U08* pt, int len)
 
 void SkyTraqNmeaParser::ProcessingGLL(const U08* pt, int len)
 {
-  double latitude = 0, lontitude = 0, altAboveMsl = 0, gs = 0;
+  double latitude = 0, lontitude = 0;
   latitude = GetParamDouble(pt, commaPos[0] + 1, commaPos[1] - 1, 0);
   if(gnssData.SetNmeaLatitude(latitude, GetParamChar(pt, commaPos[1] + 1, commaPos[2] - 1, ' ')))
   {

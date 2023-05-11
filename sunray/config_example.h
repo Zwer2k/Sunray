@@ -46,6 +46,12 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 */
 
 
+// the following will be used by Arduino library RingBuffer.h - to verify this Arduino library file:
+// 1. Arduino IDE->File->Preferences->Click on 'preferences.txt' at the bottom
+// 2. Locate file 'packages/arduino/hardware/sam/xxxxx/cores/arduino/RingBuffer.h
+  
+#define SERIAL_BUFFER_SIZE 1024
+
 
 #ifdef __cplusplus
   #include "udpserial.h"
@@ -592,12 +598,6 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define CONSOLE udpSerial         
 #endif
 
-
-// the following will be used by Arduino library RingBuffer.h - to verify this Arduino library file:
-// 1. Arduino IDE->File->Preferences->Click on 'preferences.txt' at the bottom
-// 2. Locate file 'packages/arduino/hardware/sam/xxxxx/cores/arduino/RingBuffer.h
-  
-#define SERIAL_BUFFER_SIZE 1024
 
 #ifdef BNO055
   #define MPU9250   // just to make mpu driver happy to compile something

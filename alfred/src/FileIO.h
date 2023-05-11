@@ -41,13 +41,13 @@ class File : public Stream {
     virtual int available();
     virtual void flush();
     int read(void *buf, uint16_t nbyte);
-    boolean seek(uint32_t pos);
+    bool seek(uint32_t pos);
     uint32_t position();
     uint32_t size();
     void close();
     operator bool();
     const char * name();
-    boolean isDirectory();
+    bool isDirectory();
     File openNextFile(const char * mode = FILE_READ);
     void rewindDirectory(void);
 
@@ -58,8 +58,8 @@ class FileSystemClass {
   public:
     //FileSystemClass(BridgeClass &_b = Bridge) { }
 
-    boolean begin();
-    boolean begin(int selectPin);
+    bool begin();
+    bool begin(int selectPin);
 
     // Open the specified file/directory with the supplied mode (e.g. read or
     // write, etc). Returns a File object for interacting with the file.
@@ -69,20 +69,20 @@ class FileSystemClass {
     
 
     // Methods to determine if the requested file path exists.    
-    boolean exists(const char *filepath);
-    boolean exists(const String filepath){ return exists(filepath.c_str()); }
+    bool exists(const char *filepath);
+    bool exists(const String filepath){ return exists(filepath.c_str()); }
 
     // Create the requested directory hierarchy--if intermediate directories
     // do not exist they will be created.
-    boolean mkdir(const char *filepath);
+    bool mkdir(const char *filepath);
 
     // Delete the file.
-    boolean remove(const char *filepath);
-    boolean remove(const String &filepath) {
+    bool remove(const char *filepath);
+    bool remove(const String &filepath) {
         return remove(filepath.c_str());
     }
 
-    boolean rmdir(const char *filepath);
+    bool rmdir(const char *filepath);
 
   private:
     friend class File;

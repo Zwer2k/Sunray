@@ -114,16 +114,16 @@ class Adafruit_ZeroTimer {
 public:
   Adafruit_ZeroTimer(uint8_t tn);
 
-  boolean PWMout(boolean pwmout, uint8_t channum, uint8_t pin);
+  bool PWMout(bool pwmout, uint8_t channum, uint8_t pin);
   void setPeriodMatch(uint32_t period, uint32_t match, uint8_t channum = 1);
-  void enable(boolean en);
+  void enable(bool en);
 
   void configure(tc_clock_prescaler prescale, tc_counter_size countersize,
                  tc_wave_generation wavegen,
                  tc_count_direction countdir = TC_COUNT_DIRECTION_UP);
   void setCompare(uint8_t channum, uint32_t compare);
   void invertWave(uint8_t invert);
-  void setCallback(boolean enable, tc_callback cb_type,
+  void setCallback(bool enable, tc_callback cb_type,
                    void (*callback_func)(void) = NULL);
 
   static void timerHandler(uint8_t timerNum);

@@ -121,7 +121,7 @@ void yield(void);
 //#endif
 
 typedef unsigned int word;
-typedef uint8_t boolean;
+typedef uint8_t bool;
 typedef uint8_t byte;
 
 //under millisecond delayMicroseconds halts the CPU

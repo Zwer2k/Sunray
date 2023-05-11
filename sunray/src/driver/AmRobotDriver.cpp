@@ -44,7 +44,7 @@ volatile bool leftPressed = false;
 volatile bool rightPressed = false;
 
 
-volatile boolean tone_pin_state = false;
+volatile bool tone_pin_state = false;
 
 
 void toneHandler(){  
@@ -741,11 +741,10 @@ void AmBuzzerDriver::tone(int freq){
     //::tone(pinBuzzer, freq);    
 
     // Set up the flexible divider/compare
-    uint8_t divider  = 1;
+    uint8_t divider = 16;
     uint16_t compare = 0;
     tc_clock_prescaler prescaler = TC_CLOCK_PRESCALER_DIV1;
     
-    divider = 16;
     prescaler = TC_CLOCK_PRESCALER_DIV16;
     compare = (48000000/16)/freq;   
     

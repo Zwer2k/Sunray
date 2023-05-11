@@ -43,7 +43,7 @@ File::File(const char *_filename, const char * _mode){
   _dir = NULL;
   _name = NULL;
   struct stat _st = {0};
-  boolean exists = stat(_filename, &_st) == 0;
+  bool exists = stat(_filename, &_st) == 0;
   //if(!exists || (!S_ISDIR(_st.st_mode) && !S_ISREG(_st.st_mode))){
   //  ::printf("Bad Entry[%s]: exists:%u, mode:0x%06X\n",_filename , exists, _st.st_mode);
   //  return;
@@ -132,7 +132,7 @@ int File::available() {
   return size() - position();
 }
 
-boolean File::seek(uint32_t position) {//SEEK_CUR, SEEK_END, and SEEK_SET
+bool File::seek(uint32_t position) {//SEEK_CUR, SEEK_END, and SEEK_SET
   if(_file <= 0) return false;
   return fseek(_file, position, 0) != -1; //seek to position from 0
 }
@@ -167,7 +167,7 @@ void File::close() {
   }  
 }
 
-boolean File::isDirectory() {
+bool File::isDirectory() {
   return _dir > 0;
 }
 
@@ -199,12 +199,12 @@ int fmkdir(const char *dir, int mode){ return mkdir(dir, mode); }
 int frmdir(const char *dir){ return rmdir(dir); }
 int fremove(const char *path){ return remove(path); }
 
-boolean FileSystemClass::begin() {
+bool FileSystemClass::begin() {
   return true;
 }
 
 
-boolean FileSystemClass::begin(int selectPin) {
+bool FileSystemClass::begin(int selectPin) {
   return true;
 }
 
@@ -213,13 +213,13 @@ File FileSystemClass::open(const char *filename, const char * mode) {
   return(File(filename, mode));
 }
 
-boolean FileSystemClass::exists(const char *filepath) {
+bool FileSystemClass::exists(const char *filepath) {
   struct stat _stat = {0};
-  boolean exists = stat(filepath, &_stat) == 0;
+  bool exists = stat(filepath, &_stat) == 0;
   return exists && (S_ISDIR(_stat.st_mode) || S_ISREG(_stat.st_mode));
 }
 
-boolean FileSystemClass::mkdir(const char *filepath) {
+bool FileSystemClass::mkdir(const char *filepath) {
   struct stat _stat = {0};
   if (stat(filepath, &_stat) == -1) {
     return fmkdir(filepath, 0700) == 0;
@@ -227,7 +227,7 @@ boolean FileSystemClass::mkdir(const char *filepath) {
   return false;
 }
 
-boolean FileSystemClass::remove(const char *filepath) {
+bool FileSystemClass::remove(const char *filepath) {
   struct stat _stat = {0};
   if (stat(filepath, &_stat) == 0) {
     return fremove(filepath) == 0;
@@ -235,7 +235,7 @@ boolean FileSystemClass::remove(const char *filepath) {
   return false;
 }
 
-boolean FileSystemClass::rmdir(const char *filepath) {
+bool FileSystemClass::rmdir(const char *filepath) {
   struct stat _stat = {0};
   if (stat(filepath, &_stat) == 0) {
     return frmdir(filepath) == 0;
