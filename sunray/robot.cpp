@@ -401,6 +401,12 @@ void outputConfig(){
   #ifdef MOTOR_DRIVER_BRUSHLESS_GEARS_JYQD
     CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_GEARS_JYQD");
   #endif
+  #ifdef MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035
+    CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035");
+  #endif 
+  #ifdef MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035
+    CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035");
+  #endif 
   
   CONSOLE.print("MOTOR_FAULT_CURRENT: ");
   CONSOLE.println(MOTOR_FAULT_CURRENT);
@@ -962,6 +968,7 @@ void run(){
       activeOp->onBatteryUndervoltage();
     } 
     else {      
+#if USE_TEMP_SENSOR == 1 || USE_TEMP_SENSOR == true
       if (USE_TEMP_SENSOR){
         if (stateTemp > DOCK_OVERHEAT_TEMP){
           activeOp->onTempOutOfRangeTriggered();
@@ -970,6 +977,7 @@ void run(){
           activeOp->onTempOutOfRangeTriggered();
         }
       }
+#endif
       if (RAIN_ENABLE){
         // rain sensor should trigger serveral times to robustly detect rain (robust rain detection)
         // it should not trigger if one rain drop or wet tree leaves touches the sensor  

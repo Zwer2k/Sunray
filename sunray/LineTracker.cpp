@@ -263,7 +263,10 @@ void trackLine(bool runControl){
     //CONSOLE.print(lateralError);        
     //CONSOLE.print(",");        
     //CONSOLE.println(angular/PI*180.0);            
-    if (maps.trackReverse) linear *= -1;   // reverse line tracking needs negative speed
+    if (maps.trackReverse){
+      linear *= -1;   // reverse line tracking needs negative speed
+      angular *= -1;
+    }
     if (!SMOOTH_CURVES) angular = max(-PI/16, min(PI/16, (TD64)angular)); // restrict steering angle for stanley
   }
   // check some pre-conditions that can make linear+angular speed zero

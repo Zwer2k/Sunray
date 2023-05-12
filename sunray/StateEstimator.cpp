@@ -11,6 +11,7 @@
 #include "robot.h"
 #include "Stats.h"
 #include "helper.h"
+#include <Wire.h>
 #include "i2c.h"
 
 

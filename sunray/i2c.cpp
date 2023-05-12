@@ -7,6 +7,9 @@
     // Nano pins  
     #define SDA A4
     #define SCL A5
+  #elif defined(ARDUINO_ARCH_STM32)
+    // #define SDA PB7
+    // #define SCL PB6
   #else
     // Mega2560/Due pins
     #define SDA 20
