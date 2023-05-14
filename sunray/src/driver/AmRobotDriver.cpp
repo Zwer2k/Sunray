@@ -16,6 +16,8 @@
 
 #if defined(_SAM3XA_)
   #include "../due/DueTimer.h"
+#elif defined(__MOW800__)
+  #include "../stm32/STM32_TimerInterrupt/STM32TimerInterrupt.h"
 #else
   #include "../agcm4/Adafruit_ZeroTimer.h"    // __SAMD51__
 #endif
@@ -58,6 +60,8 @@ Adafruit_ZeroTimer zerotimer = Adafruit_ZeroTimer(3);
 void TC3_Handler() {
   Adafruit_ZeroTimer::timerHandler(3);
 }
+#elif defined(__MOW800__)
+  STM32Timer timer1(TIM1);
 #endif 
 
 
@@ -233,6 +237,44 @@ AmMotorDriver::AmMotorDriver(){
   BLDC8015A.adcVoltToAmpScale = 7.57; // ADC voltage to amps (scale)
   BLDC8015A.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
 
+  // MOW800_MC33035 brushless driver 
+  MOW800_MC33035.driverName = "MOW800_MC33035";    // just a name for your driver
+  MOW800_MC33035.forwardPwmInvert = true; // invert PWM signal for forward? (false or true)
+  MOW800_MC33035.forwardDirLevel = HIGH;    // logic level for forward (LOW or HIGH)
+  MOW800_MC33035.reversePwmInvert = true; // invert PWM signal for reverse? (false or true)
+  MOW800_MC33035.reverseDirLevel = LOW;   // logic level for reverse (LOW or HIGH)
+  MOW800_MC33035.usePwmRamp = true;       // use a ramp to get to PWM value?    
+  MOW800_MC33035.faultActive = LOW;        // fault active level (LOW or HIGH)
+  MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
+  MOW800_MC33035.enableActive = LOW;       // enable active level (LOW or HIGH)
+  MOW800_MC33035.disableAtPwmZeroSpeed = false;  // disable driver at PWM zero speed? (brake function)
+  MOW800_MC33035.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
+  MOW800_MC33035.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
+  MOW800_MC33035.maxPwmSpeed = 255;            
+  MOW800_MC33035.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
+  MOW800_MC33035.adcVoltToAmpOfs = -0.045;      // ADC voltage to amps (offset)
+  MOW800_MC33035.adcVoltToAmpScale = 3.8; // ADC voltage to amps (scale)
+  MOW800_MC33035.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
+
+    // MOW800_MC33035_MOW brushless driver mow motor 
+  MOW800_MC33035_MOW.driverName = "MOW800_MC33035_MOW";    // just a name for your driver
+  MOW800_MC33035_MOW.forwardPwmInvert = true; // invert PWM signal for forward? (false or true)
+  MOW800_MC33035_MOW.forwardDirLevel = HIGH;    // logic level for forward (LOW or HIGH)
+  MOW800_MC33035_MOW.reversePwmInvert = true; // invert PWM signal for reverse? (false or true)
+  MOW800_MC33035_MOW.reverseDirLevel = LOW;   // logic level for reverse (LOW or HIGH)
+  MOW800_MC33035_MOW.usePwmRamp = false;       // use a ramp to get to PWM value?    
+  MOW800_MC33035_MOW.faultActive = LOW;        // fault active level (LOW or HIGH)
+  MOW800_MC33035_MOW.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
+  MOW800_MC33035_MOW.enableActive = LOW;       // enable active level (LOW or HIGH)
+  MOW800_MC33035_MOW.disableAtPwmZeroSpeed = true;  // disable driver at PWM zero speed? (brake function)
+  MOW800_MC33035_MOW.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
+  MOW800_MC33035_MOW.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
+  MOW800_MC33035_MOW.maxPwmSpeed = 255;            
+  MOW800_MC33035_MOW.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
+  MOW800_MC33035_MOW.adcVoltToAmpOfs = -0.045;      // ADC voltage to amps (offset)
+  MOW800_MC33035_MOW.adcVoltToAmpScale = 3.8; // ADC voltage to amps (scale)
+  MOW800_MC33035_MOW.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
+
   // JYQD brushless driver 
   JYQD.driverName = "JYQD";    // just a name for your driver
   JYQD.forwardPwmInvert = false; // invert PWM signal for forward? (false or true)
@@ -294,6 +336,8 @@ void AmMotorDriver::begin(){
       mowDriverChip = BLDC8015A;    
     #elif MOTOR_DRIVER_BRUSHLESS_MOW_JYQD
       mowDriverChip = JYQD;
+    #elif MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035 
+      mowDriverChip = MOW800_MC33035_MOW;    
     #else 
       mowDriverChip = CUSTOM;
     #endif
@@ -306,6 +350,8 @@ void AmMotorDriver::begin(){
       gearsDriverChip = BLDC8015A;    
     #elif MOTOR_DRIVER_BRUSHLESS_GEARS_JYQD
       gearsDriverChip = JYQD;
+    #elif MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035 
+      gearsDriverChip = MOW800_MC33035;
     #else 
       gearsDriverChip = CUSTOM;
     #endif
@@ -316,12 +362,19 @@ void AmMotorDriver::begin(){
     gearsDriverChip = MC33926;
   #endif
 
+  pinMode(pinMotorMowEnable, OUTPUT);
+  digitalWrite(pinMotorMowEnable, mowDriverChip.disableAtPwmZeroSpeed ? !mowDriverChip.enableActive : mowDriverChip.enableActive);
+#ifdef pinMotorMowFault
+  pinMode(pinMotorMowFault, INPUT);
+#else
+  CONSOLE.println("Motor mow fault PIN not defined");
+#endif
 
   // left wheel motor
-  pinMode(pinMotorEnable, OUTPUT);
-  digitalWrite(pinMotorEnable, gearsDriverChip.enableActive);
   pinMode(pinMotorLeftPWM, OUTPUT);
+  pinMan.analogWrite(pinMotorLeftPWM, gearsDriverChip.forwardPwmInvert ? 255 : 0, gearsDriverChip.pwmFreq);
   pinMode(pinMotorLeftDir, OUTPUT);
+  digitalWrite(pinMotorLeftDir, gearsDriverChip.forwardDirLevel);
   pinMode(pinMotorLeftSense, INPUT);
 #ifdef pinMotorLeftFault
   pinMode(pinMotorLeftFault, INPUT);
@@ -332,13 +385,18 @@ void AmMotorDriver::begin(){
 
   // right wheel motor
   pinMode(pinMotorRightPWM, OUTPUT);
+  pinMan.analogWrite(pinMotorRightPWM, gearsDriverChip.forwardPwmInvert ? 255 : 0, gearsDriverChip.pwmFreq);
   pinMode(pinMotorRightDir, OUTPUT);
+  digitalWrite(pinMotorLeftDir, gearsDriverChip.reverseDirLevel);
   pinMode(pinMotorRightSense, INPUT);
 #ifdef pinMotorRightFault
   pinMode(pinMotorRightFault, INPUT);
 #else
-  CONSOLE.println("Motor left fault PIN not defined");
+  CONSOLE.println("Motor right fault PIN not defined");
 #endif
+
+  pinMode(pinMotorEnable, OUTPUT);
+  digitalWrite(pinMotorEnable, gearsDriverChip.disableAtPwmZeroSpeed ? !gearsDriverChip.enableActive : gearsDriverChip.enableActive);
 
 
   // mower motor
@@ -352,31 +410,46 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorMowRpm, INPUT_PULLUP);  
 #endif
 
-  pinMode(pinMotorMowEnable, OUTPUT);
-  digitalWrite(pinMotorMowEnable, mowDriverChip.enableActive);
-#ifdef pinMotorMowFault
-  pinMode(pinMotorMowFault, INPUT);
-#else
-  CONSOLE.println("Motor mow fault PIN not defined");
+#ifdef __MOW800__
+  delay(100); // verhindert kurzes einschalten der Motoren
+  //pinMode(pinMotorMowFault, INPUT_PULLDOWN);
+
+  pinMode(pinMotorBrakeDisable, OUTPUT);
+  digitalWrite(pinMotorBrakeDisable, HIGH);
+
+  pinMode(pinMotorMowBrakeDisable, OUTPUT);
+  digitalWrite(pinMotorMowBrakeDisable, HIGH);
+
+  pinMode(pinAllMotorBrakeDisable, OUTPUT);
+  digitalWrite(pinAllMotorBrakeDisable, HIGH);
 #endif
 
   // odometry
+#ifdef __MOW800__
+  pinMode(pinOdometryLeft, INPUT);
+  pinMode(pinOdometryRight, INPUT);
+#else
   pinMode(pinOdometryLeft, INPUT_PULLUP);
   //pinMode(pinOdometryLeft2, INPUT_PULLUP);
   pinMode(pinOdometryRight, INPUT_PULLUP);
   //pinMode(pinOdometryRight2, INPUT_PULLUP);
+#endif
 
   // lift sensor
+#if pinLiftDisablePullUp == true
+  pinMode(pinLift, INPUT);
+#else
   pinMode(pinLift, INPUT_PULLUP);
+#endif
 
   // enable interrupts
-  attachInterrupt(pinOdometryLeft, OdometryLeftISR, CHANGE);  
-  attachInterrupt(pinOdometryRight, OdometryRightISR, CHANGE);  
-  attachInterrupt(pinMotorMowRpm, OdometryMowISR, CHANGE);  
-    
-	//pinMan.setDebounce(pinOdometryLeft, 100);  // reject spikes shorter than usecs on pin
-	//pinMan.setDebounce(pinOdometryRight, 100);  // reject spikes shorter than usecs on pin	
-  
+  attachInterrupt(digitalPinToInterrupt(pinOdometryLeft), OdometryLeftISR, CHANGE);  
+  attachInterrupt(digitalPinToInterrupt(pinOdometryRight), OdometryRightISR, CHANGE);  
+  attachInterrupt(digitalPinToInterrupt(pinMotorMowRpm), OdometryMowISR, CHANGE);  
+
+		// pinMan.setDebounce(pinOdometryLeft, 100);  // reject spikes shorter than usecs on pin
+	// pinMan.setDebounce(pinOdometryRight, 100);  // reject spikes shorter than usecs on pin
+
   leftSpeedSign = rightSpeedSign = mowSpeedSign = 1;
   lastRightPwm = lastLeftPwm = lastMowPwm = 0;
 }
@@ -428,7 +501,9 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // forward
-    digitalWrite(pinDir, chip.forwardDirLevel) ;
+    if (speed != 0) // verhindert, dass der Motor beim stoppen durch umkehren der Richtung bremst
+      digitalWrite(pinDir, chip.forwardDirLevel) ;
+
     if (chip.forwardPwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
     else 
@@ -438,23 +513,22 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     
 void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){  
   // remember speed sign during zero-transition
-  if (leftPwm < 0) leftSpeedSign = -1;
-  if (leftPwm > 0) leftSpeedSign = 1;
-  if (rightPwm < 0) rightSpeedSign = -1;
-  if (rightPwm > 0) rightSpeedSign = 1;
-  if (mowPwm < 0) mowSpeedSign = -1;
-  if (mowPwm > 0) mowSpeedSign = 1;   
+  leftSpeedSign = (lastLeftPwm < 0) ? -1 : (lastLeftPwm > 0) ? 1 : (leftPwm < 0) ? -1 : 1;
+  rightSpeedSign = (lastRightPwm < 0) ? -1 : (lastRightPwm > 0) ? 1 : (rightPwm < 0) ? -1 : 1;
+  mowSpeedSign = (lastMowPwm < 0) ? -1 : (lastMowPwm > 0) ? 1 : (mowPwm < 0) ? -1 : 1;
   
   // limit pwm to ramp if required
   if (gearsDriverChip.usePwmRamp){
     int deltaLeftPwm = leftPwm-lastLeftPwm;
-    leftPwm = leftPwm + min(1, max(-1, deltaLeftPwm));    
+    int leftStepPwm = max(1, abs(deltaLeftPwm) / 5);
+    leftPwm = lastLeftPwm + min(leftStepPwm, max(-leftStepPwm, deltaLeftPwm));  
     int deltaRightPwm = rightPwm-lastRightPwm;
-    rightPwm = rightPwm + min(1, max(-1, deltaRightPwm));    
+    int rightStepPwm = max(1, abs(deltaRightPwm) / 5);
+    rightPwm = lastRightPwm + min(rightStepPwm, max(-rightStepPwm, deltaRightPwm));    
   }
   if (mowDriverChip.usePwmRamp){
     int deltaMowPwm = mowPwm-lastMowPwm;
-    mowPwm = mowPwm + min(1, max(-1, deltaMowPwm));      
+    mowPwm = lastMowPwm + min(1, max(-1, deltaMowPwm));    
   }  
 
   // remember last PWM values
@@ -674,30 +748,57 @@ void AmBatteryDriver::keepPowerOn(bool flag){
 #endif
 }
 
+#ifndef pinBumperTriggerdLevel
+  #define pinBumperTriggerdLevel LOW
+#endif 
+
+#ifndef pinLiftTriggerdLevel
+  #define pinLiftTriggerdLevel LOW
+#endif 
 
 // ------------------------------------------------------------------------------------
 void BumperLeftInterruptRoutine(){
-  leftPressed = (digitalRead(pinBumperLeft) == LOW);  
+  leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
+  if (leftPressed) motor.setLinearAngularSpeed(0,0, false);
 }
 
 void BumperRightInterruptRoutine(){
-  rightPressed = (digitalRead(pinBumperRight) == LOW);  
+  rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);  
+  if (rightPressed) motor.setLinearAngularSpeed(0,0, false);
 }
 
 
 void AmBumperDriver::begin(){	
+#if pinBumerDisablePullUp == true
+  pinMode(pinBumperLeft, INPUT);                   
+  pinMode(pinBumperRight, INPUT);
+#else
   pinMode(pinBumperLeft, INPUT_PULLUP);                   
   pinMode(pinBumperRight, INPUT_PULLUP);                   
-  attachInterrupt(pinBumperLeft, BumperLeftInterruptRoutine, CHANGE);
-	attachInterrupt(pinBumperRight, BumperRightInterruptRoutine, CHANGE);
+#endif                  
+
+#if pinBumerUseInterrupt == true
+  attachInterrupt(digitalPinToInterrupt(pinBumperLeft), BumperLeftInterruptRoutine, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pinBumperRight), BumperRightInterruptRoutine, CHANGE);
+#endif
 }
 
 void AmBumperDriver::getTriggeredBumper(bool &leftBumper, bool &rightBumper){
+#if pinBumerUseInterrupt != true
+  obstacle();
+#endif
+
   leftBumper = leftPressed;
   rightBumper = rightPressed;
 }
 
 bool AmBumperDriver::obstacle(){
+#if pinBumerUseInterrupt != true
+  leftPressed = (digitalRead(pinBumperLeft) == pinBumperTriggerdLevel);  
+  rightPressed = (digitalRead(pinBumperRight) == pinBumperTriggerdLevel);
+  if ((leftPressed) || (rightPressed)) motor.setLinearAngularSpeed(0,0, false);
+#endif
+
   return (leftPressed || rightPressed);
 }
     
@@ -772,7 +873,7 @@ void AmLiftSensorDriver::run(){
   unsigned long t = millis();
   if (t < nextControlTime) return;
   nextControlTime = t + 100;                                       // save CPU resources by running at 10 Hz
-  isLifted = (digitalRead(pinLift)== LOW);
+  isLifted = (digitalRead(pinLift)== pinLiftTriggerdLevel);
 }
 
 bool AmLiftSensorDriver::triggered(){
@@ -793,6 +894,8 @@ void AmBuzzerDriver::noTone(){
   #ifdef _SAM3XA_
     Timer1.stop();  
     digitalWrite(pinBuzzer, LOW);
+  #elif defined(__MOW800__)
+    timer1.stopTimer();
   #elif __SAMD51__  // __SAMD51__
     //::noTone(pinBuzzer);     
     zerotimer.enable(false);
@@ -804,6 +907,10 @@ void AmBuzzerDriver::tone(int freq){
   #ifdef _SAM3XA_
     pinMode(pinBuzzer, OUTPUT);
     Timer1.attachInterrupt(toneHandler).setFrequency(freq).start();   
+  #elif defined(__MOW800__)
+    if (!timer1.attachInterruptInterval(freq, toneHandler)) {
+      Serial.println(F("Can't set buzzer timer."));
+    }
   #elif __SAMD51__      // __SAMD51__
     //::tone(pinBuzzer, freq);    
 
