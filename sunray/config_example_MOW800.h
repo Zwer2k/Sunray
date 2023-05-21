@@ -120,10 +120,10 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 // NOTE: if using non-default Ardumower chassis and your freewheel is at frontside (gear motors at backside), have may have to swap motor cables, 
 // more info here: https://wiki.ardumower.de/index.php?title=Ardumower_Chassis_%27mountain_mod%27)
-#define FREEWHEEL_IS_AT_BACKSIDE   true   // default Ardumower: true   (change to false, if your freewheel is at frontside) - this is used for obstacle avoidance
+#define FREEWHEEL_IS_AT_BACKSIDE   false   // default Ardumower: true   (change to false, if your freewheel is at frontside) - this is used for obstacle avoidance
 #define WHEEL_BASE_CM         32         // wheel-to-wheel distance (cm)        
 #define WHEEL_DIAMETER        215        // wheel diameter (mm)                 
-#define MOWER_SIZE            60         // mower / chassis size / length in cm
+#define MOWER_SIZE            55         // mower / chassis size / length in cm
 
 //#define ENABLE_ODOMETRY_ERROR_DETECTION  true    // use this to detect odometry erros
 #define ENABLE_ODOMETRY_ERROR_DETECTION  false
@@ -283,9 +283,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // see Wiki on how to install the ultrasonic sensors: 
 // https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#Ultrasonic_sensor
 
-//#define SONAR_INSTALLED 1              // uncomment if ultrasonic sensors are installed
-//#define SONAR_ENABLE true              // should ultrasonic sensor be used?
-#define SONAR_ENABLE false
+#define SONAR_INSTALLED 1              // uncomment if ultrasonic sensors are installed
+#define SONAR_ENABLE true              // should ultrasonic sensor be used?
+//#define SONAR_ENABLE false
 #define SONAR_TRIGGER_OBSTACLES true     // should sonar be used to trigger obstacles? if not, mower will only slow down
 #define SONAR_LEFT_OBSTACLE_CM   10      // stop mowing operation below this distance (cm) 
 #define SONAR_CENTER_OBSTACLE_CM 10      // stop mowing operation below this distance (cm) 
@@ -327,7 +327,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 #define GO_HOME_VOLTAGE   21.5  // start going to dock below this voltage
 // The battery will charge if both battery voltage is below that value and charging current is above that value.
-#define BAT_FULL_VOLTAGE  26.0  // start mowing again at this voltage
+#define BAT_FULL_VOLTAGE  25.0  // start mowing again at this voltage
 #define BAT_FULL_CURRENT  0.2   // start mowing again below this charging current (amps)
 
 // https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#Automatic_battery_switch_off
@@ -400,8 +400,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 // ------ docking --------------------------------------
 // is a docking station available?
-//#define DOCKING_STATION true   // use this if docking station available and mower should dock automatically
-#define DOCKING_STATION false    // mower will just stop after mowing instead of docking automatically 
+#define DOCKING_STATION true   // use this if docking station available and mower should dock automatically
+//#define DOCKING_STATION false    // mower will just stop after mowing instead of docking automatically 
 
 //#define DOCK_IGNORE_GPS false     // use GPS fix in docking station and IMU for GPS float/invalid
 #define DOCK_IGNORE_GPS true     // ignore GPS fix in docking station and use IMU-only (use this if robot gets false GPS fixes in your docking station)
@@ -570,12 +570,12 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   // #define pinDropLeft 45           // drop pins                                                                                          Dropsensor - Absturzsensor
   // #define pinDropRight 23          // drop pins                                                                                          Dropsensor - Absturzsensor
 
-  #define pinSonarCenterTrigger 24   // ultrasonic sensor pins
-  #define pinSonarCenterEcho 22
-  #define pinSonarRightTrigger 30    
-  #define pinSonarRightEcho 32
-  #define pinSonarLeftTrigger 34         
-  #define pinSonarLeftEcho 36
+  #define pinSonarCenterTrigger PD2   // ultrasonic sensor pins
+  #define pinSonarCenterEcho PD3
+  #define pinSonarRightTrigger PF8    
+  #define pinSonarRightEcho PB1
+  #define pinSonarLeftTrigger PF7         
+  #define pinSonarLeftEcho PB0
   // #define pinPerimeterRight A4       // perimeter
   // #define pinDockingReflector A4     // docking IR reflector
   // #define pinPerimeterLeft A5

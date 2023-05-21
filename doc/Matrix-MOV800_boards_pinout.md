@@ -44,7 +44,7 @@ BUZZER
 | 6  (+3,3V)  |   |   |
 | 7  (CHECK)  | CPU-65 (PE12) |	Diode D31     |
 | 8	 (+5V)    |   |   |
-| 9	 (CK_W)   | CPU-45 (PC5)  |	(Regensensor) |
+| 9	 (CK_W)   | CPU-45 (PC5)  |	Regensensor |
 | 10 (+5V)    |   |   |
 | 11 (MC12)	  |	CPU-44 (PC4)  |	(Brücke zu pin 12 getrennt = R159 0Ohm entfernt) Mähmotor Drehzahl (Eigenbelegung) |
 | 12 (MC1)	  |	CPU-43 (PA7)  |	(Brücke zu pin 11 getrennt = R159 0Ohm entfernt) (Strommessung Mähmotor) |
@@ -73,12 +73,12 @@ BUZZER
 | 2	 (-)	        | CPU-73 (PB12) | (Motor L+R Bremse aus ?) |
 | 3	 (IR RECIVE)    | Infrearet-Stecker-3 |
 | 4	 (-)		    | CPU-74 (PB13) | (Motor L+R ON/OFF) |
-| 5	 (CK-RF)        | CPU-139 (PB8) |  |
-| 6	 (-)		    | CPU-75 (PB14) |  |				(Perimeter Schlefen Soensor select ?) |
+| 5	 (CK-RF)        | CPU-139 (PB8) | Regensensor (Eigenbelegung) |
+| 6	 (-)		    | CPU-75 (PB14) | (Perimeter Schlefen Soensor select ?) |
 | 7	 (C_ADY)	    | CPU-18 (PF6) | (Perimeter Schlefen Soensor analog signal ?) |
 | 8	 (-)		    | CPU-76 (PB15) | (Perimeter Schlefen Soensor select ?) |
-| 9	 (C_ADY1)	    | CPU-19 (PF7) |  |				 
-| 10 (C_ADY2)	    | CPU-20 (PF8) |  |
+| 9	 (C_ADY1)	    | CPU-19 (PF7) | Sonar links Trigger (Eigenbelegung) | 				 
+| 10 (C_ADY2)	    | CPU-20 (PF8) | Sonar rechts Trigger (Eigenbelegung) |
 | 11 (XV1)		    | CPU-85 (PD14) | (Brücke zu pin 12) | Spannungsversorgung über Ladestation ist AN |
 | 12 (XV)		    | CPU-86 (PD15)	| (Brücke zu pin 11) |
 | 13 (FLAT_SENSOR1) | CPU-58 (PE7)	| (Haube Anhebesensor L+R 2) |
@@ -94,12 +94,12 @@ BUZZER
 
 
 ### HMC5883L Stecker
-| Pin | Verbindung auf dem CPU-Board |
-|---|---|
-| 1 | GND |
-| 2 | CPU-116 (PD2) |
-| 3 | CPU-117 (PD3) |
-| 4 | +3,3V |
+| Pin | Verbindung auf dem CPU-Board | neue Verwendung |
+|---|---| |
+| 1 | GND | GND Sonar |
+| 2 | CPU-116 (PD2) | Sonar center Trigger (Eigenbelegung) |
+| 3 | CPU-117 (PD3) | Sonar center Echo (Eigenbelegung) |
+| 4 | +3,3V | VDD Sonar |
 
 ### Dub-Stecker
 | Pin | Verbindung auf dem CPU-Board |
@@ -120,8 +120,8 @@ BUZZER
 | 2 | VDD +3.3V | VDD +3.3V
 | 3 | CPU-77 (PD8) | HAL rechts
 | 4 | CPU-78 (PD9) | HAL links
-| 5 | CPU-47 (PB1) | CPU-26 (PB13) SPI2-SCK
-| 6 | CPU-46 (PB0) | CPU-27 (PB14) SPI2-MISO
+| 5 | CPU-47 (PB1) | (CPU-26 (PB13) SPI2-SCK getrennt)    Sonar rechts Echo (Eigenbelegung)
+| 6 | CPU-46 (PB0) | (CPU-27 (PB14) SPI2-MISO getrennt)   Sonar links Echo (Eigenbelegung)
 | 7 | GND | GND
 
 ### CPU
@@ -141,9 +141,9 @@ BUZZER
 | PD8  | HAL Bumper rechts
 | PD9  | HAL Bumper links
 | PD10 | Haube Anhebesensor L+R 1
-| 	   | Sonar left echo
-| 	   | Sonar center echo
-| 	   | Sonar right echo
+| PB0  | Sonar left echo
+| PD3  | Sonar center echo
+| PB1  | Sonar right echo
 
 ---------------
 ## Crash Board
