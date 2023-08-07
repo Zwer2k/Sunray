@@ -231,7 +231,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define MAX_MOW_RPM 255   // maximum value is 255
 
 // set maximum gear motors RPM
-#define MAX_GEAR_PWM 255 // maximum value is 255
+#define MAX_GEAR_PWM 180 // maximum value is 255
 
 // ------ WIFI module (ESP8266 ESP-01 with ESP firmware 2.2.1) --------------------------------
 // NOTE: all settings (maps, absolute position source etc.) are stored in your phone - when using another
@@ -458,8 +458,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // ------ experimental options  -------------------------
 
 // drive curves smoothly?
-//#define SMOOTH_CURVES  true
-#define SMOOTH_CURVES  false
+#define SMOOTH_CURVES  true
+//#define SMOOTH_CURVES  false
 
 // --------- serial monitor output (CONSOLE) ------------------------
 // which Arduino Due USB port do you want to your for serial monitor output (CONSOLE)?
