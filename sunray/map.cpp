@@ -621,6 +621,17 @@ bool Map::save(){
 
 void Map::finishedUploadingMap(){
   CONSOLE.println("finishedUploadingMap");
+  #ifdef DRV_SIM_ROBOT
+    float x;
+    float y;
+    float delta;
+    if (getDockingPos(x, y, delta)){
+      CONSOLE.println("SIM: setting robot pos to docking pos");
+      robotDriver.setSimRobotPosState(x, y, delta);
+    } else {
+      CONSOLE.println("SIM: error getting docking pos");
+    }
+  #endif
   mapCRC = calcMapCRC();
   dump();
   save();
@@ -1287,7 +1298,9 @@ bool Map::nextDockPoint(bool sim){
     if (dockPointsIdx > 0){
       if (!sim) lastTargetPoint.assign(targetPoint);
       if (!sim) dockPointsIdx--;              
-      if (!sim) trackReverse = true;              
+      if (!sim) {
+        trackReverse = (dockPointsIdx >= dockPoints.numPoints-2) ; // undock reverse only in dock
+      }              
       if (!sim) trackSlow = true;      
       return true;
     } else {

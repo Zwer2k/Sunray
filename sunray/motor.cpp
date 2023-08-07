@@ -66,7 +66,7 @@ void Motor::begin() {
   recoverMotorFault = false;
   recoverMotorFaultCounter = 0;
   nextRecoverMotorFaultTime = 0;
-  enableMowMotor = true;
+  enableMowMotor = ENABLE_MOW_MOTOR; //Default: true
   tractionMotorsEnabled = true;
   
   motorLeftOverload = false;
@@ -122,6 +122,9 @@ void Motor::begin() {
   motorRecoveryState = false;
 }
 
+void Motor::setMowMaxPwm( int val ){
+  pwmMaxMow = val;
+}
 
 void Motor::speedPWM ( int pwmLeft, int pwmRight, int pwmMow )
 {
