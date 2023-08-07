@@ -219,6 +219,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // should the robot trigger obstacle avoidance on motor errors if motor recovery failed?
 #define ENABLE_FAULT_OBSTACLE_AVOIDANCE true  
 
+// shall the mow motor be activated for normal operation? Deactivate this option for GPS tests and path tracking running tests
+#define ENABLE_MOW_MOTOR true // Default is true, set false for testing purpose to switch off mow motor permanently
+
 // ----------- dynamic mowingm motor RPM --------------
 // RPM of the mow motor will be adjust over the actual current of the mow motor. If the motor needs more current the PWM will be higher.
 // it can be used 3 different functions for the calculation of the PWM depended´nt on the mowMotor current. The root-Function is recommended
@@ -389,6 +392,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define OBSTACLE_AVOIDANCE true   // try to find a way around obstacle
 //#define OBSTACLE_AVOIDANCE false  // stop robot on obstacle
 #define OBSTACLE_DIAMETER 0.4   // choose diameter of obstacles placed in front of robot (m) for obstacle avoidance
+#define DISABLE_MOW_MOTOR_AT_OBSTACLE false // switch off mow motor while escape at detected obstacle; set false if mow motor shall not be stopped at detected obstacles
 
 // detect robot being kidnapped? robot will try GPS recovery if distance to tracked path is greater than a certain value
 // (false GPS fix recovery), and if that fails go into error 
