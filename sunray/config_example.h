@@ -53,7 +53,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define SERIAL_BUFFER_SIZE 1024
 
 
-//#define DRV_SERIAL_ROBOT  1
+//#define DRV_SERIAL_ROBOT  1   // Linux (Alfred)
+//#define DRV_CAN_ROBOT  1      // Linux (owlRobotics platform)
 #define DRV_ARDUMOWER     1   // keep this for Ardumower
 //#define DRV_SIM_ROBOT     1   // simulation
 
@@ -329,7 +330,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // detect if robot is actually moving (obstacle detection via GPS feedback)
 #define GPS_MOTION_DETECTION          true    // if robot is not moving trigger obstacle avoidance (recommended)
 //#define GPS_MOTION_DETECTION        false   // ignore if robot is not moving
-#define GPS_MOTION_DETECTION_TIMEOUT  5      // timeout for motion (secs)
+#define GPS_MOTION_DETECTION_TIMEOUT  8      // timeout for motion (secs)
 
 // configure ublox f9p with optimal settings (will be stored in f9p RAM only)
 // NOTE: due to a PCB1.3 bug GPS_RX pin is not working and you have to fix this by a wire:
@@ -354,8 +355,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define ALLOW_ROUTE_OUTSIDE_PERI_METER 1.0   // max. distance (m) to allow routing from outside perimeter 
 // (increase if you get 'no map route' errors near perimeter)
 
-#define OBSTACLE_DETECTION_ROTATION true // detect robot rotation stuck (requires IMU)
-// #define OBSTACLE_DETECTION_ROTATION false   // NOTE: recommended to turn this off for slope environment   
+//#define OBSTACLE_DETECTION_ROTATION true // detect robot rotation stuck (requires IMU)
+#define OBSTACLE_DETECTION_ROTATION false   // NOTE: recommended to turn this off for slope environment   
 
 #define OBSTACLE_AVOIDANCE true   // try to find a way around obstacle
 //#define OBSTACLE_AVOIDANCE false  // stop robot on obstacle
@@ -391,7 +392,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // ---- path tracking -----------------------------------
 
 // below this robot-to-target distance (m) a target is considered as reached
-#define TARGET_REACHED_TOLERANCE 0.05
+#define TARGET_REACHED_TOLERANCE 0.1
 
 // stanley control for path tracking - determines gain how fast to correct for lateral path errors
 #define STANLEY_CONTROL_P_NORMAL  3.0   // 3.0 for path tracking control (angular gain) when mowing
@@ -433,7 +434,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // which Arduino Due USB port do you want to your for serial monitor output (CONSOLE)?
 // Arduino Due native USB port  => choose SerialUSB
 // Arduino Due programming port => choose Serial
-#ifdef _SAM3XA_
+#if defined (__arm__) && defined (__SAM3X8E__) // Arduino Due compatible
   #define BOARD "Arduino Due"
   #define CONSOLE SerialUSB   // Arduino Due: do not change (used for Due native USB serial console)
 #elif __SAMD51__

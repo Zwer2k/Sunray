@@ -27,6 +27,7 @@
 #include "ble.h"
 #include "motor.h"
 #include "src/driver/AmRobotDriver.h"
+#include "src/driver/CanRobotDriver.h"
 #include "src/driver/SerialRobotDriver.h"
 #include "src/driver/MpuDriver.h"
 #include "src/driver/BnoDriver.h"
@@ -57,7 +58,7 @@ const signed char orientationMatrix[9] = {
 
 #ifdef DRV_SIM_ROBOT
   SimImuDriver imuDriver(robotDriver);
-#elif BNO055
+#elif defined(BNO055)
   BnoDriver imuDriver;  
 #else
   MpuDriver imuDriver;
@@ -71,7 +72,16 @@ const signed char orientationMatrix[9] = {
   SerialRainSensorDriver rainDriver(robotDriver);
   SerialLiftSensorDriver liftDriver(robotDriver);
   SerialBuzzerDriver buzzerDriver(robotDriver);
-#elif DRV_SIM_ROBOT
+#elif defined(DRV_CAN_ROBOT)
+  CanRobotDriver robotDriver;
+  CanMotorDriver motorDriver(robotDriver);
+  CanBatteryDriver batteryDriver(robotDriver);
+  CanBumperDriver bumperDriver(robotDriver);
+  CanStopButtonDriver stopButton(robotDriver);
+  CanRainSensorDriver rainDriver(robotDriver);
+  CanLiftSensorDriver liftDriver(robotDriver);
+  CanBuzzerDriver buzzerDriver(robotDriver);
+#elif defined(DRV_SIM_ROBOT)
   SimRobotDriver robotDriver;
   SimMotorDriver motorDriver(robotDriver);
   SimBatteryDriver batteryDriver(robotDriver);
@@ -206,8 +216,6 @@ void resetOverallMotionTimeout(){
 void updateGPSMotionCheckTime(){
   nextGPSMotionCheckTime = millis() + GPS_MOTION_DETECTION_TIMEOUT * 1000;     
 }
-
-
 
 
 
@@ -684,6 +692,7 @@ bool robotShouldMove(){
   return ( fabs(motor.linearSpeedSet) > 0.001 );
 }
 
+
 bool robotShouldMoveForward(){
    return ( motor.linearSpeedSet > 0.001 );
 }
@@ -744,6 +753,7 @@ void detectSensorMalfunction(){
 bool detectLift(){  
   #ifdef ENABLE_LIFT_DETECTION
     if (liftDriver.triggered()) {
+      CONSOLE.println("LIFT triggered");
       return true;            
     }  
   #endif 

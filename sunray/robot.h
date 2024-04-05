@@ -12,6 +12,7 @@
 #include "config.h"
 #include "motor.h"
 #include "src/driver/AmRobotDriver.h"
+#include "src/driver/CanRobotDriver.h"
 #include "src/driver/SerialRobotDriver.h"
 #include "src/driver/SimRobotDriver.h"
 #include "src/driver/MpuDriver.h"
@@ -36,7 +37,7 @@
 #include "timetable.h"
 
 
-#define VER "Sunray,1.0.312"
+#define VER "Sunray,1.0.318"
 
 // operation types
 enum OperationType {
@@ -113,6 +114,15 @@ extern int motorErrorCounter;
   extern SerialRainSensorDriver rainDriver;
   extern SerialLiftSensorDriver liftDriver;  
   extern SerialBuzzerDriver buzzerDriver;
+#elif DRV_CAN_ROBOT
+  extern CanRobotDriver robotDriver;
+  extern CanMotorDriver motorDriver;
+  extern CanBatteryDriver batteryDriver;
+  extern CanBumperDriver bumperDriver;
+  extern CanStopButtonDriver stopButton;
+  extern CanRainSensorDriver rainDriver;
+  extern CanLiftSensorDriver liftDriver;  
+  extern CanBuzzerDriver buzzerDriver;
 #elif DRV_SIM_ROBOT
   extern SimRobotDriver robotDriver;
   extern SimMotorDriver motorDriver;
@@ -135,7 +145,7 @@ extern int motorErrorCounter;
 
 #ifdef DRV_SIM_ROBOT
   extern SimImuDriver imuDriver;
-#elif BNO055
+#elif defined(BNO055)
   extern BnoDriver imuDriver;  
 #else
   extern MpuDriver imuDriver;
