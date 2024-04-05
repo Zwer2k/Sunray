@@ -3,6 +3,7 @@
 // Licensed GPLv3 for open source use
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
+#ifdef DRV_CAN_ROBOT
 
 #include "CanRobotDriver.h"
 #include "../../config.h"
@@ -598,5 +599,5 @@ void CanBuzzerDriver::tone(int freq){
   ioExpanderOut(EX2_I2C_ADDR, EX2_BUZZER_PORT, EX2_BUZZER_PIN, true);
 }
 
-
+#endif
 

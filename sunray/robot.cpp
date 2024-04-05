@@ -27,7 +27,9 @@
 #include "ble.h"
 #include "motor.h"
 #include "src/driver/AmRobotDriver.h"
-#include "src/driver/CanRobotDriver.h"
+#if defined(DRV_CAN_ROBOT)
+  #include "src/driver/CanRobotDriver.h"
+#endif
 #include "src/driver/SerialRobotDriver.h"
 #include "src/driver/MpuDriver.h"
 #include "src/driver/BnoDriver.h"
