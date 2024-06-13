@@ -46,6 +46,11 @@ void Motor::begin() {
   motorRightPID.Kd       = motorLeftPID.Kd;
   motorRightPID.reset();		 
 
+  motorLeftLpf.Tf = MOTOR_PID_LP;
+  motorLeftLpf.reset();
+  motorRightLpf.Tf = MOTOR_PID_LP;  
+  motorRightLpf.reset();
+
   robotPitch = 0;
   #ifdef MOTOR_DRIVER_BRUSHLESS
     motorLeftSwapDir = true;
@@ -225,6 +230,8 @@ void Motor::stopImmediately(bool includeMowerMotor){
   // reset PID
   motorLeftPID.reset();
   motorRightPID.reset();
+  motorLeftLpf.reset();
+  motorRightLpf.reset();
   // reset unread encoder ticks
   int ticksLeft=0;
   int ticksRight=0;
@@ -509,11 +516,12 @@ void Motor::control(){
   //########################  Calculate PWM for left driving motor ############################
 
   motorLeftPID.TaMax = 0.1;
-  motorLeftPID.x = motorLeftRpmCurr;
+  motorLeftPID.x = motorLeftLpf(motorLeftRpmCurr);
   motorLeftPID.w  = motorLeftRpmSet;
   motorLeftPID.y_min = -pwmMax;
   motorLeftPID.y_max = pwmMax;
   motorLeftPID.max_output = pwmMax;
+  motorLeftPID.output_ramp = MOTOR_PID_RAMP;
   motorLeftPID.compute();
   motorLeftPWMCurr = motorLeftPWMCurr + motorLeftPID.y;
   if (motorLeftRpmSet >= 0) motorLeftPWMCurr = min( max(0, (int)motorLeftPWMCurr), pwmMax); // 0.. pwmMax
@@ -522,11 +530,12 @@ void Motor::control(){
   //########################  Calculate PWM for right driving motor ############################
   
   motorRightPID.TaMax = 0.1;
-  motorRightPID.x = motorRightRpmCurr;
+  motorRightPID.x = motorRightLpf(motorRightRpmCurr);
   motorRightPID.w = motorRightRpmSet;
   motorRightPID.y_min = -pwmMax;
   motorRightPID.y_max = pwmMax;
   motorRightPID.max_output = pwmMax;
+  motorRightPID.output_ramp = MOTOR_PID_RAMP;
   motorRightPID.compute();
   motorRightPWMCurr = motorRightPWMCurr + motorRightPID.y;
   if (motorRightRpmSet >= 0) motorRightPWMCurr = min( max(0, (int)motorRightPWMCurr), pwmMax);  // 0.. pwmMax

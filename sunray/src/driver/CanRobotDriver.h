@@ -15,6 +15,8 @@
 #ifdef __linux__
   #include <Process.h>
   #include "../../linuxcan.h"
+#else 
+  #include "../../can.h"
 #endif
 
 
@@ -159,6 +161,7 @@ class CanRobotDriver: public RobotDriver {
     unsigned long nextTempTime;
     unsigned long nextWifiTime;
     unsigned long nextLedTime;
+    int consoleCounter;
     int cmdMotorCounter;
     int cmdSummaryCounter;
     int cmdMotorResponseCounter;
