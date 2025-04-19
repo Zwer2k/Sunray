@@ -123,7 +123,7 @@ void trackLine(bool runControl){
     } 
     else {
       if (gps.solution == SOL_FLOAT){        
-        linear = min(setSpeed, 0.1); // reduce speed for float solution
+        linear = min(setSpeed, (float)0.1); // reduce speed for float solution
         //CONSOLE.println("SLOW: float");
       } else
         linear = setSpeed;         // desired speed

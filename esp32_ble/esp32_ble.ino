@@ -562,7 +562,11 @@ void simulateArdumowerAnswer(String req, String &resp){
 void setup() {
   pinMode(pinLED, OUTPUT);
   CONSOLE.begin(115200);       // USB
-  UART.begin(115200, SERIAL_8N1, pinGpioRx, pinGpioTx);  // UART
+  #ifdef pinGpioRx
+    UART.begin(115200, SERIAL_8N1, pinGpioRx, pinGpioTx);  // UART
+  #else
+    UART.begin(115200, SERIAL_8N1);  // UART
+  #endif
 
   CONSOLE.println(VERSION);
 
