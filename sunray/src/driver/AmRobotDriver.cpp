@@ -482,6 +482,10 @@ void AmMotorDriver::run(){
 }
 
 
+void AmMotorDriver::setMowHeight(int mowHeightMillimeter){
+}
+
+
 // brushed/brushless motor driver
 //(8-bit PWM=255, 10-bit PWM=1023)
 // example logic:
@@ -534,7 +538,7 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
   }  
 }
     
-void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm){  
+void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm, bool releaseBrakesWhenZero){  
   // remember speed sign during zero-transition
   leftSpeedSign = (lastLeftPwm < 0) ? -1 : (lastLeftPwm > 0) ? 1 : (leftPwm < 0) ? -1 : 1;
   rightSpeedSign = (lastRightPwm < 0) ? -1 : (lastRightPwm > 0) ? 1 : (rightPwm < 0) ? -1 : 1;
@@ -813,6 +817,10 @@ void AmBumperDriver::getTriggeredBumper(bool &leftBumper, bool &rightBumper){
 
   leftBumper = leftPressed;
   rightBumper = rightPressed;
+}
+
+bool AmBumperDriver::nearObstacle(){
+  return false;
 }
 
 bool AmBumperDriver::obstacle(){

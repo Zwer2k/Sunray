@@ -6,6 +6,8 @@
 #include "robot.h"
 #include "config.h"
 #include "StateEstimator.h"
+#include "events.h"
+#include "helper.h"
 #include <Arduino.h>
 
 
@@ -472,6 +474,7 @@ float Map::distanceManhattan(Point &pos0, Point &pos1){
 
 
 void Map::begin(){
+  CONSOLE.println("Map::begin");
   memoryCorruptions = 0;
   wayMode = WAY_MOW;
   trackReverse = false;
@@ -493,6 +496,7 @@ void Map::begin(){
   load();
   dump();
   //stressTestMapTransfer();
+  //float distToLine = distanceLineInfinite(12.43, 6.18, 12.42, 6.18, 12.43, 6.18);  
 }
 
 long Map::calcMapCRC(){   
@@ -641,7 +645,8 @@ void Map::finishedUploadingMap(){
     float y;
     float delta;
     if (getDockingPos(x, y, delta)){
-      CONSOLE.println("SIM: setting robot pos to docking pos");
+      CONSOLE.println("SIM: setting robot pos to docking pos");      
+      if (!DOCK_FRONT_SIDE) delta = scalePI(delta + 3.1415);
       robotDriver.setSimRobotPosState(x, y, delta);
     } else {
       CONSOLE.println("SIM: error getting docking pos");
@@ -653,6 +658,7 @@ void Map::finishedUploadingMap(){
     }
   #endif
   mapCRC = calcMapCRC();
+  Logger.event(EVT_USER_UPLOAD_MAP);
   dump();
   save();
 }
@@ -894,12 +900,14 @@ bool Map::nextPointIsStraight(){
 
 
 // get docking position and orientation (x,y,delta)
-bool Map::getDockingPos(float &x, float &y, float &delta){
-  if (dockPoints.numPoints < 2) return false;
+bool Map::getDockingPos(float &x, float &y, float &delta, int idx){
+  if (idx == -1) idx = dockPoints.numPoints-1; 
+  if ((idx < 0) || (idx >= dockPoints.numPoints) || (dockPoints.numPoints < 2)) return false;
   Point dockFinalPt;
   Point dockPrevPt;
-  dockFinalPt.assign(dockPoints.points[ dockPoints.numPoints-1]);  
-  dockPrevPt.assign(dockPoints.points[ dockPoints.numPoints-2]);
+  dockFinalPt.assign(dockPoints.points[ idx]);  
+  if (idx > 0) dockPrevPt.assign(dockPoints.points[ idx-1]);
+    else dockPrevPt.assign(dockPoints.points[ 1 ]);
   x = dockFinalPt.x();
   y = dockFinalPt.y();
   delta = pointsAngle(dockPrevPt.x(), dockPrevPt.y(), dockFinalPt.x(), dockFinalPt.y());  
@@ -915,7 +923,7 @@ void Map::setIsDocked(bool flag){
     wayMode = WAY_DOCK;
     dockPointsIdx = dockPoints.numPoints-2;
     //targetPointIdx = dockStartIdx + dockPointsIdx;                     
-    trackReverse = true;             
+    trackReverse = (DOCK_FRONT_SIDE);             
     trackSlow = true;
     useGPSfixForPosEstimation = !DOCK_IGNORE_GPS;
     useGPSfixForDeltaEstimation = !DOCK_IGNORE_GPS;    
@@ -943,6 +951,24 @@ bool Map::isDocking(){
   return ((maps.wayMode == WAY_DOCK) && (maps.shouldDock));
 }
 
+bool Map::isBetweenLastAndNextToLastDockPoint(){
+  //return true;
+  return (
+      ((isUndocking()) && ((isTargetingLastDockPoint()) || (isTargetingNextToLastDockPoint())))  || 
+      ((isDocking())   && (isTargetingLastDockPoint()))   
+  );
+}
+
+bool Map::isTargetingLastDockPoint(){
+  // is on the way to the last docking point
+  return (maps.dockPointsIdx == maps.dockPoints.numPoints-1);
+}
+
+bool Map::isTargetingNextToLastDockPoint(){
+  // is on the way to the next-to-last docking point
+  return (maps.dockPointsIdx == maps.dockPoints.numPoints-2);
+}
+
 bool Map::retryDocking(float stateX, float stateY){
   CONSOLE.println("Map::retryDocking");    
   if (!shouldDock) {
@@ -955,7 +981,7 @@ bool Map::retryDocking(float stateX, float stateY){
   } 
   if (dockPointsIdx > 0) dockPointsIdx--;    
   shouldRetryDock = true;
-  trackReverse = true;
+  trackReverse = (DOCK_FRONT_SIDE) || ((!DOCK_FRONT_SIDE) && (dockPointsIdx < dockPoints.numPoints-3));
   return true;
 }
 
@@ -990,6 +1016,7 @@ bool Map::startDocking(float stateX, float stateY){
     }
   } else {
     CONSOLE.println("ERROR: no points");
+    Logger.event(EVT_ERROR_NO_MAP_POINTS);
     return false; 
   }
 }
@@ -1026,6 +1053,7 @@ bool Map::startMowing(float stateX, float stateY){
         return true;
       } else {
         CONSOLE.println("ERROR: no path");
+        Logger.event(EVT_ERROR_NO_MAP_ROUTE);
         return false;      
       }
     } else {
@@ -1033,6 +1061,7 @@ bool Map::startMowing(float stateX, float stateY){
       return false;
     }
   } else {
+    Logger.event(EVT_ERROR_NO_MAP_POINTS);
     CONSOLE.println("ERROR: no points");
     return false; 
   }
@@ -1288,6 +1317,13 @@ bool Map::nextMowPoint(bool sim){
 
 // get next docking point  
 bool Map::nextDockPoint(bool sim){    
+  /*CONSOLE.print("nextDockPoint: shouldDock=");
+  CONSOLE.print(shouldDock);
+  CONSOLE.print("  dockPointsIdx=");
+  CONSOLE.print(dockPointsIdx);
+  CONSOLE.print("  dockPoints.numPoints=");
+  CONSOLE.print(dockPoints.numPoints);
+  CONSOLE.println();*/
   if (shouldDock){
     // should dock  
     if (dockPointsIdx+1 < dockPoints.numPoints){
@@ -1300,10 +1336,10 @@ bool Map::nextDockPoint(bool sim){
         if (shouldRetryDock) {
           CONSOLE.println("nextDockPoint: shouldRetryDock=true");
           dockPointsIdx--;
-          trackReverse = true;                    
+          trackReverse = (DOCK_FRONT_SIDE) || ((!DOCK_FRONT_SIDE) && (dockPointsIdx < dockPoints.numPoints-3));                    
         } else {
           dockPointsIdx++; 
-          trackReverse = false;                            
+          trackReverse = (!DOCK_FRONT_SIDE) && (dockPointsIdx >= dockPoints.numPoints-3) ; // dock reverse only near dock
         }
       }              
       if (!sim) trackSlow = true;
@@ -1323,7 +1359,7 @@ bool Map::nextDockPoint(bool sim){
       if (!sim) lastTargetPoint.assign(targetPoint);
       if (!sim) dockPointsIdx--;              
       if (!sim) {
-        trackReverse = (dockPointsIdx >= dockPoints.numPoints-2) ; // undock reverse only in dock
+        trackReverse = (DOCK_FRONT_SIDE) && (dockPointsIdx >= dockPoints.numPoints-3) ; // undock reverse only in dock
       }              
       if (!sim) trackSlow = true;      
       return true;
@@ -1365,7 +1401,8 @@ bool Map::nextFreePoint(bool sim){
       // start docking
       if (!sim) lastTargetPoint.assign(targetPoint);
       if (!sim) dockPointsIdx = 0;      
-      if (!sim) wayMode = WAY_DOCK;      
+      if (!sim) wayMode = WAY_DOCK;
+      if (!sim) trackReverse = (!DOCK_FRONT_SIDE) && (dockPointsIdx >= dockPoints.numPoints-3) ; // dock reverse only near dock    
       return true;
     } else return false;
   }  
