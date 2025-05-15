@@ -397,7 +397,6 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorLeftPWM, OUTPUT);
   pinMan.analogWrite(pinMotorLeftPWM, gearsDriverChip.forwardPwmInvert ? 255 : 0, gearsDriverChip.pwmFreq);
   pinMode(pinMotorLeftDir, OUTPUT);
-  digitalWrite(pinMotorLeftDir, gearsDriverChip.forwardDirLevel);
   pinMode(pinMotorLeftSense, INPUT);
 #ifdef pinMotorLeftFault
   pinMode(pinMotorLeftFault, INPUT);
@@ -410,7 +409,6 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorRightPWM, OUTPUT);
   pinMan.analogWrite(pinMotorRightPWM, gearsDriverChip.forwardPwmInvert ? 255 : 0, gearsDriverChip.pwmFreq);
   pinMode(pinMotorRightDir, OUTPUT);
-  digitalWrite(pinMotorLeftDir, gearsDriverChip.reverseDirLevel);
   pinMode(pinMotorRightSense, INPUT);
 #ifdef pinMotorRightFault
   pinMode(pinMotorRightFault, INPUT);
@@ -528,8 +526,7 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // forward
-    if (speed != 0) // verhindert, dass der Motor beim stoppen durch umkehren der Richtung bremst
-      digitalWrite(pinDir, chip.forwardDirLevel) ;
+    digitalWrite(pinDir, chip.forwardDirLevel) ;
 
     if (chip.forwardPwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
