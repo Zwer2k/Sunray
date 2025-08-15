@@ -14,15 +14,15 @@ MMA8452Q		3-axis, 12-bit/8-bit digital accelerometer
 BUZZER
 
 ### USB_USART Stecker
-| Pin | Verbindung auf dem CPU-Board |
-|---|---|
-| 1 | +5V |
-| 2 | CPU-138 (BOOT0) | 
-| 3 | CPU-25  (NRST = RESET) | 
-| 4 | +3.3V (VDD) |
-| 5 | CPU-102 (PA10 = USART1-RxD) |
-| 6 | CPU-101 (PA9  = USART1-TxD) |
-| 7 | GND |
+| Pin | Verbindung auf dem CPU-Board | Verbindung zu ESP-Modem |
+|---|---|---|
+| 1 | +5V |   |
+| 2 | CPU-138 (BOOT0) |  GPIO5 |
+| 3 | CPU-25  (NRST = RESET) | GPIO7 |
+| 4 | +3.3V (VDD) |   |
+| 5 | CPU-102 (PA10 = USART1-RxD) | GPIO16 Serial1-Tx |
+| 6 | CPU-101 (PA9  = USART1-TxD) | GPIO15 Serial1-Rx |
+| 7 | GND |   |
 
 ### SWD Stecker (Programmierung CPU)
 | Pin | Verbindung auf dem CPU-Board |
