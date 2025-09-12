@@ -53,7 +53,9 @@
 #include "events.h"
 
 // #define I2C_SPEED  10000
-#define _BV(x) (1 << (x))
+#ifndef _BV
+  #define _BV(x) (1 << (x))
+#endif
 
 const signed char orientationMatrix[9] = {
   1, 0, 0,

@@ -29,7 +29,7 @@ void watchdogReset(){
 }
 
 void watchdogEnable(uint32_t timeout){
-  watchdog.begin(timeout * 1000);
+  watchdog.begin(timeout * 1000);  
 }
 
 

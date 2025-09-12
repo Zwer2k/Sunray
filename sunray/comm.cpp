@@ -667,6 +667,37 @@ void cmdSummary(){
   cmdAnswer(s);  
 }
 
+// request sensor summary
+void cmdSensorSummary(){
+  String s = F("S3,");
+  s += sonar.distanceLeft;  
+  s += ",";
+  s += sonar.distanceCenter;
+  s += ",";
+  s += sonar.distanceRight;
+  s += ",";
+  s += sonar.obstacle();
+  s += ",";
+  s += sonar.nearObstacle();
+  s += ",";
+  s += bumper.testLeft();
+  s += ",";
+  s += bumper.testRight();
+  s += ",";
+  s += bumper.obstacle();
+  s += ",";
+  s += bumper.nearObstacle();
+  s += ",";
+  s += lidarBumper.obstacle();  
+  s += ",";
+  s += lidarBumper.nearObstacle();
+  s += ",";
+  s += liftDriver.triggered();
+  s += ",";
+  s += rainDriver.triggered();
+  cmdAnswer(s);  
+}
+
 // request statistics
 void cmdStats(){
   String s = F("T,");
@@ -932,7 +963,8 @@ void processCmd(String channel, bool checkCrc, bool decrypt, bool verbose){
     if (cmd.length() <= 4){
       cmdSummary(); 
     } else {
-      if (cmd[4] == '2') cmdObstacles();      
+      if (cmd[4] == '2') cmdObstacles();
+      if (cmd[4] == '3') cmdSensorSummary();
     }
   }
   if (cmd[3] == 'M') cmdMotor();
