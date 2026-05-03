@@ -17,8 +17,8 @@ CONTAINER_NAME="ros1"
 HOST_SUNRAY_PATH=`realpath $PWD/..`
 HOST_PCD_PATH=`realpath $PWD/../../PCD`
 
-#CONFIG_FILE="/root/Sunray/alfred/config_owlmower.h"
-#CONFIG_FILE="/root/Sunray/alfred/config_fuxtec_ros.h"
+#CONFIG_FILE="/root/Sunray/linux/config_owlmower.h"
+#CONFIG_FILE="/root/Sunray/linux/config_fuxtec_ros.h"
 USER_UID=$(id -u)
 BAG_FILE=/root/PCD/playback.bag
 
@@ -79,14 +79,25 @@ function docker_install {
   sudo apt-get update
   sudo apt-get install ca-certificates curl
   sudo install -m 0755 -d /etc/apt/keyrings
-  sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-  sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-  # Add the repository to Apt sources:
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
-    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  if [[ `uname -m` == "x86_64" ]]; then
+    echo "x86 detected"
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    # Add the repository to Apt sources:
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+      sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  else
+    echo "Raspberry detected"
+    sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    # Add the repository to Apt sources:
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+      sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  fi
   sudo apt-get update
 
   sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
@@ -161,7 +172,7 @@ function docker_terminal {
     CMD+="; export ROS_IP=$WIP"
   fi
   CMD+="; export DISPLAY=$DISPLAY"
-  CMD+="; export ROS_HOME=/root/Sunray/alfred ; cd /root/Sunray/ros ; . devel/setup.bash ; /bin/bash"
+  CMD+="; export ROS_HOME=/root/Sunray/linux ; cd /root/Sunray/ros ; . devel/setup.bash ; /bin/bash"
   docker start $CONTAINER_NAME && docker exec -t -it $CONTAINER_NAME \
     bash -c "$CMD"
 }
@@ -185,14 +196,14 @@ function ros_compile {
   fi 
 
   PS3='Please choose config: '
-  list=$(ls ../alfred/config*.h)
+  list=$(ls ../linux/config*.h)
   IFS=$'\n'
   select CONFIG_FILE in $list 
     do test -n "$CONFIG_FILE" && break; 
   exit; 
   done
   echo "selected: $CONFIG_FILE"
-  CONFIG_PATHNAME=/root/Sunray/alfred/$CONFIG_FILE
+  CONFIG_PATHNAME=/root/Sunray/linux/$CONFIG_FILE
 
   # build single package:    catkin_make -DCATKIN_WHITELIST_PACKAGES="ground_lidar_processor"
   # build Sunray ROS node
@@ -200,7 +211,7 @@ function ros_compile {
   CMD=". /ros_entrypoint.sh ;"
   CMD+="cd /root/Sunray/ros/ ;"
   CMD+="rm -Rf build ; rm -Rf devel ;"
-  CMD+="catkin_make -DCONFIG_FILE=$CONFIG_PATHNAME -DROS_EDITION=ROS1 -DCMAKE_BUILD_TYPE=Release"
+  CMD+="catkin_make -j1 -DCONFIG_FILE=$CONFIG_PATHNAME -DROS_EDITION=ROS1 -DCMAKE_BUILD_TYPE=Release"
   docker start $CONTAINER_NAME && docker exec -t -it $CONTAINER_NAME \
     bash -c "$CMD"
 }
@@ -216,7 +227,7 @@ function ros_recompile {
   prepare_for_ros    
   CMD=". /ros_entrypoint.sh ;"
   CMD+="cd /root/Sunray/ros/ ;"
-  CMD+="catkin_make"
+  CMD+="catkin_make -j1"
   docker start $CONTAINER_NAME && docker exec -t -it $CONTAINER_NAME \
     bash -c "$CMD"
 }
@@ -283,12 +294,12 @@ function ros_stop_mapping {
     if [[ $WIP != "" ]]; then
       CMD+="export ROS_IP=$WIP"
     fi
-    CMD+="; export ROS_HOME=/root/Sunray/alfred"
+    CMD+="; export ROS_HOME=/root/Sunray/linux"
     CMD+="; . /ros_entrypoint.sh"
     CMD+="; cd /root/Sunray/ros"
     CMD+="; . devel/setup.bash"
     CMD+="; setcap 'cap_net_bind_service=+ep' devel/lib/sunray_node/sunray_node"
-    CMD+="; cd /root/Sunray/alfred"
+    CMD+="; cd /root/Sunray/linux"
     CMD+="; pwd"
     CMD+="; rosservice call /robot/dlio_map/save_pcd $MAP_RES /root/PCD"
     CMD+="; ls -la /root/PCD"
@@ -326,10 +337,10 @@ function ros_trigger_relocalization {
   if [[ $WIP != "" ]]; then
     CMD+="export ROS_IP=$WIP"
   fi
-  CMD+="; export ROS_HOME=/root/Sunray/alfred"
+  CMD+="; export ROS_HOME=/root/Sunray/linux"
   CMD+="; . /ros_entrypoint.sh ; cd /root/Sunray/ros ; . devel/setup.bash"
   CMD+="; setcap 'cap_net_bind_service=+ep' devel/lib/sunray_node/sunray_node"
-  CMD+="; cd /root/Sunray/alfred ; pwd ; rosservice call /global_localization ; rostopic echo /mcl_3dl/status"
+  CMD+="; cd /root/Sunray/linux ; pwd ; rosservice call /global_localization ; rostopic echo /mcl_3dl/status"
   docker start $CONTAINER_NAME && docker exec -t -it $CONTAINER_NAME \
     bash -c "$CMD"
 }
@@ -379,6 +390,11 @@ function start_sunray_ros_service {
   # enable sunray service
   echo "starting sunray ROS service..."
   #ln -s /home/pi/sunray_install/config_files/sunray.service /etc/systemd/system/sunray.service
+  
+  REPLACEPATH="/home/pi/"
+  HOMEPATH=`realpath $PWD/../..`/  
+  sed "s+$REPLACEPATH+$HOMEPATH+g" <$PWD/sunray_ros.service.example >$PWD/sunray_ros.service
+
   cp $PWD/sunray_ros.service /etc/systemd/system/sunray_ros.service
   chmod 644 /etc/systemd/system/sunray_ros.service
   mkdir -p /boot/sunray

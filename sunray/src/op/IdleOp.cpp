@@ -35,6 +35,7 @@ void IdleOp::run(){
         }        
         if (initiatedByOperator) dockOp.setInitiatedByOperator(true); // manual stop => manual dock
         changeOp(chargeOp);
-    }    
+    }
+       
 }
 

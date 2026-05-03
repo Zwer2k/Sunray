@@ -47,11 +47,11 @@ void DockOp::begin(){
 
   // plan route to next target point 
 
-  if (maps.startDocking(stateX, stateY)){       
-    if (maps.nextPoint(true, stateX, stateY)) {
+  if (maps.startDocking(stateEstimator.stateX, stateEstimator.stateY)){       
+    if (maps.nextPoint(true, stateEstimator.stateX, stateEstimator.stateY)) {
       maps.repeatLastMowingPoint();
-      lastFixTime = millis();                
-      maps.setLastTargetPoint(stateX, stateY);        
+      stateEstimator.lastFixTime = millis();                
+      maps.setLastTargetPoint(stateEstimator.stateX, stateEstimator.stateY);        
       //stateSensor = SENS_NONE;                  
     } else {
       error = true;
@@ -60,7 +60,7 @@ void DockOp::begin(){
     }
   } else error = true;
   if (error){
-    stateSensor = SENS_MAP_NO_ROUTE;
+    stateEstimator.stateSensor = SENS_MAP_NO_ROUTE;
     //op = OP_ERROR;
     routingFailed = true;        
     motor.setMowState(false);
@@ -71,7 +71,7 @@ void DockOp::begin(){
     mapRoutingFailedCounter++;    
     if (mapRoutingFailedCounter > 60){
       CONSOLE.println("error: too many routing errors!");
-      stateSensor = SENS_MAP_NO_ROUTE;
+      stateEstimator.stateSensor = SENS_MAP_NO_ROUTE;
       changeOp(errorOp);      
     } else {    
       changeOp(gpsRebootRecoveryOp, true);
@@ -93,7 +93,7 @@ void DockOp::run(){
         detectObstacleRotation();                              
     }
     // line tracking
-    trackLine(true);       
+    lineTracker.trackLine(true);       
     detectSensorMalfunction(); 
     battery.resetIdle();
 }
@@ -103,29 +103,29 @@ void DockOp::onTargetReached(){
     CONSOLE.println("DockOp::onTargetReached");
     if (maps.wayMode == WAY_MOW){
       maps.clearObstacles(); // clear obstacles if target reached
-      motorErrorCounter = 0; // reset motor error counter if target reached
-      stateSensor = SENS_NONE; // clear last triggered sensor
+      stateEstimator.motorErrorCounter = 0; // reset motor error counter if target reached
+      stateEstimator.stateSensor = SENS_NONE; // clear last triggered sensor
     }
 }
 
 
 void DockOp::onGpsFixTimeout(){
     if (REQUIRE_VALID_GPS){    
-      stateSensor = SENS_GPS_FIX_TIMEOUT;
+      stateEstimator.stateSensor = SENS_GPS_FIX_TIMEOUT;
       changeOp(gpsWaitFixOp, true);
     }
 }
 
 void DockOp::onGpsNoSignal(){
     if (REQUIRE_VALID_GPS){   
-      stateSensor = SENS_GPS_INVALID;
+      stateEstimator.stateSensor = SENS_GPS_INVALID;
       changeOp(gpsWaitFloatOp, true);
     }
 }
 
 void DockOp::onKidnapped(bool state){
     if (state){
-        stateSensor = SENS_KIDNAPPED;      
+        stateEstimator.stateSensor = SENS_KIDNAPPED;      
         motor.setLinearAngularSpeed(0,0, false); 
         motor.setMowState(false);    
         changeOp(kidnapWaitOp, true); 
@@ -135,8 +135,8 @@ void DockOp::onKidnapped(bool state){
 
 void DockOp::onObstacleRotation(){
     CONSOLE.println("error: rotation error due to obstacle!");    
-    statMowObstacles++;   
-    stateSensor = SENS_OBSTACLE;
+    stats.statMowObstacles++;   
+    stateEstimator.stateSensor = SENS_OBSTACLE;
     changeOp(errorOp);    
 }
 
@@ -150,9 +150,9 @@ void DockOp::onObstacle(){
       return;
     }
     CONSOLE.println("triggerObstacle");      
-    statMowObstacles++;      
+    stats.statMowObstacles++;      
     if (maps.isDocking()) {    
-        if (maps.retryDocking(stateX, stateY)) {
+        if (maps.retryDocking(stateEstimator.stateX, stateEstimator.stateY)) {
             changeOp(escapeReverseOp, true);                      
             return;
         }
@@ -160,16 +160,16 @@ void DockOp::onObstacle(){
     if ((OBSTACLE_AVOIDANCE) && (maps.wayMode != WAY_DOCK)){    
         changeOp(escapeReverseOp, true);      
     } else {     
-        stateSensor = SENS_OBSTACLE;
+        stateEstimator.stateSensor = SENS_OBSTACLE;
         CONSOLE.println("error: obstacle!");
         changeOp(errorOp);                
     }
 }
 
-void DockOp::onChargerConnected(){            
-  battery.setIsDocked(true);    
+/*void DockOp::onChargerConnected(){            
+  battery.setIsDocked(true); // Test me   
   changeOp(chargeOp);
-}
+}*/
 
 
 void DockOp::onNoFurtherWaypoints(){
@@ -177,5 +177,3 @@ void DockOp::onNoFurtherWaypoints(){
   battery.setIsDocked(true);    
   changeOp(idleOp); 
 }
-
-

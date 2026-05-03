@@ -50,7 +50,7 @@ void Op::changeOp(Op &anOp, bool returnBackOnExit){
     if (&anOp == NULL){
         CONSOLE.println("==> ERROR Op::changeOp: invalid op=NULL!");        
     }
-    if (&anOp == activeOp) return;
+    if (&anOp == activeOp) return;  // we don't allow a transition from/to the same operation
     newActiveOp = &anOp;
 
     if (returnBackOnExit) {
@@ -182,7 +182,7 @@ float Op::getDockDistance(){
     float dockY = 0;
     float dockDelta = 0;
     maps.getDockingPos(dockX, dockY, dockDelta);
-    float dist_dock = distance(dockX, dockY, stateX, stateY);
+    float dist_dock = distance(dockX, dockY, stateEstimator.stateX, stateEstimator.stateY);
 
     return dist_dock;
 }
@@ -248,11 +248,13 @@ void Op::onRelocalization(){
     changeOp(relocalizationOp, true);
 }
 
-void Op::onChargerConnected(){            
+void Op::onChargerConnected(){    
+  battery.setIsDocked(true);    
+  changeOp(chargeOp);        
 }
 
 void Op::onBatteryUndervoltage(){
-    stateSensor = SENS_BAT_UNDERVOLTAGE;
+    stateEstimator.stateSensor = SENS_BAT_UNDERVOLTAGE;
     changeOp(idleOp);
     //buzzer.sound(SND_OVERCURRENT, true);        
 }

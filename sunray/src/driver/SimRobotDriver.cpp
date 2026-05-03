@@ -12,6 +12,13 @@
 
 void SimRobotDriver::begin(){
   CONSOLE.println("using robot driver: SimRobotDriver");
+  #ifdef __linux__    
+    CONSOLE.println("reading robot ID...");
+    Process p2;
+    p2.runShellCommand("ip link show enp3s0 | grep link/ether | awk '{print $2}'");
+    robotID = p2.readString();    
+    robotID.trim();
+  #endif
   simTicksLeft = simTicksRight = 0;  
   linearSpeed = angularSpeed = 0;
   leftSpeed = rightSpeed = mowSpeed = 0;
@@ -25,7 +32,8 @@ void SimRobotDriver::begin(){
 }
 
 bool SimRobotDriver::getRobotID(String &id){
-  id = "sim";
+  //id = "sim";
+  id = robotID;
   return true;
 }
 
@@ -64,7 +72,8 @@ bool SimRobotDriver::pointIsInsideObstacle(float x, float y){
 // ------------------------------------------------------------------------------------
 
 SimMotorDriver::SimMotorDriver(SimRobotDriver &sr): simRobot(sr){
-  lastEncoderTicksLeft = lastEncoderTicksLeft = 0;
+  lastEncoderTicksLeft = 0;
+  lastEncoderTicksRight = 0;
   lastSampleTime = 0;
   simOdometryError = false;
   simNoMotion = false;
@@ -97,7 +106,7 @@ void SimMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm, bool rel
   float deltaT = 0;
   if (lastSampleTime != 0){
     deltaT = ((float)(millis() - lastSampleTime)) / 1000.0;
-    if (deltaT < 0.2) return;
+    if (deltaT < 0.05) return;
   } 
   lastSampleTime = millis();
 
@@ -193,9 +202,11 @@ void SimMotorDriver::getMotorEncoderTicks(int &leftTicks, int &rightTicks, int &
   leftTicks = simRobot.simTicksLeft - lastEncoderTicksLeft;
   rightTicks = simRobot.simTicksRight - lastEncoderTicksRight;
   if (leftTicks > 1000){
+    CONSOLE.println("SimMotorDriver: resetting leftTicks");
     leftTicks = 0;
   }
   if (rightTicks > 1000){
+    CONSOLE.println("SimMotorDriver: resetting rightTicks");
     rightTicks = 0;
   } 
   lastEncoderTicksLeft = simRobot.simTicksLeft;
@@ -496,7 +507,7 @@ SimGpsDriver::SimGpsDriver(SimRobotDriver &sr): simRobot(sr){
   nextSolutionTime = 0;
   floatX = 0;
   floatY = 0;
-  solutionAvail = false;
+  solutionAvail = false;  
   simGpsJump = false;
   setSimSolution(SOL_INVALID);
 }
@@ -519,6 +530,7 @@ void SimGpsDriver::run(){
       relPosE = simRobot.simX;
       relPosN = simRobot.simY;
       relPosD = 100;
+      groundSpeed = 0.3;
       if (simGpsJump){
         relPosE += 3.0;
         relPosN += 3.0; 
@@ -553,6 +565,8 @@ void SimGpsDriver::run(){
         accuracy = 0.01;
         hAccuracy = accuracy;
         vAccuracy = accuracy;
+        numSV = 40;
+        numSVdgps = 35; 
       } else {
         accuracy = max(floatX, floatY);
         hAccuracy = floatX;
@@ -595,5 +609,4 @@ void SimGpsDriver::send(const uint8_t *buffer, size_t size) {
 
 void SimGpsDriver::sendRTCM(const uint8_t *buffer, size_t size){
 }
-
 

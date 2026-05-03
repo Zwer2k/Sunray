@@ -58,6 +58,11 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define DRV_ARDUMOWER     1   // keep this for Ardumower
 //#define DRV_SIM_ROBOT     1   // simulation
 
+// ---- Optional hardware -----------------------------------------------------
+// Set to 1 when an owlDisplay CAN-Display is connected; otherwise all display-related
+// CAN frames remain disabled.
+#define ENABLE_CAN_DISPLAY 0
+
 // if compiling for ROS, specify robot launch file (.launch) for robot-specific ROS launch (if not running in ROS, this option will not be used )
 #define ROS_LAUNCH_FILE "ardumower"
 
@@ -146,6 +151,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define TICKS_PER_REVOLUTION  975     // odometry ticks per wheel revolution (owlRobotics platform)
 //#define TICKS_PER_REVOLUTION  90     // odometry ticks per wheel revolution (hoverboard motor)
 
+#define ODO_TEST_PWM_SPEED 100         // pwm speed for odometry test (20-200)
 
 // ----- gear motors --------------------------------------------------
 // for brushless motors, study the sections (drivers, adapter, protection etc.) in the Wiki (https://wiki.ardumower.de/index.php?title=DIY_Brushless_Driver_Board)
@@ -222,6 +228,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // shall the mow motor be activated for normal operation? Deactivate this option for GPS tests and path tracking running tests
 #define ENABLE_MOW_MOTOR true // Default is true, set false for testing purpose to switch off mow motor permanently
 
+//#define MOTOR_MOW_SWAP_DIRECTION 1  // uncomment to swap mow motor direction
+
+
 // ------ WIFI module (ESP8266 ESP-01 with ESP firmware 2.2.1) --------------------------------
 // NOTE: all settings (maps, absolute position source etc.) are stored in your phone - when using another
 // device for the WIFI connection (PC etc.), you will have to transfer those settings (share maps via app, 
@@ -292,9 +301,11 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define SONAR_ENABLE true              // should ultrasonic sensor be used?
 #define SONAR_ENABLE false
 #define SONAR_TRIGGER_OBSTACLES true     // should sonar be used to trigger obstacles? if not, mower will only slow down
-#define SONAR_LEFT_OBSTACLE_CM   10      // stop mowing operation below this distance (cm) 
-#define SONAR_CENTER_OBSTACLE_CM 10      // stop mowing operation below this distance (cm) 
-#define SONAR_RIGHT_OBSTACLE_CM  10      // stop mowing operation below this distance (cm) 
+#define CAN_SONAR_TRIGGER_OBSTACLES 1    // enable owlController CAN ultrasonic obstacle trigger
+#define SONAR_LEFT_OBSTACLE_CM   15      // stop mowing operation below this distance (cm)
+#define SONAR_CENTER_OBSTACLE_CM 15      // stop mowing operation below this distance (cm)
+#define SONAR_RIGHT_OBSTACLE_CM  15      // stop mowing operation below this distance (cm)
+#define SONAR_POLL_INTERVAL_MS   200     // CAN polling interval for sonar distances
 
 // ------ rain sensor ----------------------------------------------------------
 //#define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers
@@ -444,6 +455,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 // below this robot-to-target distance (m) a target is considered as reached
 #define TARGET_REACHED_TOLERANCE 0.1
+#define TARGET_ANGLE_TOLERANCE 20
 
 // stanley control for path tracking - determines gain how fast to correct for lateral path errors
 #define STANLEY_CONTROL_P_NORMAL  3.0   // 3.0 for path tracking control (angular gain) when mowing

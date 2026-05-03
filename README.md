@@ -3,10 +3,12 @@
 # Table of contents
 1. [Description](#description)
 2. [Sunray for Ardumower](#sunray_ardumower)
-3. [Sunray for Alfred / owlPlatform](#sunray_alfred)
-4. [Sunray Simulator](#sunray_sim)
-5. [Further topics](#further_topics)
-6. [Sunray ROS](#sunray_ros)
+3. [Sunray for SMARTMOW-DIY / owlPlatform / Alfred ](#sunray_alfred)
+5. [Sunray Simulator](#sunray_sim)
+6. [Further topics](#further_topics)
+7. [Sunray ROS](#sunray_ros)
+8. [Sunray App](#sunray_app)
+9. [Sunray Husqvarna, STIHL, etc. conversion](#sunray_husqvarna)
    
 
 ## Description <a name="description"></a>
@@ -18,7 +20,7 @@ Platform | Hardware required
 --- | ---
 Ardumower | Ardumower kit mowing and gear motors, PCB 1.3, Adafruit Grand Central M4 (or Arduino Due) and ArduSimple RTK kit
 Alfred | Alfred robot with Alfred RTK conversion kit (tiny Linux computer, IO-board, ArduSimple RTK kit, base antenna etc.)
-owlRobotPlatform | Universal Do-It-Yourself robot mower with owlRobotPlatform hardware/PCB (More details: https://github.com/owlRobotics-GmbH/owlRobotPlatform)
+SMARTMOW-DIY/owlRobotPlatform | Universal Do-It-Yourself robot mower with SMARTMOW-DIY/owlRobotPlatform hardware/PCB (More details: https://github.com/owlRobotics-GmbH/owlRobotPlatform)
 
 
 The robot mower uses RTK to localize itself (without a perimeter wire)
@@ -38,7 +40,7 @@ Simulator | The complete Sunray firmware and simulated hardware is compiled for 
 All software and hardware, software and motor components are designed and optimized as a whole, if you try to replace or exclude some component not as designed, you risk to damage your hardware with the software
 
 ## Ardumower Wiki
-http://wiki.ardumower.de/index.php?title=Ardumower_Sunray
+Construction manual for the original Ardumower-based DIY robot mower:  http://wiki.ardumower.de/index.php?title=Ardumower_Sunray
 
 ## Adumower Demo video
 https://www.youtube.com/watch?v=yDcmS5zdj90
@@ -48,22 +50,23 @@ __WARNING__: Do not use the master version (via download button), that is 'code 
 
 https://github.com/Ardumower/Sunray/releases
 
-# Sunray for Alfred / owlPlatform <a name="sunray_alfred"></a>
+# Sunray for SMARTMOW-DIY / owlPlatform / Alfred  <a name="sunray_alfred"></a>
 
-NOTE: Below steps are only required if you want to compile a custom version of the 'Sunray for Alfred' (or owlPlatform) firmware. The code for all steps will require a Linux system (either the Alfred, a Raspberry PI or some PC).
+NOTE: Below steps are only required if you want to compile a custom version of the 'Sunray for Alfred' (or SMARTMOW-DIY/owlPlatform) firmware. The code for all steps will require a Linux system (either the Alfred, a OrangePi5Pro (RaspberryPi) or some PC). For SMARTMOW-DIY/owlPlatform, it is assumed that you have installed SMARTMOW-DIY/owlPlatform drivers already as described here: https://github.com/owlRobotics-GmbH/owlRobotPlatform. NOTE: you can find a complete guide for the owlPlatform here: https://github.com/Ardumower/Sunray?tab=readme-ov-file#sunray_husqvarna
 
-## How to install code and compile 'Sunray for Alfred / owlPlatform' (required only once)
-Run this on your Alfred Linux terminal (in your Alfred home folder):
+## How to install code and compile 'Sunray for SMARTMOW-DIY / owlPlatform  Alfred' (required only once)
+Run this on your Linux terminal (in your Linux home folder):
 
 ```
 ## clone repository ##
+sudo apt install git
 cd ~
 git clone https://github.com/Ardumower/Sunray.git
 
 ## make a customized copy of the Alfred config file (or olwPlatform config file)
-cd ~/Sunray/alfred
-cp config_alfred.h config.h    (for Alfred)
+cd ~/Sunray/linux
 cp config_owlmower.h config.h   (for owlPlatform)
+cp config_alfred.h config.h    (for Alfred)
 
 ## adjust your new 'config.h', then run service script and choose point 'Build sunray executable',
 ## when being asked, choose 'config.h' as config file 
@@ -77,7 +80,7 @@ cp config_owlmower.h config.h   (for owlPlatform)
 ./service.sh
 ```
 
-## How to update installed code and re-compile 'Sunray for Alfred / owlPlatform'
+## How to update installed code and re-compile 'Sunray for SMARTMOW-DIY / owlPlatform / Alfred'
 ```
 ## update repository ##
 cd ~/Sunray
@@ -85,7 +88,7 @@ git pull
 
 ## run service script and choose point 'Rebuild sunray executable', when being asked,
 ## choose 'config.h' as config file 
-cd ~/Sunray/alfred
+cd ~/Sunray/linux
 ./service.sh
 
 ## For Alfred: run service script and choose point 'Install sunray executable on Alfred',
@@ -114,7 +117,7 @@ Before running above commands, install required libs:
 sudo apt-get -y install cmake
 sudo apt-get -y install libbluetooth-dev
 ```
-For Raspberry PI, you may have to adjust the serial path for the Alfred MCU UART connection in 'alfred/config.h': 
+For OrangePi5Pro (Raspberry), you may have to adjust the serial path for the Alfred MCU UART connection in 'linux/config.h': 
 ```
 #define SERIAL_ROBOT_PATH "/dev/ttyS0" 
 ```
@@ -198,7 +201,7 @@ cd ~
 git clone https://github.com/Ardumower/Sunray.git
 ```
 
-Now edit the file alfred/config.h and uncomment only the simulation driver:
+Now edit the file linux/config.h and uncomment only the simulation driver:
 ```
 //#define DRV_SERIAL_ROBOT  1   // for Alfred
 //#define DRV_ARDUMOWER     1   // keep this for Ardumower
@@ -207,7 +210,7 @@ Now edit the file alfred/config.h and uncomment only the simulation driver:
 
 Finally, compile and run the simulator:
 ```
-cd ~/Sunray/alfred/build
+cd ~/Sunray/linux/build
 rm -Rf *
 cmake ..
 make
@@ -265,7 +268,7 @@ https://forum.ardumower.de/threads/advanced-topic-generate-wifi-gps-heatmaps-wit
 ## Sunray ROS (via Docker)  <a name="sunray_ros"></a>
 The Sunray firmware can be compiled as ROS (robotic operating system) node, and ROS packages can then be used to replace the localization drivers (GPS/IMU) in Sunray. Typical ROS packages are LiDAR drivers, LiDAR-based SLAM (LiDAR mapping & localization) and LiDAR-based obstacle detection. Currently, the ROS system has been experimentally tested using these hardware combinations:
 
-- Raspberry PI 5 and Livox MID-360 ( https://owlrobotics-store.company.site/products/LIDAR-Livox-MID-360-incl-Cable-p605042897 )
+- OrangePi5Pro (Raspberry) and Livox MID-360 ( https://owlrobotics-store.company.site/products/LIDAR-Livox-MID-360-incl-Cable-p605042897 )
 
 Demo videos ( https://www.youtube.com/watch?v=47-9z_iPiTs , https://www.youtube.com/watch?v=OYC_oKYsXts, https://www.youtube.com/watch?v=eZM_R9n57KA,  https://www.youtube.com/watch?v=vfD_GPRI-98 )
 
@@ -278,7 +281,7 @@ Because ROS is highly dependend on OS (e.g. you have to choose specific Ubuntu v
 
 Steps to run Sunray as ROS node:
 
-1. Make a copy of your existing config.h with another name (e.g. Sunray/alfred/config_myrobot.h), and activate these entries:
+1. Make a copy of your existing config.h with another name (e.g. Sunray/linux/config_myrobot.h), and activate these entries:
 ```
 #define ROS_LAUNCH_FILE     "myrobot"  // the ROS robot launch file (you will choose in point 2 below)  
 #define LIDAR_BUMPER_ENABLE true  // to use the LiDAR-based bumper (ground obstacle detection via LiDAR)
@@ -330,6 +333,15 @@ Here you can see how the localization pipeline works.
 - Localization: First the LiDAR points are (optionally) flipped upside-down (if your LiDAR is mounted upside-down). Then the corrected LiDAR data is used to localize against the PCD file. The result of the localization is two components: the LiDAR position (x, y, z) within the PCD file and the LiDAR orientation (yaw, pitch, roll). 
 ![image](https://github.com/user-attachments/assets/a02f9ff2-a7d8-430e-bf2d-c90ae4e4bf0c)
    
+
+# Sunray App Manual <a name="sunray_app"></a>
+There exists an App to to control and monitor the Sunray firmware. More Details can be found in the Sunray App manual: https://drive.google.com/file/d/1NNrUEm2_amfMAjGY7ShcYtixtUgWGnyJ/view?usp=sharing
+
+# Husqvarna, STIHL etc. conversion <a name="sunray_husqvarna"></a>
+There exists an owlPlatform DIY conversion manual how to convert your Husqvarna, STIHL etc. to an DIY robot mower: https://docs.google.com/document/d/1rZi848AFimIRHJkMun1muZ-2nvr8JjXCmmPBuZ1BfJA/edit?usp=sharing
+
+
+
 
 
 

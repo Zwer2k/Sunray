@@ -28,6 +28,13 @@
 #include "sonar.h"
 #include "VL53L0X.h"
 #include "map.h"   
+#include "comm.h"
+#include "mqtt.h"
+#include "httpserver.h"
+#include "StateEstimator.h"
+#include "Stats.h"
+#include "LineTracker.h"
+#include "Storage.h"
 #include "src/ublox/ublox.h"
 #include "src/skytraq/skytraq.h"
 #include "src/lidar/lidar.h"
@@ -41,73 +48,20 @@
 #include "timetable.h"
 
 
-#define VER "Sunray,1.0.324"
+#define VER "Sunray,1.0.331"
 
-// operation types
-enum OperationType {
-      OP_IDLE,      // idle
-      OP_MOW,       // mowing
-      OP_CHARGE,    // charging
-      OP_ERROR,     // serious error
-      OP_DOCK,      // go to docking
-};    
-
-// sensor errors
-enum Sensor {
-      SENS_NONE,              // no error
-      SENS_BAT_UNDERVOLTAGE,  // battery undervoltage
-      SENS_OBSTACLE,          // obstacle triggered
-      SENS_GPS_FIX_TIMEOUT,   // gps fix timeout
-      SENS_IMU_TIMEOUT,       // imu timeout  
-      SENS_IMU_TILT,          // imut tilt
-      SENS_KIDNAPPED,         // robot has been kidnapped (is no longer on planned track)
-      SENS_OVERLOAD,          // motor overload
-      SENS_MOTOR_ERROR,       // motor error
-      SENS_GPS_INVALID,       // gps is invalid or not working
-      SENS_ODOMETRY_ERROR,    // motor odometry error
-      SENS_MAP_NO_ROUTE,      // robot cannot find a route to next planned point
-      SENS_MEM_OVERFLOW,      // cpu memory overflow
-      SENS_BUMPER,            // bumper triggered
-      SENS_SONAR,             // ultrasonic triggered
-      SENS_LIFT,              // lift triggered
-      SENS_RAIN,              // rain sensor triggered
-      SENS_STOP_BUTTON,       // emergency/stop button triggered
-      SENS_TEMP_OUT_OF_RANGE, // temperature out-of-range triggered
-};
+// common types
+#include "types.h"
 
 #ifndef __linux__
   #define FILE_CREATE  (O_WRITE | O_CREAT)
 #endif
 
-extern OperationType stateOp; // operation
-extern Sensor stateSensor; // last triggered sensor
-extern String stateOpText;  // current operation as text
-extern String gpsSolText; // current gps solution as text
-extern int stateButton;  // button state
-extern float stateTemp;  // current temperature
-
-extern float setSpeed; // linear speed (m/s)
-extern int fixTimeout;
-extern bool finishAndRestart; // auto-restart when mowing finished?
-extern bool dockAfterFinish; // dock after mowing finished?
-extern bool absolutePosSource;
-extern double absolutePosSourceLon;
-extern double absolutePosSourceLat;
-
-extern unsigned long linearMotionStartTime;
-extern unsigned long angularMotionStartTime;
-extern bool stateInMotionLP; // robot is in angular or linear motion? (with motion low-pass filtering)
-
-extern unsigned long lastFixTime;
+// moved into StateEstimator
 
 extern WiFiEspClient client;
-extern WiFiEspServer server;
 extern PubSubClient mqttClient;
 extern bool hasClient;
-
-extern unsigned long controlLoops;
-extern bool wifiFound;
-extern int motorErrorCounter;
 
 
 #ifdef DRV_SERIAL_ROBOT
@@ -119,6 +73,7 @@ extern int motorErrorCounter;
   extern SerialRainSensorDriver rainDriver;
   extern SerialLiftSensorDriver liftDriver;  
   extern SerialBuzzerDriver buzzerDriver;
+  extern RelaisDriver relaisDriver;
 #elif DRV_CAN_ROBOT
   extern CanRobotDriver robotDriver;
   extern CanMotorDriver motorDriver;
@@ -128,6 +83,7 @@ extern int motorErrorCounter;
   extern CanRainSensorDriver rainDriver;
   extern CanLiftSensorDriver liftDriver;  
   extern CanBuzzerDriver buzzerDriver;
+  extern CanRelaisDriver relaisDriver;
 #elif DRV_SIM_ROBOT
   extern SimRobotDriver robotDriver;
   extern SimMotorDriver motorDriver;
@@ -137,6 +93,7 @@ extern int motorErrorCounter;
   extern SimRainSensorDriver rainDriver;
   extern SimLiftSensorDriver liftDriver;
   extern SimBuzzerDriver buzzerDriver;
+  extern RelaisDriver relaisDriver;
 #else
   extern AmRobotDriver robotDriver;
   extern AmMotorDriver motorDriver;
@@ -146,6 +103,7 @@ extern int motorErrorCounter;
   extern AmRainSensorDriver rainDriver;
   extern AmLiftSensorDriver liftDriver;
   extern AmBuzzerDriver buzzerDriver;
+  extern RelaisDriver relaisDriver;
 #endif
 
 #ifdef DRV_SIM_ROBOT
@@ -163,6 +121,7 @@ extern int motorErrorCounter;
 extern Motor motor;
 extern Battery battery;
 extern BLEConfig bleConfig;
+extern BLEComm ble;
 extern Bumper bumper;
 extern Buzzer buzzer;
 extern LidarBumperDriver lidarBumper;
@@ -170,6 +129,13 @@ extern Sonar sonar;
 extern VL53L0X tof;
 extern PinManager pinMan;
 extern Map maps;
+extern Comm comm;
+extern MqttService mqttService;
+extern HttpServer httpServer;
+extern StateEstimator stateEstimator;
+extern Stats stats;
+extern LineTracker lineTracker;
+extern Storage storage;
 extern TimeTable timetable;
 #ifdef DRV_SIM_ROBOT
   extern SimGpsDriver gps;

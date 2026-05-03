@@ -6,6 +6,7 @@
 
 #include "SerialRobotDriver.h"
 #include "../../config.h"
+#include "../../robot.h"
 #include "../../ioboard.h"
 
 #define COMM  ROBOT
@@ -62,7 +63,7 @@ void SerialRobotDriver::begin(){
     CONSOLE.print("linux working dir (pwd): ");
     CONSOLE.println(workingDir);
 
-    CONSOLE.println("reading robot ID...");
+    CONSOLE.println("reading robot ID... (Alfred: you may have to tune your Linux config for a constant MAC address)");
     Process p;
     p.runShellCommand("ip link show eth0 | grep link/ether | awk '{print $2}'");
 	  robotID = p.readString();    
@@ -485,6 +486,7 @@ void SerialRobotDriver::updatePanelLEDs(){
 }
 
 void SerialRobotDriver::run(){  
+  // process MCU serial responses (class member)
   processComm();
   if (millis() > nextMotorTime){
     nextMotorTime = millis() + 20; // 50 hz
@@ -860,6 +862,3 @@ void SerialBuzzerDriver::noTone(){
 void SerialBuzzerDriver::tone(int freq){
   ioExpanderOut(EX2_I2C_ADDR, EX2_BUZZER_PORT, EX2_BUZZER_PIN, true);
 }
-
-
-

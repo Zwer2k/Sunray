@@ -33,7 +33,9 @@ void ChargeOp::begin(){
     }
     //motor.stopImmediately(true); // do not use PID to get to stop 
     motor.setLinearAngularSpeed(0,0, false); 
-    motor.setMowState(false);         
+    motor.setMowState(false);
+    CONSOLE.println(" Relais will be set to false (off)");
+    relaisDriver.setRelaisState(RELAIS_1_NODE_ID, false); // disable relais 1 (Lidar) when charging         
     //motor.enableTractionMotors(false); // keep traction motors off (motor drivers tend to generate some incorrect encoder values when stopped while not turning)                 
 }
 
@@ -77,8 +79,8 @@ void ChargeOp::run(){
         // sensing charging contacts means we are in docking station - we use docking point coordinates to get rid of false fix positions in
         // docking station        
         if (true){
-            maps.getDockingPos(stateX, stateY, stateDelta);
-            if (!DOCK_FRONT_SIDE) stateDelta = scalePI(stateDelta + 3.1415);
+            maps.getDockingPos(stateEstimator.stateX, stateEstimator.stateY, stateEstimator.stateDelta);
+            if (!DOCK_FRONT_SIDE) stateEstimator.stateDelta = scalePI(stateEstimator.stateDelta + 3.1415);
         }
         // get robot yaw orientation from map 
         //float tempX;
@@ -105,10 +107,10 @@ void ChargeOp::run(){
                 CONSOLE.print(timetable.mowingCompletedInCurrentTimeFrame);
                 CONSOLE.print(", timetable.mowingAllowed=");                
                 CONSOLE.print(timetable.mowingAllowed());
-                CONSOLE.print(", finishAndRestart=");                
-                CONSOLE.print(finishAndRestart);                
+                CONSOLE.print(", finishAndRestart=");
+                CONSOLE.print(stateEstimator.finishAndRestart);                
                 CONSOLE.print(", dockAfterFinish=");
-                CONSOLE.print(dockAfterFinish);
+                CONSOLE.print(stateEstimator.dockAfterFinish);
                 CONSOLE.println(")");
             }
             if (timetable.shouldAutostartNow()){
@@ -158,7 +160,7 @@ void ChargeOp::onChargerConnected(){
 }
 
 void ChargeOp::onBatteryUndervoltage(){    
-    stateSensor = SENS_BAT_UNDERVOLTAGE;
+    stateEstimator.stateSensor = SENS_BAT_UNDERVOLTAGE;
 }
 
 void ChargeOp::onRainTriggered(){

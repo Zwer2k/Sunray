@@ -149,6 +149,10 @@ void Motor::speedPWM ( int pwmLeft, int pwmRight, int pwmMow )
   if (motorLeftSwapDir) pwmLeft *= -1;
   if (motorRightSwapDir) pwmRight *= -1;
 
+  #ifdef MOTOR_MOW_SWAP_DIRECTION
+    pwmMow *= -1;
+  #endif
+
   // ensure pwm is lower than Max
   pwmLeft = min(pwmMax, max(-pwmMax, pwmLeft));
   pwmRight = min(pwmMax, max(-pwmMax, pwmRight));  
@@ -161,7 +165,8 @@ void Motor::speedPWM ( int pwmLeft, int pwmRight, int pwmMow )
     } else {
       motorReleaseBrakesTime = millis() + 2000;
     }
-  }  
+  }    
+  pwmMowOut = pwmMow;
   motorDriver.setMotorPwm(pwmLeft, pwmRight, pwmMow, releaseBrakes);
 }
 
@@ -230,10 +235,10 @@ void Motor::setMowState(bool switchOn){
     if (toggleMowDir){
       // toggle mowing motor direction each mow motor start
       motorMowForwardSet = !motorMowForwardSet;
-      if (motorMowForwardSet) motorMowPWMSet = pwmMaxMow;  
-        else motorMowPWMSet = -pwmMaxMow;  
+      if (motorMowForwardSet) motorMowPWMSet = 255;  
+        else motorMowPWMSet = -255;  
     }  else  {      
-      motorMowPWMSet = pwmMaxMow;  
+      motorMowPWMSet = 255;  
     }
   } else {
     if (abs(motorMowPWMSet) < 0.01) return; // mowing motor already switch OFF    
@@ -655,8 +660,8 @@ void Motor::test(){
   motorRightTicks = 0;  
   unsigned long nextInfoTime = 0;
   int seconds = 0;
-  int pwmLeft = 200;
-  int pwmRight = 200; 
+  int pwmLeft = ODO_TEST_PWM_SPEED;
+  int pwmRight = ODO_TEST_PWM_SPEED; 
   bool slowdown = true;
   unsigned long stopTicks = ticksPerRevolution * 10;
   unsigned long nextControlTime = 0;

@@ -13,6 +13,7 @@
 #include <Arduino.h>
 #include "RobotDriver.h"
 #include "../../config.h"
+#include "../../types.h"
 
 #ifdef __linux__
   #include <Process.h>
@@ -21,13 +22,18 @@
   #include "../../can.h"
 #endif
 
+#ifndef ENABLE_CAN_DISPLAY
+#define ENABLE_CAN_DISPLAY 0
+#endif
 
 
 // -----CAN frame data types----------------
 
+#define OWL_RELAIS_MSG_ID    400  // owlRelais PCB
 #define OWL_DRIVE_MSG_ID     300  // owlDrive PCB 
 #define OWL_CONTROL_MSG_ID   200  // owlControl PCB 
 #define OWL_RECEIVER_MSG_ID  100  // owlReceiver PCB 
+#define OWL_DISPLAY_MSG_ID   500  // owlDisplay (grafische Anzeige)
 
 #define MY_NODE_ID 61
 
@@ -46,18 +52,22 @@
 #define MOW_HEIGHT_MOTOR_NODE_ID     8
 
 
-#define CONTROL_NODE_ID       1 // owlControl PCB 
+#define CONTROL_NODE_ID        1// owlControl PCB
+#define DISPLAY_NODE_ID        1// owlDisplay node (shared bus, distinct message ID)
+
+#define RELAIS_1_NODE_ID   1 // owlRelais PCB
+#define RELAIS_2_NODE_ID   2
 
 #define RECEIVER_PUSHBOX_NODE_ID    3 // owlReceiver PCB 
 
 
-typedef union canNodeType_t {   
+typedef union canNodeType_t {
     uint8_t byteVal[2];
-    struct __attribute__ ((__packed__)) {   
+    struct __attribute__ ((__packed__)) {
         uint16_t sourceNodeID : 6;   // 6 bits for source node ID (valid node IDs: 1-62)
-        uint16_t destNodeID   : 6;   // 6 bits for destination node ID (valid node IDs: 1-62, value 63 means all nodes)    
-        uint8_t reserved     : 4;   // 4 bits reserved
-    } sourceAndDest;     
+        uint16_t destNodeID   : 6;   // 6 bits for destination node ID (valid node IDs: 1-62, value 63 means all nodes)
+        uint16_t reserved     : 4;   // 4 bits reserved
+    } sourceAndDest;
 } __attribute__((packed)) canNodeType_t;
 
 // what action to do...
@@ -105,6 +115,7 @@ namespace owldrv {
       can_val_misc_sensor1    = 31,  // miscellaneous sensor1 state
       can_val_misc_sensor2    = 32,  // miscellaneous sensor2 state  
       can_val_total_current   = 33,  // total current of all motor phases (low-pass filtered) 
+      can_val_device_id       = 34,  // device ID (0..63)
   };
 }
 
@@ -119,7 +130,44 @@ namespace owlctl {
       can_val_rain_state        = 6, // rain state
       can_val_charger_voltage   = 7, // charger voltage      
       can_val_lift_state        = 8, // lift sensor state      
-      can_val_slow_down_state   = 9, // slow-down state      
+      can_val_slow_down_state   = 9, // slow-down state
+      can_val_ip_address        = 10, // IP address
+      can_val_device_id         = 11,
+      can_val_power_off_state   = 12, // power-off pin state
+      can_val_power_off_command = 13, // schedule power-off
+      can_val_ultrasonic_left   = 14, // left ultrasonic distance (mm)
+      can_val_ultrasonic_right  = 15, // right ultrasonic distance (mm)
+  };
+
+  enum powerOffState_t: uint8_t {
+      power_off_inactive = 0,
+      power_off_active = 1,
+      power_off_shutdown_pending = 2,
+  };
+}
+
+namespace owldisplay {
+  enum valueType_t : uint8_t {
+      can_val_sat_summary      = 0x10,
+      can_val_rtk_age          = 0x11,
+      can_val_wifi_signal_dbm  = 0x12,
+      can_val_ip_address       = 0x14,
+      can_val_battery_voltage  = 0x40,
+      can_val_battery_current  = 0x41,
+      can_val_map_progress     = 0x50,
+      can_val_state_code       = 0x51,
+      can_val_status_message   = 0x52,
+      can_val_ultrasonic_alert = 0x60,
+      can_val_rain_alert       = 0x61
+    };
+
+  enum stateCode_t : uint8_t {
+      state_unknown = 0,
+      state_mow     = 1,
+      state_dock    = 2,
+      state_idle    = 3,
+      state_charge  = 4,
+      state_error   = 5
   };
 }
 
@@ -135,10 +183,21 @@ namespace owlrecv {
       can_val_axis_y2          = 6, // y2-axis state
       can_val_axis_z2          = 7, // z2-axis state
       can_val_battery_voltage  = 8, // battery voltage 
+      can_val_device_id        = 9,
   };
 
 }  // namespace
 
+namespace owlrls {
+
+  // which variable to use for the action...
+  enum canValueType_t: uint8_t {
+    can_val_device_id         = 0, // info value
+    can_val_error             = 1, // error status
+    can_val_relais_state      = 2, // relais state
+    can_val_relais_countdown  = 3, // set time or get time left
+  };
+} // namespace owlrls
 
 // motor driver error values
 enum errType_t: uint8_t {
@@ -200,7 +259,25 @@ class CanRobotDriver: public RobotDriver {
     bool triggeredRain;
     bool triggeredStopButton;
     bool triggeredSlowDown;
+    bool rainDisplayLastState;
+    bool rainDisplaySent;
+    uint16_t ultrasonicLeftDistance;
+    uint16_t ultrasonicRightDistance;
+    bool ultrasonicLeftValid;
+    bool ultrasonicRightValid;
+    bool ultrasonicLeftAlertActive;
+    bool ultrasonicRightAlertActive;
+    unsigned long ultrasonicLeftAlertUntil;
+    unsigned long ultrasonicRightAlertUntil;
+    uint16_t ultrasonicLeftLastSent;
+    uint16_t ultrasonicRightLastSent;
+    bool ultrasonicLeftSentValid;
+    bool ultrasonicRightSentValid;
     bool triggeredPushboxStopButton;
+    unsigned long nextDisplayStateTime;
+    OperationType lastDisplayOpSent;
+    String lastIpSent;
+    uint8_t lastIpSentBytes[4];
     void begin() override;
     void run() override;
     bool getRobotID(String &id) override;
@@ -212,20 +289,40 @@ class CanRobotDriver: public RobotDriver {
     void requestMowHeight(int mowHeightMillimeter);
     void requestMotorErrorStatus();
     void requestSummary();
+    void requestUltrasonicDistances();
     void requestPushboxState();        
     void requestVersion();
     void updateCpuTemperature();
     void updateWifiConnectionState();
+    void sendIpAddress(const String &ipStr);
+    void sendWifiSignal(int16_t dbm);
+    void updateDisplayTelemetry();
+    void requestPowerOffState();
+    void requestManagedShutdown(uint8_t delaySeconds);
+    void sendPowerOffCommand(uint8_t delaySeconds);
+    uint8_t getPowerOffDelaySeconds() const;
+    void setSimulatePowerOffHang(bool flag, unsigned long durationSeconds = 0);
+    void setSimulatePowerOffHangFor(unsigned long durationSeconds){ setSimulatePowerOffHang(true, durationSeconds); }
+    bool getSimulatePowerOffHang() const;
     void sendCanData(int msgId, int destNodeId, canCmdType_t cmd, int val, canDataType_t data);
+    void sendDisplayOperation(OperationType op);
+    void handleUltrasonicResponse(bool isLeft, bool valid, uint16_t distanceMm);
+    void processUltrasonicTimeouts();
+    void sendUltrasonicDisplay(bool isLeft, bool valid, uint16_t distanceMm);
+    void sendRainDisplay(bool raining);
   protected:    
     bool ledPanelInstalled;
     #ifdef __linux__
       LinuxCAN can;
       Process cpuTempProcess;
-      Process wifiStatusProcess;          
+      Process wifiStatusProcess;
+      Process wifiSignalProcess;
+      Process ipAddressToStringProcess;
     #else  
       CAN can; // dummy, so compiler doesn't complain on other platforms
-    #endif    
+    #endif
+    static void *canIpAddressThreadFun(void *user_data);
+    static void *canWifiSignalThreadFun(void *user_data);
     String cmd;
     String cmdResponse;
     unsigned long nextMotorTime;    
@@ -236,17 +333,64 @@ class CanRobotDriver: public RobotDriver {
     unsigned long nextMowTime;    
     unsigned long nextTempTime;
     unsigned long nextWifiTime;
-    unsigned long nextLedTime;
+    unsigned long nextLedTime;    
+    unsigned long nextDisplayTelemetryTime;
+    unsigned long nextUltrasonicPollTime;
+    unsigned long powerOffLogTime;
+    unsigned long powerOffCommandSendTime;
+    bool powerOffCommandSent;
+    bool powerOffCommandAccepted;
+    bool linuxShutdownIssued;
+    bool simulatePowerOffHang;
+    bool simulatePowerOffHangNotified;
+    unsigned long simulatePowerOffHangUntil;
+    bool simulatePowerOffHangConfigured;
+    unsigned long simulatePowerOffHangConfiguredDuration;
+    bool simulatePowerOffHangCommandPending;
+    unsigned long simulatePowerOffHangCommandTime;
+    bool simulatePiSelfShutdownPending;
+    unsigned long simulatePiSelfShutdownTime;
+    owlctl::powerOffState_t powerOffState;
+    uint8_t powerOffDelaySeconds;
+    bool satSummarySent;
+    uint8_t lastSatStatus;
+    uint8_t lastSatUsed;
+    uint8_t lastSatTotal;
+    bool rtkAgeSent;
+    uint16_t lastRtkAgeTenths;
+    bool mapProgressSent;
+    uint16_t lastMapCount;
+    uint8_t lastMapPercent;
+    enum class PowerOffDecisionTrigger : uint8_t {
+      None = 0,
+      ExternalPin,
+      InternalRequest
+    };
+    bool powerOffDecisionPending;
+    unsigned long powerOffDecisionStartTime;
+    unsigned long powerOffDecisionDeadline;
+    uint8_t powerOffDecisionDelaySeconds;
+    PowerOffDecisionTrigger powerOffDecisionTrigger;
     int consoleCounter;
     int cmdMotorCounter;
     int cmdSummaryCounter;
     int cmdMotorResponseCounter;
     int cmdSummaryResponseCounter;
+    int16_t lastWifiSignalDbm = -127;
     void sendSerialRequest(String s);
     void processResponse();
     void motorResponse();
     void summaryResponse();
     void versionResponse();
+    void handlePowerOffState(owlctl::powerOffState_t remoteState, uint8_t activeSeconds, uint8_t configuredDelay);
+    void handlePowerOffCommandAck(uint8_t acceptedFlag, uint8_t delaySeconds);
+    void startPowerOffDecision(uint8_t delaySeconds, PowerOffDecisionTrigger trigger);
+    void cancelPowerOffDecision(PowerOffDecisionTrigger trigger);
+    void processPowerOffDecision();
+    bool readyForManagedShutdown(PowerOffDecisionTrigger trigger);
+    void processPendingPowerOffCommand();
+    pthread_t thread_ip_id;
+    pthread_t thread_wifi_signal_id;
 };
 
 class CanMotorDriver: public MotorDriver {
@@ -274,6 +418,7 @@ class CanBatteryDriver : public BatteryDriver {
     unsigned long nextADCTime;
     bool adcTriggered;
     unsigned long linuxShutdownTime;
+    bool owlPowerOffNotified;
     #ifdef __linux__
       Process batteryTempProcess;
     #endif
@@ -340,6 +485,21 @@ class CanBuzzerDriver: public BuzzerDriver {
     void tone(int freq) override;  
 };
 
+class CanRelaisDriver: public RelaisDriver {
+  public:
+    CanRobotDriver &canRobot;
+    CanRelaisDriver(CanRobotDriver &sr);
+    //std::vector<int> deviceIds;
+    bool relaisState;
+    void begin() override;
+    void run() override;
+    void setRelaisState(int relais_node_id, bool state) override;
+    bool getRelaisState(int relais_node_id);
+    void setRelaisStateCountdown(int relais_node_id, bool state, unsigned long countdown) override;
+    //unsigned long getRelaisStateCountdown(int relais_node_id) override;
+    //unsigned long getRelaisStateCountdownRemaining(int relais_node_id) override;
+
+};
 
 #endif
 #endif

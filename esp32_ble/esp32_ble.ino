@@ -16,7 +16,7 @@
 
 #include "config.h"
 
-#define VERSION "ESP32 firmware V0.4.5,Bluetooth V4.0 LE"
+#define VERSION "ESP32 firmware V0.5.1,Bluetooth V4.0 LE"
 
 // watch dog timeout (WDT) in seconds
 #define WDT_TIMEOUT 60
@@ -36,19 +36,13 @@ String pass = WIFI_STA_PSK;
 //#include <ESPmDNS.h>
 //#include <WiFiUdp.h>
 
-#ifdef USE_HTTPS
-  // Include certificate data 
-  #include "src/cert.h"
-  #include "src/private_key.h"
-  #include <HTTPSServer.hpp>
-  #include <SSLCert.hpp>
-#else
-  #include <HTTPServer.hpp>
+// Local intranet HTTP server (built-in WebServer) when requested and no cloud is used
+#if defined(USE_HTTP_SERVER) && !defined(USE_CLOUD)
+  #include <WebServer.h>
+  static WebServer* httpServer = nullptr;
+  void handleHttpRoot();
+  void handleHttpOptions();
 #endif
-#include <HTTPRequest.hpp>
-#include <HTTPResponse.hpp>
-// The HTTPS Server comes in a separate namespace. For easier use, include it here.
-using namespace httpsserver;
 
 #ifdef USE_BLE
   #ifdef USE_NIM_BLE
@@ -68,6 +62,11 @@ using namespace httpsserver;
 #ifdef USE_MQTT
   #include "src/adapter.h"
   ArduMower::Adapter mower(UART, ENCRYPTION_PASSWORD, ENCRYPTION_ENABLED);  
+#endif
+
+#ifdef USE_CLOUD
+  void cloud_setup();
+  void cloud_loop();
 #endif
 
 String cmd;
@@ -110,22 +109,7 @@ byte txBuf[BLE_BUF_SZ];
 String notifyData;
 
 // ----- wifi --------------------------
-#ifdef USE_HTTPS
-  // Create an SSL certificate object from the files included above
-  SSLCert cert = SSLCert(
-    example_crt_DER, example_crt_DER_len,
-    example_key_DER, example_key_DER_len
-  );
-  HTTPSServer * server = NULL;
-#else
-  HTTPServer * server = NULL;
-#endif
-
-//WiFiServer server(80);
-//WiFiClient client;
-// We declare some handler functions (definition at the end of the file)
-void handleRoot(HTTPRequest * req, HTTPResponse * res);
-ResourceNode * nodeRoot      = new ResourceNode("/", "POST", &handleRoot);
+// Optional local HTTP server (intranet mode)
 
 // ------------------------------- UART -----------------------------------------------------
 
@@ -339,13 +323,37 @@ void startWIFI() {
     CONSOLE.println("using dynamic IP");
   }
 
-  WiFi.disconnect(); // disconnect any previous (aborted) connection
+  // Ensure STA mode and avoid NVS persistence delays
+  WiFi.mode(WIFI_STA);
+  WiFi.persistent(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.disconnect(true); // disconnect any previous (aborted) connection
   WiFi.begin(ssid.c_str(), pass.c_str());
-  if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+
+  // Replace blocking waitForConnectResult() to keep feeding WDT
+  // Wait up to 20s for association/DHCP while resetting watchdog
+  {
+    const unsigned long start = millis();
+    const unsigned long timeout = 20000;
+    wl_status_t last = WL_IDLE_STATUS;
+    while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout) {
+      wl_status_t s = WiFi.status();
+      if (s != last) {
+        last = s;
+        CONSOLE.print("WiFi status: ");
+        CONSOLE.println((int)s);
+      }
+      esp_task_wdt_reset();
+      delay(100);
+    }
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
     CONSOLE.println("Connection Failed!");
-    delay(2000);
+    // Back off a bit before next attempt
+    delay(200);
     return;
-  };
+  }
 
   if (WiFi.status() == WL_CONNECTED) {
     CONSOLE.print("You're connected with SSID=");
@@ -353,11 +361,39 @@ void startWIFI() {
     CONSOLE.print(" and IP=");
     IPAddress ip = WiFi.localIP();
     CONSOLE.println(ip);
-    //server.begin();
-
-    // https://github.com/fhessel/esp32_https_server/issues/11
-    //size_t memAvail = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    //HTTPS_LOGE("Available mem: %ld bytes", (long)memAvail);
+    // Initialize local HTTP server (only when intranet mode enabled and no cloud)
+    #if defined(USE_HTTP_SERVER) && !defined(USE_CLOUD)
+      if (httpServer == nullptr) { // start only once
+        CONSOLE.println("starting HTTP server (intranet mode)");
+        httpServer = new WebServer(80);
+        httpServer->on("/", HTTP_OPTIONS, handleHttpOptions);
+        httpServer->on("/", HTTP_POST, handleHttpRoot);
+        // simple health endpoint
+        httpServer->on("/health", HTTP_GET, [](){
+          httpServer->sendHeader("Access-Control-Allow-Origin", "*");
+          httpServer->send(200, "text/plain", "OK");
+        });
+        httpServer->begin();
+      }
+    #endif
+    // Sync time once for TLS certificate validation (required for HTTPS)
+    static bool timeSynced = false;
+    if (!timeSynced) {
+      configTime(0, 0, "pool.ntp.org", "time.google.com", "time.nist.gov");
+      unsigned long tstart = millis();
+      time_t now = 0;
+      while ((millis() - tstart) < 5000) { // wait up to 5s
+        now = time(nullptr);
+        if (now > 1609459200) { // 2021-01-01
+          timeSynced = true;
+          CONSOLE.println("Time synced for TLS");
+          break;
+        }
+        esp_task_wdt_reset();
+        delay(100);
+      }
+      if (!timeSynced) CONSOLE.println("WARN: time sync timeout");
+    }
     CONSOLE.printf("Default Memory:       free size: %8u bytes   largest free block: %8u\n",
       heap_caps_get_free_size(MALLOC_CAP_DEFAULT),
       heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
@@ -366,18 +402,15 @@ void startWIFI() {
       heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
       heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
 
-    if (server == NULL){ // only start once (do not call for reconnections)
-      #ifdef USE_HTTPS
-        CONSOLE.println("starting HTTPS server");
-        server = new HTTPSServer(&cert, 443, 1);  
-      #else
-        CONSOLE.println("starting HTTP server");
-        server = new HTTPServer(80);        
-      #endif
-      server->registerNode(nodeRoot);
-      server->setDefaultNode(nodeRoot);
-      server->start();
-    
+    static bool otaStarted = false;
+    // Defer OTA start until cloud is connected to maximize free memory for TLS handshake
+    bool canStartOta = true;
+    #ifdef USE_CLOUD
+      extern bool cloud_is_connected();
+      canStartOta = cloud_is_connected();
+    #endif
+    if (!otaStarted && canStartOta){
+      otaStarted = true;
       ArduinoOTA.setHostname(NAME);
       ArduinoOTA
       .onStart([]() {
@@ -393,36 +426,37 @@ void startWIFI() {
       })
       .onError([](ota_error_t error) {
       });
-
       ArduinoOTA.begin();
+      CONSOLE.println("OTA started");
     }
   }
 }
 
+// Local HTTP server handlers (intranet mode)
+#if defined(USE_HTTP_SERVER) && !defined(USE_CLOUD)
+void handleHttpOptions() {
+  // CORS preflight
+  httpServer->sendHeader("Access-Control-Allow-Origin", "*");
+  httpServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  httpServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+  httpServer->send(204);
+}
 
-void handleRoot(HTTPRequest * req, HTTPResponse * res) {
-  // We will deliver an HTML page
-  res->setHeader("Content-Type", "text/html");
-  res->setHeader("Access-Control-Allow-Origin", "*");
-  byte buffer[256];
-  // HTTPReqeust::requestComplete can be used to check whether the
-  // body has been parsed completely.
+void handleHttpRoot() {
+  httpServer->sendHeader("Access-Control-Allow-Origin", "*");
+  httpServer->sendHeader("Cache-Control", "no-store");
+
+  String wifiCmd = httpServer->arg("plain");
   CONSOLE.print("HTTP rx:");
-  String wifiCmd = "";
-  while(!(req->requestComplete())) {
-    // HTTPRequest::readBytes provides access to the request body.
-    // It requires a buffer, the max buffer length and it will return
-    // the amount of bytes that have been written to the buffer.
-    size_t s = req->readBytes(buffer, 255);
-    buffer[s] = '\0';
-    CONSOLE.write(buffer, s);
-    UART.write(buffer, s);
-    wifiCmd += String((char*)buffer);     
+  CONSOLE.println(wifiCmd);
+
+  if (wifiCmd.length() > 0) {
+    UART.write((const uint8_t*)wifiCmd.c_str(), wifiCmd.length());
+    #ifdef USE_MQTT
+      mower.tx(wifiCmd);
+    #endif
   }
-  #ifdef USE_MQTT
-    mower.tx(wifiCmd);
-  #endif
-  CONSOLE.println();  
+
   String cmdResponse;
   unsigned long timeout = millis() + WIFI_TIMEOUT_FIRST_RESPONSE;
   while ( millis() < timeout) {
@@ -436,13 +470,11 @@ void handleRoot(HTTPRequest * req, HTTPResponse * res) {
     }
     delay(1);
   }
-  //simulateArdumowerAnswer(wifiCmd, cmdResponse);  
   CONSOLE.print("UART tx:");
   CONSOLE.println(cmdResponse);
-  // Write the response 
-  res->print(cmdResponse);
-  //res->write(buffer, s);
+  httpServer->send(200, "text/plain", cmdResponse);
 }
+#endif
 
 
 void cmdVersion() {
@@ -571,7 +603,20 @@ void setup() {
   CONSOLE.println(VERSION);
 
   CONSOLE.println("Configuring WDT...");
-  esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
+  // ESP-IDF API changed in Arduino-ESP32 v3 (IDF v5): use config struct
+  #ifdef ESP_IDF_VERSION_MAJOR
+    #if (ESP_IDF_VERSION_MAJOR >= 5)
+      esp_task_wdt_config_t twdt_cfg = {};
+      twdt_cfg.timeout_ms = (uint32_t)(WDT_TIMEOUT * 1000);
+      twdt_cfg.trigger_panic = true;
+      twdt_cfg.idle_core_mask = (1 << portNUM_PROCESSORS) - 1; // feed WDT on both cores
+      esp_task_wdt_init(&twdt_cfg);
+    #else
+      esp_task_wdt_init(WDT_TIMEOUT, true); // enable panic so ESP32 restarts
+    #endif
+  #else
+    esp_task_wdt_init(WDT_TIMEOUT, true); // legacy API
+  #endif
   esp_task_wdt_add(NULL); //add current thread to WDT watch
 
 #ifdef USE_BLE
@@ -580,6 +625,9 @@ void setup() {
 #ifdef USE_MQTT
    mqtt_setup();
 #endif
+  #ifdef USE_CLOUD
+    cloud_setup();
+  #endif
   //startWIFI();
   relay_setup();
 }
@@ -700,9 +748,12 @@ void loop() {
     CONSOLE.println(" ping");
   }
   
-  if (!bleConnected) {
-    if (server != NULL) server->loop();
-  }
+  // local HTTP server loop (intranet mode only)
+  #if defined(USE_HTTP_SERVER) && !defined(USE_CLOUD)
+    if (!bleConnected && (httpServer != nullptr)) {
+      httpServer->handleClient();
+    }
+  #endif
 
   if (!bleConnected) {
     startWIFI();
@@ -711,6 +762,9 @@ void loop() {
 #ifdef USE_MQTT
   mqtt_loop();
 #endif
+  #ifdef USE_CLOUD
+    cloud_loop();
+  #endif
   relay_loop();
   if (millis() > nextWatchDogResetTime) {
     nextWatchDogResetTime = millis() + 1000;

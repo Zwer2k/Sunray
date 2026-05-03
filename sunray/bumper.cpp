@@ -26,6 +26,7 @@ void Bumper::begin(){
 
   leftPressedOnDelay  = millis();
   rightPressedOnDelay = millis();
+  enableNearObstacle = true;
 }
 
 void Bumper::run() {
@@ -60,7 +61,7 @@ void Bumper::run() {
       if (millis() >= (rightPressedOnDelay + BUMPER_TRIGGER_DELAY)) bumperRight = true;
     } else rightPressedOnDelay = millis();
 
-    if (millis() > (linearMotionStartTime + BUMPER_DEADTIME)){
+    if (millis() > (stateEstimator.linearMotionStartTime + BUMPER_DEADTIME)){
       outputLeftPressed   = bumperLeft;
       outputRightPressed  = bumperRight;
     } else outputLeftPressed = outputRightPressed = false;
@@ -72,8 +73,8 @@ void Bumper::run() {
         bumperStayActivTime = bumperStayActivTime + (millis()-lastCallBumperObstacle);
       }
       if ((bumperStayActivTime) > (BUMPER_MAX_TRIGGER_TIME * 1000)){ // maximum trigger time reached -> set error
-        if (stateOp != OP_ERROR){
-          stateSensor = SENS_BUMPER;
+        if (stateEstimator.stateOp != OP_ERROR){
+          stateEstimator.stateSensor = SENS_BUMPER;
           CONSOLE.println("ERROR BUMPER BLOCKED - BUMPER_MAX_TRIGGER_TIME exceeded. See config.h for further information");
           setOperation(OP_ERROR);
         }
@@ -96,6 +97,7 @@ bool Bumper::obstacle(){
 }
 
 bool Bumper::nearObstacle(){
+  if (!enableNearObstacle) return false;
   return bumperDriver.nearObstacle();
 }
 

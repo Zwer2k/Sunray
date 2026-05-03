@@ -32,7 +32,9 @@ void MowOp::begin(){
     motor.setLinearAngularSpeed(0,0);      
     if (((previousOp != &escapeReverseOp) && (previousOp != &escapeForwardOp)) || (DISABLE_MOW_MOTOR_AT_OBSTACLE))  motor.setMowState(false);              
     battery.setIsDocked(false);                
-    timetable.setMowingCompletedInCurrentTimeFrame(false);                
+    timetable.setMowingCompletedInCurrentTimeFrame(false); 
+    CONSOLE.println(" Relais will be set to true (on)");
+    relaisDriver.setRelaisState(RELAIS_1_NODE_ID, true); // enable relais 1 (Lidar) when not charging               
 
     // plan route to next target point 
 
@@ -40,10 +42,10 @@ void MowOp::begin(){
 
     if (((initiatedByOperator) && (previousOp == &idleOp)) || (lastMapRoutingFailed))  maps.clearObstacles();
 
-    if (maps.startMowing(stateX, stateY)){
-        if (maps.nextPoint(true, stateX, stateY)) {
-            lastFixTime = millis();                
-            maps.setLastTargetPoint(stateX, stateY);        
+    if (maps.startMowing(stateEstimator.stateX, stateEstimator.stateY)){
+        if (maps.nextPoint(true, stateEstimator.stateX, stateEstimator.stateY)) {
+            stateEstimator.lastFixTime = millis();                
+            maps.setLastTargetPoint(stateEstimator.stateX, stateEstimator.stateY);        
             //stateSensor = SENS_NONE;
             motor.setMowState(true);                
         } else {
@@ -54,7 +56,7 @@ void MowOp::begin(){
     } else error = true;
 
     if (error){
-        stateSensor = SENS_MAP_NO_ROUTE;
+        stateEstimator.stateSensor = SENS_MAP_NO_ROUTE;
         //op = OP_ERROR;
         routingFailed = true;
         motor.setMowState(false);
@@ -65,7 +67,7 @@ void MowOp::begin(){
         mapRoutingFailedCounter++;    
         if (mapRoutingFailedCounter > 60){
             CONSOLE.println("error: too many map routing errors!");
-            stateSensor = SENS_MAP_NO_ROUTE;
+            stateEstimator.stateSensor = SENS_MAP_NO_ROUTE;
             Logger.event(EVT_ERROR_NO_MAP_ROUTE_GIVEUP);
             changeOp(errorOp);      
         } else {    
@@ -87,7 +89,7 @@ void MowOp::run(){
         detectObstacleRotation();                              
     }        
     // line tracking
-    trackLine(true); 
+    lineTracker.trackLine(true); 
     detectSensorMalfunction();    
     battery.resetIdle();
     
@@ -107,7 +109,7 @@ void MowOp::onRainTriggered(){
     if (DOCKING_STATION){
         CONSOLE.println("RAIN TRIGGERED");
         Logger.event(EVT_RAIN_DOCKING);
-        stateSensor = SENS_RAIN;
+        stateEstimator.stateSensor = SENS_RAIN;
         dockOp.dockReasonRainTriggered = true;
         #ifdef DRV_SIM_ROBOT
             dockOp.dockReasonRainAutoStartTime = millis() + 60000 * 3; // try again after 3 minutes 
@@ -123,7 +125,7 @@ void MowOp::onTempOutOfRangeTriggered(){
     if (DOCKING_STATION){
         CONSOLE.println("TEMP OUT-OF-RANGE TRIGGERED");
         Logger.event(EVT_TEMPERATURE_OUT_OF_RANGE_DOCK);
-        stateSensor = SENS_TEMP_OUT_OF_RANGE;
+        stateEstimator.stateSensor = SENS_TEMP_OUT_OF_RANGE;
         dockOp.dockReasonRainTriggered = true;
         dockOp.dockReasonRainAutoStartTime = millis() + 60000 * 60; // try again after one hour      
         dockOp.setInitiatedByOperator(false);
@@ -133,9 +135,15 @@ void MowOp::onTempOutOfRangeTriggered(){
 
 void MowOp::onBatteryLowShouldDock(){    
     CONSOLE.println("BATTERY LOW TRIGGERED - DOCKING");
-    Logger.event(EVT_BATTERY_LOW_DOCK);
-    dockOp.setInitiatedByOperator(false);
-    changeOp(dockOp);
+    Logger.event(EVT_BATTERY_LOW_DOCK);    
+    if (DOCKING_STATION){
+        dockOp.setInitiatedByOperator(false);
+        changeOp(dockOp);    
+    } else {
+        idleOp.setInitiatedByOperator(false);
+        stateEstimator.stateSensor = SENS_BAT_UNDERVOLTAGE;
+        changeOp(idleOp);    
+    }            
 }
 
 void MowOp::onTimetableStopMowing(){        
@@ -150,9 +158,9 @@ void MowOp::onObstacle(){
       return;
     }
     CONSOLE.println("triggerObstacle");      
-    statMowObstacles++;      
+    stats.statMowObstacles++;      
     if (maps.isDocking()) {    
-        if (maps.retryDocking(stateX, stateY)) {
+        if (maps.retryDocking(stateEstimator.stateX, stateEstimator.stateY)) {
             changeOp(escapeReverseOp, true);                      
             return;
         }
@@ -160,7 +168,7 @@ void MowOp::onObstacle(){
     if ((OBSTACLE_AVOIDANCE) && (maps.wayMode != WAY_DOCK)){    
         changeOp(escapeReverseOp, true);      
     } else {     
-        stateSensor = SENS_OBSTACLE;
+        stateEstimator.stateSensor = SENS_OBSTACLE;
         CONSOLE.println("error: obstacle!");            
         changeOp(errorOp);                
     }
@@ -168,7 +176,7 @@ void MowOp::onObstacle(){
     
 void MowOp::onObstacleRotation(){
     CONSOLE.println("triggerObstacleRotation");    
-    statMowObstacles++;   
+    stats.statMowObstacles++;   
     if ((OBSTACLE_AVOIDANCE) && (maps.wayMode != WAY_DOCK)){    
         if (FREEWHEEL_IS_AT_BACKSIDE){    
             changeOp(escapeForwardOp, true);      
@@ -176,7 +184,7 @@ void MowOp::onObstacleRotation(){
             changeOp(escapeReverseOp, true);
         }
     } else { 
-        stateSensor = SENS_OBSTACLE;
+        stateEstimator.stateSensor = SENS_OBSTACLE;
         CONSOLE.println("error: obstacle!");            
         changeOp(errorOp);
     }
@@ -186,7 +194,7 @@ void MowOp::onObstacleRotation(){
 void MowOp::onOdometryError(){
     if (ENABLE_ODOMETRY_ERROR_DETECTION){
         CONSOLE.println("error: odometry error!");    
-        stateSensor = SENS_ODOMETRY_ERROR;
+        stateEstimator.stateSensor = SENS_ODOMETRY_ERROR;
         Logger.event(EVT_ERROR_ODOMETRY);
         changeOp(errorOp);
     }
@@ -196,7 +204,7 @@ void MowOp::onMotorOverload(){
   if (ENABLE_OVERLOAD_DETECTION){
     if (motor.motorOverloadDuration > 20000){
         CONSOLE.println("error: motor overload!");    
-        stateSensor = SENS_OVERLOAD;
+        stateEstimator.stateSensor = SENS_OVERLOAD;
         Logger.event(EVT_ERROR_MOTOR_OVERLOAD);
         changeOp(errorOp);
         return;
@@ -209,12 +217,12 @@ void MowOp::onMotorError(){
         if (motor.motorError){
             // this is the molehole situation: motor error will permanently trigger on molehole => we try obstacle avoidance (molehole avoidance strategy)
             motor.motorError = false; // reset motor error flag
-            motorErrorCounter++;
+            stateEstimator.motorErrorCounter++;
             CONSOLE.print("MowOp::onMotorError motorErrorCounter=");       
-            CONSOLE.println(motorErrorCounter);
+            CONSOLE.println(stateEstimator.motorErrorCounter);
             if (maps.wayMode != WAY_DOCK){
-                if (motorErrorCounter < FAULT_MAX_SUCCESSIVE_ALLOWED_COUNT){                     
-                    //stateSensor = SENS_MOTOR_ERROR;
+                if (stateEstimator.motorErrorCounter < FAULT_MAX_SUCCESSIVE_ALLOWED_COUNT){                     
+            //stateEstimator.stateSensor = SENS_MOTOR_ERROR;
                     Logger.event(EVT_ERROR_MOTOR_ERROR);            
                     changeOp(escapeReverseOp, true);     // trigger obstacle avoidance 
                     return;
@@ -222,15 +230,15 @@ void MowOp::onMotorError(){
             }
             // obstacle avoidance failed with too many motor errors (it was probably not a molehole situation)
             CONSOLE.println("error: motor error - giving up!");
-            motorErrorCounter = 0;
-            stateSensor = SENS_MOTOR_ERROR;
+            stateEstimator.motorErrorCounter = 0;
+            stateEstimator.stateSensor = SENS_MOTOR_ERROR;
             Logger.event(EVT_ERROR_MOTOR_ERROR_GIVEUP);
             changeOp(errorOp);
             return;      
         }  
     } else {
         CONSOLE.println("no obstacle avoidance activated on motor errors, giving up");    
-        stateSensor = SENS_MOTOR_ERROR;
+        stateEstimator.stateSensor = SENS_MOTOR_ERROR;
         Logger.event(EVT_ERROR_MOTOR_ERROR_GIVEUP);
         changeOp(errorOp);        
         return;
@@ -240,8 +248,8 @@ void MowOp::onMotorError(){
 void MowOp::onTargetReached(){
     if (maps.wayMode == WAY_MOW){    
         maps.clearObstacles(); // clear obstacles if target reached
-        motorErrorCounter = 0; // reset motor error counter if target reached
-        stateSensor = SENS_NONE; // clear last triggered sensor
+        stateEstimator.motorErrorCounter = 0; // reset motor error counter if target reached
+        stateEstimator.stateSensor = SENS_NONE; // clear last triggered sensor
     }
 }
 
@@ -254,7 +262,7 @@ void MowOp::onGpsFixTimeout(){
 #else
         if (!maps.isUndocking()){
 #endif
-            stateSensor = SENS_GPS_FIX_TIMEOUT;            
+            stateEstimator.stateSensor = SENS_GPS_FIX_TIMEOUT;            
             changeOp(gpsWaitFixOp, true);
         }
     }
@@ -267,7 +275,7 @@ void MowOp::onGpsNoSignal(){
 #else
         if (!maps.isUndocking()){
 #endif
-            stateSensor = SENS_GPS_INVALID;            
+            stateEstimator.stateSensor = SENS_GPS_INVALID;            
             changeOp(gpsWaitFloatOp, true);
         }
     }
@@ -275,7 +283,7 @@ void MowOp::onGpsNoSignal(){
 
 void MowOp::onKidnapped(bool state){
     if (state){
-        stateSensor = SENS_KIDNAPPED;      
+        stateEstimator.stateSensor = SENS_KIDNAPPED;      
         motor.setLinearAngularSpeed(0,0, false); 
         motor.setMowState(false);            
         changeOp(kidnapWaitOp, true); 
@@ -286,8 +294,8 @@ void MowOp::onNoFurtherWaypoints(){
     CONSOLE.println("mowing finished!");
     Logger.event(EVT_MOWING_COMPLETED);
     timetable.setMowingCompletedInCurrentTimeFrame(true);
-    if (!finishAndRestart){             
-        if (DOCKING_STATION && dockAfterFinish){
+    if (!stateEstimator.finishAndRestart){             
+        if (DOCKING_STATION && stateEstimator.dockAfterFinish){
             dockOp.setInitiatedByOperator(false);
             changeOp(dockOp);               
         } else {
@@ -298,14 +306,13 @@ void MowOp::onNoFurtherWaypoints(){
 }
 
 void MowOp::onImuTilt(){
-    stateSensor = SENS_IMU_TILT;
+    stateEstimator.stateSensor = SENS_IMU_TILT;
     Logger.event(EVT_ROBOT_TILTED);
     changeOp(errorOp);
 }
 
 void MowOp::onImuError(){
-    stateSensor = SENS_IMU_TIMEOUT;
+    stateEstimator.stateSensor = SENS_IMU_TIMEOUT;
     Logger.event(EVT_ERROR_IMU_TIMEOUT);
     changeOp(errorOp);
 }
-

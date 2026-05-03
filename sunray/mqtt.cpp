@@ -8,15 +8,21 @@
 #include "reset.h"
 #include "timetable.h"
 
-// mqtt
-#define MSG_BUFFER_SIZE	(50)
-char mqttMsg[MSG_BUFFER_SIZE];
-unsigned long nextMQTTPublishTime = 0;
-unsigned long nextMQTTLoopTime = 0;
+WiFiEspClient espClient;
+PubSubClient mqttClient(espClient);
 
 
+void mqttCallback(char* topic, byte* payload, unsigned int length){ 
+  mqttService.callback(topic, payload, length); 
+}
 
-void mqttReconnect() {
+
+void MqttService::begin() {
+  mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
+}
+
+void MqttService::reconnect() {
   // Loop until we're reconnected
   if (!mqttClient.connected()) {
     CONSOLE.println("MQTT: Attempting connection...");
@@ -42,7 +48,7 @@ void mqttReconnect() {
 }
 
 
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
+void MqttService::callback(char* topic, uint8_t* payload, unsigned int length) {
   CONSOLE.print("MQTT: Message arrived [");
   CONSOLE.print(topic);
   CONSOLE.print("] ");
@@ -67,7 +73,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 
 // process MQTT input/output (subcriber/publisher)
-void processWifiMqttClient()
+void MqttService::process()
 {
   if (!ENABLE_MQTT) return; 
   if (millis() >= nextMQTTPublishTime){
@@ -76,13 +82,13 @@ void processWifiMqttClient()
       updateStateOpText();
       // operational state
       //CONSOLE.println("MQTT: publishing " MQTT_TOPIC_PREFIX "/status");      
-      MQTT_PUBLISH(stateOpText.c_str(), "%s", "/op")
+      MQTT_PUBLISH(stateEstimator.stateOpText.c_str(), "%s", "/op")
       MQTT_PUBLISH(maps.percentCompleted, "%d", "/progress")
 
       // GPS related information
       snprintf (mqttMsg, MSG_BUFFER_SIZE, "%.2f, %.2f", gps.relPosN, gps.relPosE);          
       mqttClient.publish(MQTT_TOPIC_PREFIX "/gps/pos", mqttMsg);
-      MQTT_PUBLISH(gpsSolText.c_str(), "%s", "/gps/sol")
+      MQTT_PUBLISH(stateEstimator.gpsSolText.c_str(), "%s", "/gps/sol")
       MQTT_PUBLISH(gps.iTOW, "%lu", "/gps/tow")
       
       MQTT_PUBLISH(gps.lon, "%.8f", "/gps/lon")
@@ -104,34 +110,34 @@ void processWifiMqttClient()
       // map related information
       MQTT_PUBLISH(maps.targetPoint.x(), "%.2f", "/map/targetPoint/X")
       MQTT_PUBLISH(maps.targetPoint.y(), "%.2f", "/map/targetPoint/Y")
-      MQTT_PUBLISH(stateX, "%.2f", "/map/pos/X")
-      MQTT_PUBLISH(stateY, "%.2f", "/map/pos/Y")
-      MQTT_PUBLISH(stateDelta, "%.2f", "/map/pos/Dir")
+      MQTT_PUBLISH(stateEstimator.stateX, "%.2f", "/map/pos/X")
+      MQTT_PUBLISH(stateEstimator.stateY, "%.2f", "/map/pos/Y")
+      MQTT_PUBLISH(stateEstimator.stateDelta, "%.2f", "/map/pos/Dir")
 
       // statistics
-      MQTT_PUBLISH((int)statIdleDuration, "%d", "/stats/idleDuration")
-      MQTT_PUBLISH((int)statChargeDuration, "%d", "/stats/chargeDuration")
-      MQTT_PUBLISH((int)statMowDuration, "%d", "/stats/mow/totalDuration")
-      MQTT_PUBLISH((int)statMowDurationInvalid, "%d", "/stats/mow/invalidDuration")
-      MQTT_PUBLISH((int)statMowDurationFloat, "%d", "/stats/mow/floatDuration")
-      MQTT_PUBLISH((int)statMowDurationFix, "%d", "/stats/mow/fixDuration")
-      MQTT_PUBLISH((int)statMowFloatToFixRecoveries, "%d", "/stats/mow/floatToFixRecoveries")
-      MQTT_PUBLISH((int)statMowObstacles, "%d", "/stats/mow/obstacles")
-      MQTT_PUBLISH((int)statMowGPSMotionTimeoutCounter, "%d", "/stats/mow/gpsMotionTimeouts")
-      MQTT_PUBLISH((int)statMowBumperCounter, "%d", "/stats/mow/bumperEvents")
-      MQTT_PUBLISH((int)statMowSonarCounter, "%d", "/stats/mow/sonarEvents")
-      MQTT_PUBLISH((int)statMowLiftCounter, "%d", "/stats/mow/liftEvents")
-      MQTT_PUBLISH(statMowMaxDgpsAge, "%.2f", "/stats/mow/maxDgpsAge")
-      MQTT_PUBLISH(statMowDistanceTraveled, "%.1f", "/stats/mow/distanceTraveled")
-      MQTT_PUBLISH((int)statMowInvalidRecoveries, "%d", "/stats/mow/invalidRecoveries")
-      MQTT_PUBLISH((int)statImuRecoveries, "%d", "/stats/imuRecoveries")
-      MQTT_PUBLISH((int)statGPSJumps, "%d", "/stats/gpsJumps")      
-      MQTT_PUBLISH(statTempMin, "%.1f", "/stats/tempMin")
-      MQTT_PUBLISH(statTempMax, "%.1f", "/stats/tempMax")
-      MQTT_PUBLISH(stateTemp, "%.1f", "/stats/curTemp")
+      MQTT_PUBLISH((int)stats.statIdleDuration, "%d", "/stats/idleDuration")
+      MQTT_PUBLISH((int)stats.statChargeDuration, "%d", "/stats/chargeDuration")
+      MQTT_PUBLISH((int)stats.statMowDuration, "%d", "/stats/mow/totalDuration")
+      MQTT_PUBLISH((int)stats.statMowDurationInvalid, "%d", "/stats/mow/invalidDuration")
+      MQTT_PUBLISH((int)stats.statMowDurationFloat, "%d", "/stats/mow/floatDuration")
+      MQTT_PUBLISH((int)stats.statMowDurationFix, "%d", "/stats/mow/fixDuration")
+      MQTT_PUBLISH((int)stats.statMowFloatToFixRecoveries, "%d", "/stats/mow/floatToFixRecoveries")
+      MQTT_PUBLISH((int)stats.statMowObstacles, "%d", "/stats/mow/obstacles")
+      MQTT_PUBLISH((int)stats.statMowGPSMotionTimeoutCounter, "%d", "/stats/mow/gpsMotionTimeouts")
+      MQTT_PUBLISH((int)stats.statMowBumperCounter, "%d", "/stats/mow/bumperEvents")
+      MQTT_PUBLISH((int)stats.statMowSonarCounter, "%d", "/stats/mow/sonarEvents")
+      MQTT_PUBLISH((int)stats.statMowLiftCounter, "%d", "/stats/mow/liftEvents")
+      MQTT_PUBLISH(stats.statMowMaxDgpsAge, "%.2f", "/stats/mow/maxDgpsAge")
+      MQTT_PUBLISH(stats.statMowDistanceTraveled, "%.1f", "/stats/mow/distanceTraveled")
+      MQTT_PUBLISH((int)stats.statMowInvalidRecoveries, "%d", "/stats/mow/invalidRecoveries")
+      MQTT_PUBLISH((int)stats.statImuRecoveries, "%d", "/stats/imuRecoveries")
+      MQTT_PUBLISH((int)stats.statGPSJumps, "%d", "/stats/gpsJumps")      
+      MQTT_PUBLISH(stats.statTempMin, "%.1f", "/stats/tempMin")
+      MQTT_PUBLISH(stats.statTempMax, "%.1f", "/stats/tempMax")
+      MQTT_PUBLISH(stateEstimator.stateTemp, "%.1f", "/stats/curTemp")
 
     } else {
-      mqttReconnect();  
+      reconnect();  
     }
   }
   if (millis() > nextMQTTLoopTime){
@@ -139,5 +145,6 @@ void processWifiMqttClient()
     mqttClient.loop();
   }
 }
+
 
 

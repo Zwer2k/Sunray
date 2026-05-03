@@ -11,12 +11,79 @@
 #include "../../config.h"
 #include "../../robot.h"
 #include "../../events.h"
+#ifdef __linux__
+  #include <fcntl.h>
+  #include <sys/mman.h>
+  #include <signal.h>
+#endif
 
 //#define COMM  ROBOT
 
 //#define DEBUG_CAN_ROBOT 1
 
+#ifndef POWER_OFF_COMMAND_DELAY_SEC
+#define POWER_OFF_COMMAND_DELAY_SEC 30
+#endif
+
+#ifndef POWER_OFF_LOG_INTERVAL_MS
+#define POWER_OFF_LOG_INTERVAL_MS 2000
+#endif
+
+#ifndef POWER_OFF_COMMAND_RETRY_MS
+#define POWER_OFF_COMMAND_RETRY_MS 1000
+#endif
+
+#ifndef POWER_OFF_DECISION_TIMEOUT_MS
+#define POWER_OFF_DECISION_TIMEOUT_MS 30000UL
+#endif
+
+#ifndef POWER_OFF_GPIO_CONFIRMATION_SECONDS
+#define POWER_OFF_GPIO_CONFIRMATION_SECONDS 3
+#endif
+
+#ifndef SIMULATE_SUNRAY_POWER_OFF_HANG
+#define SIMULATE_SUNRAY_POWER_OFF_HANG false
+#endif
+
+#ifndef SIMULATE_SUNRAY_POWER_OFF_HANG_DURATION_SEC
+#define SIMULATE_SUNRAY_POWER_OFF_HANG_DURATION_SEC 20  // simulated update duration in seconds
+#endif
+
+#ifndef SIMULATE_SUNRAY_POWER_OFF_COMMAND_DELAY_SEC
+#define SIMULATE_SUNRAY_POWER_OFF_COMMAND_DELAY_SEC 3     // delay before sending power-off command to owlController
+#endif
+
+#ifndef SONAR_ENABLE
+#define SONAR_ENABLE false
+#endif
+
+#ifndef SONAR_LEFT_OBSTACLE_CM
+#define SONAR_LEFT_OBSTACLE_CM 0
+#endif
+
+#ifndef SONAR_RIGHT_OBSTACLE_CM
+#define SONAR_RIGHT_OBSTACLE_CM 0
+#endif
+
+#ifndef SONAR_POLL_INTERVAL_MS
+#define SONAR_POLL_INTERVAL_MS 200
+#endif
+
+static constexpr unsigned long kUltrasonicHoldMs = 3000UL;
+static constexpr unsigned long kUltrasonicPollMs = static_cast<unsigned long>(SONAR_POLL_INTERVAL_MS);
+static constexpr bool kDebugRainDisplay = false;
+
+static const char* powerOffStateToStr(owlctl::powerOffState_t state){
+  switch (state){
+    case owlctl::power_off_inactive: return "inactive";
+    case owlctl::power_off_active: return "active";
+    case owlctl::power_off_shutdown_pending: return "shutdown_pending";
+    default: return "unknown";
+  }
+}
+
 int MOW_MOTOR_NODE_IDS[] = { MOW1_MOTOR_NODE_ID, MOW2_MOTOR_NODE_ID, MOW3_MOTOR_NODE_ID, MOW4_MOTOR_NODE_ID, MOW5_MOTOR_NODE_ID  };
+int OWL_MSG_IDS[] = { OWL_RECEIVER_MSG_ID, OWL_CONTROL_MSG_ID, OWL_DRIVE_MSG_ID, OWL_RELAIS_MSG_ID };
 
 
 void CanRobotDriver::begin(){
@@ -35,6 +102,12 @@ void CanRobotDriver::begin(){
   cpuTemp = 30;
   motorLeftCurr = 0;
   motorRightCurr = 0;
+  nextDisplayStateTime = 0;
+  lastDisplayOpSent = stateEstimator.stateOp;
+  lastIpSent = "";
+  for (uint8_t &b : lastIpSentBytes) {
+    b = 0;
+  }
   resetMotorTicks = true;
   batteryTemp = 0;
   triggeredLeftBumper = false;
@@ -43,6 +116,8 @@ void CanRobotDriver::begin(){
   triggeredStopButton = false;
   triggeredPushboxStopButton = false;
   triggeredLift = false;
+  rainDisplayLastState = false;
+  rainDisplaySent = false;
   for (int i=0; i < MOW_MOTOR_COUNT; i++) mowFault[i] = false;
   leftMotorFault = false;
   rightMotorFault = false;
@@ -55,6 +130,10 @@ void CanRobotDriver::begin(){
   nextTempTime = 0;
   nextWifiTime = 0;
   nextLedTime = 0;
+  nextDisplayTelemetryTime = 0;
+  nextUltrasonicPollTime = 0;
+  nextIpTime = 0;
+  lastWifiSignalDbm = -127;
   ledPanelInstalled = true;
   cmdMotorResponseCounter = 0;
   cmdSummaryResponseCounter = 0;
@@ -68,6 +147,18 @@ void CanRobotDriver::begin(){
   motorHeightAngleEndswitchSet = false;
   motorHeightAngleCurr = 0;
   motorHeightFoundEndswitch = false;
+  ultrasonicLeftDistance = 0;
+  ultrasonicRightDistance = 0;
+  ultrasonicLeftValid = false;
+  ultrasonicRightValid = false;
+  ultrasonicLeftAlertActive = false;
+  ultrasonicRightAlertActive = false;
+  ultrasonicLeftAlertUntil = 0;
+  ultrasonicRightAlertUntil = 0;
+  ultrasonicLeftLastSent = 0;
+  ultrasonicRightLastSent = 0;
+  ultrasonicLeftSentValid = false;
+  ultrasonicRightSentValid = false;
   robotID = "XX";
   ledStateWifiInactive = false;
   ledStateWifiConnected = false;
@@ -76,6 +167,36 @@ void CanRobotDriver::begin(){
   ledStateShutdown = false;  
   ledStateError = false;
   ledStateShutdown = false;
+  powerOffLogTime = 0;
+  powerOffCommandSendTime = 0;
+  powerOffCommandSent = false;
+  powerOffCommandAccepted = false;
+  linuxShutdownIssued = false;
+  powerOffState = owlctl::power_off_inactive;
+  powerOffDelaySeconds = POWER_OFF_COMMAND_DELAY_SEC;
+  powerOffDecisionPending = false;
+  powerOffDecisionStartTime = 0;
+  powerOffDecisionDeadline = 0;
+  powerOffDecisionDelaySeconds = POWER_OFF_COMMAND_DELAY_SEC;
+  powerOffDecisionTrigger = PowerOffDecisionTrigger::None;
+  simulatePowerOffHang = false;
+  simulatePowerOffHangNotified = false;
+  simulatePowerOffHangUntil = 0;
+  simulatePowerOffHangConfigured = SIMULATE_SUNRAY_POWER_OFF_HANG;
+  simulatePowerOffHangConfiguredDuration = SIMULATE_SUNRAY_POWER_OFF_HANG_DURATION_SEC;
+  simulatePowerOffHangCommandPending = false;
+  simulatePowerOffHangCommandTime = 0;
+  simulatePiSelfShutdownPending = false;
+  simulatePiSelfShutdownTime = 0;
+  satSummarySent = false;
+  lastSatStatus = 0xFF;
+  lastSatUsed = 0xFF;
+  lastSatTotal = 0xFF;
+  rtkAgeSent = false;
+  lastRtkAgeTenths = 0xFFFF;
+  mapProgressSent = false;
+  lastMapCount = 0xFFFF;
+  lastMapPercent = 0xFF;
 
   #ifdef __linux__
     Process p;
@@ -85,11 +206,34 @@ void CanRobotDriver::begin(){
     CONSOLE.println(workingDir);
 
     CONSOLE.println("reading robot ID...");
-    Process p2;
-    p2.runShellCommand("ip link show eth0 | grep link/ether | awk '{print $2}'");
-	  robotID = p2.readString();    
+    Process p2;    
+    p2.runShellCommand("ip link show wlan0 | grep link/ether | awk '{print $2}'");
+	  robotID = p2.readString();
     robotID.trim();
+    if (robotID == ""){
+      p2.runShellCommand("ip link show eth0 | grep link/ether | awk '{print $2}'");
+      robotID = p2.readString();
+      robotID.trim();  
+    }    
     
+    if (false){
+      // trigger linux bus error - steps to examine:
+      // 1. (optional) set core pattern:  sudo sysctl -w 'kernel.core_pattern=|/usr/lib/systemd/systemd-coredump %P %u %g %s %t 9223372036854775808 %h'      
+      // 2. activate coredumps:     ulimit -c unlimited
+      // 3. start sunray until crash
+      // 4. list coredumps:         coredumpctl list   (and look for PID, e.g 144840) 
+      // 5. extract coredump:       sudo coredumpctl dump 144840 --output 144840.core
+      // 6. find reason for crash:  gdb build/sunray -c 144840.core   (and press ENTER, ENTER)
+      CONSOLE.println("WARN: simulating a bus error!");
+      const char* filename = "testfile.bin";
+      int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0666);
+      ftruncate(fd, 4096);  
+      char* data = (char*)mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+      close(fd);  
+      truncate(filename, 0);
+      data[0] = 'X';
+      munmap(data, 4096);
+    }  
   #endif
   CONSOLE.print("testing unsigned overflow substraction: ");  
   //unsigned short lastV = 65534;
@@ -99,6 +243,12 @@ void CanRobotDriver::begin(){
   unsigned long currV = 1;
   unsigned long diffV = (unsigned short) (currV - lastV);  
   CONSOLE.println(diffV);
+
+  #ifdef __linux__
+    pthread_create(&thread_ip_id, NULL, CanRobotDriver::canIpAddressThreadFun, (void*)this);
+    pthread_create(&thread_wifi_signal_id, NULL, CanRobotDriver::canWifiSignalThreadFun, (void*)this);
+  #endif
+
   //exit(0);
 }
 
@@ -159,12 +309,210 @@ void CanRobotDriver::updateWifiConnectionState(){
   #endif
 }
 
+void CanRobotDriver::updateDisplayTelemetry(){
+#if !ENABLE_CAN_DISPLAY
+  return;
+#else
+  const unsigned long now = millis();
 
-// send CAN request 
-void CanRobotDriver::sendCanData(int msgId, int destNodeId, canCmdType_t cmd, int val, canDataType_t data){        
+  uint8_t satStatus = 2;
+  switch (gps.solution) {
+    case SOL_FIXED: satStatus = 0; break;
+    case SOL_FLOAT: satStatus = 1; break;
+    default: satStatus = 2; break;
+  }
+
+  int totalRaw = gps.numSV;
+  if (totalRaw < 0) totalRaw = 0;
+  uint8_t satTotal = static_cast<uint8_t>(min(totalRaw, 255));
+
+  int usedRaw = gps.numSVdgps >= 0 ? gps.numSVdgps : gps.numSV;
+  if (gps.solution == SOL_INVALID) {
+    usedRaw = 0;
+  }
+  if (usedRaw < 0) usedRaw = 0;
+  if (usedRaw > totalRaw) usedRaw = totalRaw;
+  uint8_t satUsed = static_cast<uint8_t>(min(usedRaw, 255));
+
+  if (!satSummarySent ||
+      satStatus != lastSatStatus ||
+      satUsed != lastSatUsed ||
+      satTotal != lastSatTotal) {
+    canDataType_t data;
+    data.intValue = 0;
+    data.byteVal[0] = satStatus;
+    data.byteVal[1] = satUsed;
+    data.byteVal[2] = satTotal;
+    data.byteVal[3] = 0;
+    sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_sat_summary, data);
+    satSummarySent = true;
+    lastSatStatus = satStatus;
+    lastSatUsed = satUsed;
+    lastSatTotal = satTotal;
+  }
+
+  float ageSeconds;
+  if (gps.dgpsAge == 0) {
+    ageSeconds = 9999.0f;
+  } else {
+    unsigned long ageMs = now - gps.dgpsAge;
+    ageSeconds = ageMs / 1000.0f;
+  }
+  if (ageSeconds < 0.0f) ageSeconds = 0.0f;
+  if (ageSeconds > 9999.0f) ageSeconds = 9999.0f;
+  uint16_t ageTenths = static_cast<uint16_t>(min(65535UL, (unsigned long)roundf(ageSeconds * 10.0f)));
+
+  if (!rtkAgeSent || ageTenths != lastRtkAgeTenths) {
+    canDataType_t data;
+    data.floatVal = ageSeconds;
+    sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_rtk_age, data);
+    rtkAgeSent = true;
+    lastRtkAgeTenths = ageTenths;
+  }
+
+  bool mapAvailable = (maps.mowPoints.numPoints > 0);
+  if (mapAvailable) {
+    int mapCountRaw = maps.mowPointsIdx;
+    if (mapCountRaw < 0) mapCountRaw = 0;
+    uint16_t mapCount = static_cast<uint16_t>(min(mapCountRaw, 0xFFFF));
+    int percentRaw = maps.percentCompleted;
+    if (percentRaw < 0) percentRaw = 0;
+    if (percentRaw > 100) percentRaw = 100;
+    uint8_t mapPercent = static_cast<uint8_t>(percentRaw);
+
+    if (!mapProgressSent || mapCount != lastMapCount || mapPercent != lastMapPercent) {
+      canDataType_t data;
+      data.byteVal[0] = mapCount & 0xFF;
+      data.byteVal[1] = (mapCount >> 8) & 0xFF;
+      data.byteVal[2] = mapPercent;
+      data.byteVal[3] = 0;
+      sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_map_progress, data);
+      mapProgressSent = true;
+      lastMapCount = mapCount;
+      lastMapPercent = mapPercent;
+    }
+  } else {
+    mapProgressSent = false;
+    lastMapCount = 0xFFFF;
+    lastMapPercent = 0xFF;
+  }
+#endif
+}
+
+#ifdef __linux__
+void *CanRobotDriver::canIpAddressThreadFun(void *user_data) {
+  Console.println("CAN IP address thread started");
+  CanRobotDriver *robot = (CanRobotDriver*)user_data;
+  String currentIp = "";
+
+  while (true){
+
+    // Clear buffer
+    while (robot->ipAddressToStringProcess.available()) robot->ipAddressToStringProcess.read();
+
+    // Get IP address
+    robot->ipAddressToStringProcess.runShellCommand("hostname -I");
+    String ipStr = robot->ipAddressToStringProcess.readString();
+    ipStr.trim();
+
+    if (ipStr.length() > 0) {
+      // Get first IP if multiple
+      int spacePos = ipStr.indexOf(' ');
+      if (spacePos > 0) {
+        ipStr = ipStr.substring(0, spacePos);
+      }
+
+      // Only process if IP changed
+      if (ipStr != currentIp) {
+        Console.print("Found new IP address: ");
+        Console.println(ipStr);
+        IPAddress ip;
+        if (ip.fromString(ipStr)) {
+          // Update current IP
+          currentIp = ipStr;
+          // Send to CAN bus
+          robot->sendIpAddress(ipStr);
+          }
+      }
+    }
+    delayMicroseconds(5000000); // 5 seconds
+	}
+	return NULL;
+}
+#endif
+
+void CanRobotDriver::sendIpAddress(const String &ipStr) {
+  #ifdef __linux__
+    IPAddress ip;
+    if (!ip.fromString(ipStr)) {
+        return;
+    }
+
+    canDataType_t data;
+    for (uint8_t i = 0; i < 4; i++) {
+        data.byteVal[i] = ip[i];
+        lastIpSentBytes[i] = ip[i];
+    }
+
+    sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_set, owlctl::can_val_ip_address, data);
+    #if ENABLE_CAN_DISPLAY
+        sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_ip_address, data);
+    #endif
+    lastIpSent = ipStr;
+  #endif
+}
+
+#ifdef __linux__
+void *CanRobotDriver::canWifiSignalThreadFun(void *user_data) {
+    Console.println("CAN WiFi signal thread started");
+    CanRobotDriver *robot = (CanRobotDriver*)user_data;
+    int16_t currentDbm = robot->lastWifiSignalDbm;
+
+    while (true) {
+        // Clear any previous output
+        while (robot->wifiSignalProcess.available()) 
+            robot->wifiSignalProcess.read();
+
+        // Run command and read result
+        robot->wifiSignalProcess.runShellCommand("iw dev wlan0 link | awk '/signal/ {print $2}'");
+        String res = robot->wifiSignalProcess.readString();
+        res.trim();
+
+        int16_t newDbm = -127; // fallback for "no signal"
+        if (res.length() > 0) {
+            float f = res.toFloat();
+            if (!(f == 0.0f && res.indexOf('0') == -1)) {
+                newDbm = static_cast<int16_t>(roundf(f));
+            }
+        }
+
+        if (newDbm != currentDbm) {
+            currentDbm = newDbm;
+            robot->lastWifiSignalDbm = newDbm;
+            robot->sendWifiSignal(newDbm);
+        }
+
+        delayMicroseconds(3000000); // 3 seconds
+    }
+    return NULL;
+}
+#endif
+
+void CanRobotDriver::sendWifiSignal(int16_t dbm) {
+#if ENABLE_CAN_DISPLAY
+  canDataType_t data;
+  data.floatVal = static_cast<float>(dbm);
+  sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_wifi_signal_dbm, data);
+  lastWifiSignalDbm = dbm;
+#else
+  (void)dbm;
+#endif
+}
+// send CAN request
+void CanRobotDriver::sendCanData(int msgId, int destNodeId, canCmdType_t cmd, int val, canDataType_t data) {
     can_frame_t frame;
-    frame.can_id = msgId;    
-    if (cmd == can_cmd_request){
+    frame.can_id = msgId;
+    if (cmd == can_cmd_request) {
       frame.can_dlc = 4;
     } else {
       frame.can_dlc = 8;
@@ -183,6 +531,100 @@ void CanRobotDriver::sendCanData(int msgId, int destNodeId, canCmdType_t cmd, in
     can.write(frame);
 }
 
+void CanRobotDriver::sendDisplayOperation(OperationType op){
+    owldisplay::stateCode_t code = owldisplay::state_unknown;
+    switch (op){
+        case OP_MOW:    code = owldisplay::state_mow;    break;
+        case OP_DOCK:   code = owldisplay::state_dock;   break;
+        case OP_IDLE:   code = owldisplay::state_idle;   break;
+        case OP_CHARGE: code = owldisplay::state_charge; break;
+        case OP_ERROR:  code = owldisplay::state_error;  break;
+        default:        code = owldisplay::state_unknown; break;
+    }
+  canDataType_t data;
+  data.intValue = 0;
+  data.byteVal[0] = static_cast<uint8_t>(code);
+  lastDisplayOpSent = op;
+#if ENABLE_CAN_DISPLAY
+  sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_state_code, data);
+#endif
+}
+
+void CanRobotDriver::handleUltrasonicResponse(bool isLeft, bool valid, uint16_t distanceMm){
+  const uint16_t thresholdCm = isLeft ? SONAR_LEFT_OBSTACLE_CM : SONAR_RIGHT_OBSTACLE_CM;
+  const uint16_t threshold = thresholdCm * 10;
+  uint16_t &storedDistance = isLeft ? ultrasonicLeftDistance : ultrasonicRightDistance;
+  bool &storedValid = isLeft ? ultrasonicLeftValid : ultrasonicRightValid;
+  bool &alertActive = isLeft ? ultrasonicLeftAlertActive : ultrasonicRightAlertActive;
+  unsigned long &alertUntil = isLeft ? ultrasonicLeftAlertUntil : ultrasonicRightAlertUntil;
+  storedDistance = distanceMm;
+  storedValid = valid;
+  unsigned long now = millis();
+  if (valid && distanceMm <= threshold) {
+    alertActive = true;
+    alertUntil = now + kUltrasonicHoldMs;
+    sendUltrasonicDisplay(isLeft, true, distanceMm);
+  }
+}
+
+void CanRobotDriver::processUltrasonicTimeouts(){
+  unsigned long now = millis();
+  if (ultrasonicLeftAlertActive && now > ultrasonicLeftAlertUntil) {
+    ultrasonicLeftAlertActive = false;
+    sendUltrasonicDisplay(true, false, ultrasonicLeftDistance);
+  }
+  if (ultrasonicRightAlertActive && now > ultrasonicRightAlertUntil) {
+    ultrasonicRightAlertActive = false;
+    sendUltrasonicDisplay(false, false, ultrasonicRightDistance);
+  }
+}
+
+void CanRobotDriver::sendUltrasonicDisplay(bool isLeft, bool valid, uint16_t distanceMm){
+  uint16_t &lastDistance = isLeft ? ultrasonicLeftLastSent : ultrasonicRightLastSent;
+  bool &lastValid = isLeft ? ultrasonicLeftSentValid : ultrasonicRightSentValid;
+
+  if (lastValid == valid && (!valid || lastDistance == distanceMm)) {
+    return;
+  }
+
+  canDataType_t displayData;
+  displayData.byteVal[0] = isLeft ? 0 : 1;
+  displayData.byteVal[1] = (uint8_t)(distanceMm & 0xFF);
+  displayData.byteVal[2] = (uint8_t)((distanceMm >> 8) & 0xFF);
+  displayData.byteVal[3] = valid ? 1 : 0;
+#if ENABLE_CAN_DISPLAY
+  sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_ultrasonic_alert, displayData);
+#else
+  (void)displayData;
+#endif
+
+  lastValid = valid;
+  lastDistance = distanceMm;
+}
+
+void CanRobotDriver::sendRainDisplay(bool raining){
+#if ENABLE_CAN_DISPLAY
+  if (rainDisplaySent && rainDisplayLastState == raining) return;
+
+  canDataType_t displayData;
+  displayData.byteVal[0] = raining ? 1 : 0;
+  displayData.byteVal[1] = 0;
+  displayData.byteVal[2] = 0;
+  displayData.byteVal[3] = 0;
+  sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_rain_alert, displayData);
+
+  if (kDebugRainDisplay) {
+    CONSOLE.print("CAN: rain display sent state=");
+    CONSOLE.println(raining ? "1" : "0");
+  }
+
+  rainDisplayLastState = raining;
+  rainDisplaySent = true;
+#else
+  (void)raining;
+#endif
+}
+
 
 
 // request MCU SW version
@@ -195,7 +637,7 @@ void CanRobotDriver::requestSummary(){
   canDataType_t data;
   data.floatVal = 0;
   
-  switch (cmdSummaryCounter % 7){
+  switch (cmdSummaryCounter % 8){
     case 0:
       sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_request, owlctl::can_val_stop_button_state, data );  
       break;
@@ -217,8 +659,18 @@ void CanRobotDriver::requestSummary(){
     case 6:
       sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_request, owlctl::can_val_slow_down_state, data );
       break;
+    case 7:
+      requestPowerOffState();
+      break;
   }
   cmdSummaryCounter++;
+}
+
+void CanRobotDriver::requestUltrasonicDistances(){
+  canDataType_t data;
+  data.intValue = 0;
+  sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_request, owlctl::can_val_ultrasonic_left, data);
+  sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_request, owlctl::can_val_ultrasonic_right, data);
 }
 
 
@@ -346,11 +798,286 @@ void CanRobotDriver::requestPushboxState(){
   sendCanData(OWL_RECEIVER_MSG_ID, RECEIVER_PUSHBOX_NODE_ID, can_cmd_request, owlrecv::can_val_button_state, data);  
 }
 
+void CanRobotDriver::requestPowerOffState(){
+  canDataType_t data;
+  sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_request, owlctl::can_val_power_off_state, data);
+}
+
+void CanRobotDriver::requestManagedShutdown(uint8_t delaySeconds){
+  powerOffDelaySeconds = delaySeconds;
+  startPowerOffDecision(delaySeconds, PowerOffDecisionTrigger::InternalRequest);
+}
+
+void CanRobotDriver::sendPowerOffCommand(uint8_t delaySeconds){
+  canDataType_t data;
+  data.byteVal[0] = delaySeconds;
+  data.byteVal[1] = 0;
+  data.byteVal[2] = 0;
+  data.byteVal[3] = 0;
+  sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_set, owlctl::can_val_power_off_command, data);
+  powerOffCommandSent = true;
+  powerOffCommandAccepted = false;
+  powerOffCommandSendTime = millis();
+  unsigned long now = millis();
+  if (now > powerOffLogTime){
+    CONSOLE.print("CAN: requested power-off in ");
+    CONSOLE.print(delaySeconds);
+    CONSOLE.println("s");
+    powerOffLogTime = now + POWER_OFF_LOG_INTERVAL_MS;
+  }
+  if (simulatePowerOffHang){
+    simulatePowerOffHangCommandPending = false;
+    simulatePowerOffHangCommandTime = 0;
+    if ((simulatePowerOffHangConfiguredDuration > 0) && (simulatePowerOffHangUntil == 0)){
+      simulatePowerOffHangUntil = powerOffCommandSendTime + simulatePowerOffHangConfiguredDuration * 1000UL;
+      simulatePiSelfShutdownPending = true;
+      simulatePiSelfShutdownTime = simulatePowerOffHangUntil;
+    }
+  }
+}
+
+uint8_t CanRobotDriver::getPowerOffDelaySeconds() const{
+  return powerOffDelaySeconds;
+}
+
+void CanRobotDriver::setSimulatePowerOffHang(bool flag, unsigned long durationSeconds){
+  unsigned long now = millis();
+  bool previous = simulatePowerOffHang;
+  if (flag){
+    simulatePowerOffHang = true;
+    simulatePowerOffHangNotified = false;
+    if (durationSeconds > 0){
+      simulatePowerOffHangConfiguredDuration = durationSeconds;
+    }
+    simulatePowerOffHangUntil = 0;
+    simulatePiSelfShutdownPending = false;
+    simulatePiSelfShutdownTime = 0;
+    simulatePowerOffHangCommandPending = true;
+    simulatePowerOffHangCommandTime = now + (unsigned long)SIMULATE_SUNRAY_POWER_OFF_COMMAND_DELAY_SEC * 1000UL;
+    if (!previous){
+      if (simulatePowerOffHangConfiguredDuration > 0){
+        CONSOLE.print("CAN: simulate power-off hang enabled for ");
+        CONSOLE.print(simulatePowerOffHangConfiguredDuration);
+        CONSOLE.println("s");
+      } else {
+        CONSOLE.println("CAN: simulate power-off hang enabled (indefinite)");
+      }
+    } else if (simulatePowerOffHangConfiguredDuration > 0){
+      CONSOLE.print("CAN: simulate power-off hang extended for ");
+      CONSOLE.print(simulatePowerOffHangConfiguredDuration);
+      CONSOLE.println("s");
+    }
+  } else {
+    simulatePowerOffHang = false;
+    simulatePowerOffHangNotified = false;
+    simulatePowerOffHangUntil = 0;
+    simulatePowerOffHangCommandPending = false;
+    simulatePowerOffHangCommandTime = 0;
+    simulatePiSelfShutdownPending = false;
+    simulatePiSelfShutdownTime = 0;
+    if (previous){
+      CONSOLE.println("CAN: simulate power-off hang disabled");
+    }
+  }
+}
+
+bool CanRobotDriver::getSimulatePowerOffHang() const{
+  return simulatePowerOffHang;
+}
+
 void CanRobotDriver::versionResponse(){
 }
 
 
 void CanRobotDriver::summaryResponse(){
+}
+
+void CanRobotDriver::handlePowerOffState(owlctl::powerOffState_t remoteState, uint8_t activeSeconds, uint8_t configuredDelay){
+  if (configuredDelay != 0){
+    powerOffDelaySeconds = configuredDelay;
+  } else {
+    powerOffDelaySeconds = POWER_OFF_COMMAND_DELAY_SEC;
+  }
+  bool stateChanged = (powerOffState != remoteState);
+  powerOffState = remoteState;
+  unsigned long now = millis();
+  if (stateChanged && now > powerOffLogTime){
+    CONSOLE.print("CAN: power-off state -> ");
+    CONSOLE.print(powerOffStateToStr(remoteState));
+    CONSOLE.print(" (held ");
+    CONSOLE.print(activeSeconds);
+    CONSOLE.println("s)");
+    powerOffLogTime = now + POWER_OFF_LOG_INTERVAL_MS;
+  }
+  switch (remoteState){
+    case owlctl::power_off_active:
+      if (activeSeconds >= POWER_OFF_GPIO_CONFIRMATION_SECONDS){
+        if (!powerOffDecisionPending || powerOffDecisionTrigger != PowerOffDecisionTrigger::ExternalPin){
+          startPowerOffDecision(powerOffDelaySeconds, PowerOffDecisionTrigger::ExternalPin);
+        }
+      } else {
+        cancelPowerOffDecision(PowerOffDecisionTrigger::ExternalPin);
+      }
+      break;
+    case owlctl::power_off_inactive:
+      cancelPowerOffDecision(PowerOffDecisionTrigger::ExternalPin);
+      if (!powerOffCommandAccepted && (powerOffCommandSendTime != 0)){
+        CONSOLE.println("CAN: power-off pin released before shutdown ack");
+      }
+      powerOffCommandSent = false;
+      powerOffCommandAccepted = false;
+      linuxShutdownIssued = false;
+      powerOffCommandSendTime = 0;
+      break;
+    case owlctl::power_off_shutdown_pending:
+      break;
+  }
+}
+
+void CanRobotDriver::handlePowerOffCommandAck(uint8_t acceptedFlag, uint8_t delaySeconds){
+  bool accepted = (acceptedFlag != 0);
+  if (accepted){
+    if (delaySeconds != 0){
+      powerOffDelaySeconds = delaySeconds;
+    }
+    powerOffCommandSent = true;
+    if (!powerOffCommandAccepted){
+      powerOffCommandAccepted = true;
+      powerOffState = owlctl::power_off_shutdown_pending;
+      unsigned long now = millis();
+      if (now > powerOffLogTime){
+        CONSOLE.print("CAN: power-off accepted, shutdown in ");
+        CONSOLE.print(powerOffDelaySeconds);
+        CONSOLE.println("s");
+        powerOffLogTime = now + POWER_OFF_LOG_INTERVAL_MS;
+      }
+      ledStateShutdown = true;
+      #ifdef __linux__
+        if (simulatePowerOffHang && (simulatePowerOffHangConfiguredDuration > 0)){
+          if (!simulatePiSelfShutdownPending){
+            unsigned long target = powerOffCommandSendTime + simulatePowerOffHangConfiguredDuration * 1000UL;
+            if ((simulatePowerOffHangUntil != 0) && (simulatePowerOffHangUntil > target)){
+              target = simulatePowerOffHangUntil;
+            }
+            simulatePiSelfShutdownPending = true;
+            simulatePiSelfShutdownTime = target;
+          }
+        } else if (!linuxShutdownIssued){
+          linuxShutdownIssued = true;
+          Process p;
+          p.runShellCommand("shutdown now");
+          CONSOLE.println("CAN: linux shutdown command issued");
+        }
+      #endif
+    }
+  } else {
+    if (powerOffCommandSent){
+      unsigned long now = millis();
+      if (now > powerOffLogTime){
+        CONSOLE.println("CAN: power-off command not accepted");
+        powerOffLogTime = now + POWER_OFF_LOG_INTERVAL_MS;
+      }
+    }
+    powerOffCommandSent = false;
+    powerOffCommandAccepted = false;
+    linuxShutdownIssued = false;
+    powerOffCommandSendTime = 0;
+  }
+}
+
+void CanRobotDriver::startPowerOffDecision(uint8_t delaySeconds, PowerOffDecisionTrigger trigger){
+  unsigned long now = millis();
+  bool freshTrigger = (!powerOffDecisionPending) || (powerOffDecisionTrigger != trigger);
+  if (freshTrigger){
+    powerOffDecisionStartTime = now;
+    powerOffDecisionDeadline = now + POWER_OFF_DECISION_TIMEOUT_MS;
+  }
+  powerOffDecisionPending = true;
+  powerOffDecisionTrigger = trigger;
+  powerOffDecisionDelaySeconds = delaySeconds;
+  if (freshTrigger && simulatePowerOffHangConfigured){
+    setSimulatePowerOffHang(true, simulatePowerOffHangConfiguredDuration);
+  }
+  if (freshTrigger && now > powerOffLogTime){
+    const char* triggerStr = "none";
+    switch (trigger){
+      case PowerOffDecisionTrigger::ExternalPin:
+        triggerStr = "pin";
+        break;
+      case PowerOffDecisionTrigger::InternalRequest:
+        triggerStr = "sunray";
+        break;
+      default:
+        break;
+    }
+    CONSOLE.print("CAN: preparing shutdown (trigger=");
+    CONSOLE.print(triggerStr);
+    CONSOLE.print(") with delay ");
+    CONSOLE.print(delaySeconds);
+    CONSOLE.println("s");
+    powerOffLogTime = now + POWER_OFF_LOG_INTERVAL_MS;
+  }
+}
+
+void CanRobotDriver::cancelPowerOffDecision(PowerOffDecisionTrigger trigger){
+  if (!powerOffDecisionPending){
+    return;
+  }
+  if ((trigger != PowerOffDecisionTrigger::None) && (powerOffDecisionTrigger != trigger)){
+    return;
+  }
+  powerOffDecisionPending = false;
+  powerOffDecisionTrigger = PowerOffDecisionTrigger::None;
+  powerOffDecisionStartTime = 0;
+  powerOffDecisionDeadline = 0;
+  simulatePowerOffHangNotified = false;
+  if (simulatePowerOffHang){
+    setSimulatePowerOffHang(false);
+  }
+}
+
+bool CanRobotDriver::readyForManagedShutdown(PowerOffDecisionTrigger trigger){
+  (void)trigger;
+  return true;
+}
+
+void CanRobotDriver::processPowerOffDecision(){
+  if (!powerOffDecisionPending){
+    simulatePowerOffHangNotified = false;
+    return;
+  }
+  unsigned long now = millis();
+  if (simulatePowerOffHang){
+    if (!simulatePowerOffHangNotified){
+      CONSOLE.println("CAN: simulation active - delaying power-off command");
+      simulatePowerOffHangNotified = true;
+    }
+    if (simulatePowerOffHangCommandPending){
+      return;
+    }
+  }
+  simulatePowerOffHangNotified = false;
+  bool timeoutReached = (powerOffDecisionDeadline != 0) && (now >= powerOffDecisionDeadline);
+  if (readyForManagedShutdown(powerOffDecisionTrigger) || timeoutReached){
+    sendPowerOffCommand(powerOffDecisionDelaySeconds);
+    powerOffDecisionPending = false;
+    powerOffDecisionTrigger = PowerOffDecisionTrigger::None;
+    powerOffDecisionStartTime = 0;
+    powerOffDecisionDeadline = 0;
+  }
+}
+
+void CanRobotDriver::processPendingPowerOffCommand(){
+  if (simulatePowerOffHang){
+    return;
+  }
+  if (!powerOffCommandSent || powerOffCommandAccepted){
+    return;
+  }
+  unsigned long now = millis();
+  if ((powerOffCommandSendTime == 0) || (now - powerOffCommandSendTime > POWER_OFF_COMMAND_RETRY_MS)){
+    sendPowerOffCommand(powerOffDelaySeconds);
+  }
 }
 
 // process response
@@ -411,16 +1138,25 @@ void CanRobotDriver::processResponse(){
                         rightMotorFault = (data.byteVal[0] != err_ok);
                         break;
                     }                    
-                    break;
-                  case owldrv::can_val_total_current:
-                    if (node.sourceAndDest.sourceNodeID == LEFT_MOTOR_NODE_ID) motorLeftCurr = data.floatVal;
-                    if (node.sourceAndDest.sourceNodeID == RIGHT_MOTOR_NODE_ID) motorRightCurr = data.floatVal;
-                    for (int i=0; i < MOW_MOTOR_COUNT; i++){
-                      if (node.sourceAndDest.sourceNodeID == MOW_MOTOR_NODE_IDS[i]){
-                        mowCurr[i] = data.floatVal;                        
-                      }
+                break;
+              case owldrv::can_val_total_current:
+                if (node.sourceAndDest.sourceNodeID == LEFT_MOTOR_NODE_ID) motorLeftCurr = data.floatVal;
+                if (node.sourceAndDest.sourceNodeID == RIGHT_MOTOR_NODE_ID) motorRightCurr = data.floatVal;
+                for (int i=0; i < MOW_MOTOR_COUNT; i++){
+                  if (node.sourceAndDest.sourceNodeID == MOW_MOTOR_NODE_IDS[i]){
+                    mowCurr[i] = data.floatVal;                        
+                  }
+                }
+                    {
+#if ENABLE_CAN_DISPLAY
+                      canDataType_t displayData;
+                      float totalCurrent = motorLeftCurr + motorRightCurr;
+                      for (int i = 0; i < MOW_MOTOR_COUNT; i++) totalCurrent += mowCurr[i];
+                      displayData.floatVal = totalCurrent;
+                      sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_battery_current, displayData);
+#endif
                     }
-                    break;
+                break;
                   case owldrv::can_val_endswitch:
                     switch(node.sourceAndDest.sourceNodeID){
                       case MOW_HEIGHT_MOTOR_NODE_ID:  
@@ -480,8 +1216,14 @@ void CanRobotDriver::processResponse(){
           case OWL_CONTROL_MSG_ID:
             if (cmd == can_cmd_info){
               switch (val){
-                case owlctl::can_val_battery_voltage:
+                case owlctl::can_val_battery_voltage: {
                   batteryVoltage = data.floatVal; 
+
+#if ENABLE_CAN_DISPLAY
+                  canDataType_t displayData;
+                  displayData.floatVal = batteryVoltage;
+                  sendCanData(OWL_DISPLAY_MSG_ID, DISPLAY_NODE_ID, can_cmd_info, owldisplay::can_val_battery_voltage, displayData);
+#endif
                   /*
                   if (voltage > batteryVoltage + 0.5){
                     chargeVoltage = voltage;
@@ -490,6 +1232,7 @@ void CanRobotDriver::processResponse(){
                   }
                   */
                   break;
+                }
                 case owlctl::can_val_bumper_state:
                   triggeredLeftBumper = triggeredRightBumper = (data.byteVal[0] != 0);                  
                   break;
@@ -497,16 +1240,23 @@ void CanRobotDriver::processResponse(){
                   triggeredStopButton = (data.byteVal[0] != 0);
                   //CONSOLE.println(triggeredStopButton);
                   break;
-                case owlctl::can_val_rain_state:
-                  triggeredRain = (data.byteVal[0] != 0);
+                case owlctl::can_val_rain_state: {
+                  bool raining = (data.byteVal[0] != 0);
+                  triggeredRain = raining;
+                  if (kDebugRainDisplay) {
+                    CONSOLE.print("CAN: rain state received=");
+                    CONSOLE.println(triggeredRain ? "1" : "0");
+                  }
+                  sendRainDisplay(raining);
                   break;
+                }
                 case owlctl::can_val_slow_down_state:
                   triggeredSlowDown = (data.byteVal[0] != 0);
                   break;
                 case owlctl::can_val_lift_state:
                   triggeredLift = (data.byteVal[0] != 0);
                   break;
-                case owlctl::can_val_charger_voltage:
+                case owlctl::can_val_charger_voltage: {
                   float volt = data.floatVal;                  
                   //CONSOLE.print("charger: ");
                   //CONSOLE.println(volt);                                    
@@ -514,17 +1264,64 @@ void CanRobotDriver::processResponse(){
                   if (volt > 20) chargeVoltage = volt;
                     else chargeVoltage = 0;            
                   break;
+                }
+                case owlctl::can_val_ultrasonic_left:
+                case owlctl::can_val_ultrasonic_right: {
+                  bool isLeft = (val == owlctl::can_val_ultrasonic_left);
+                  bool valid = (data.byteVal[2] != 0);
+                  uint16_t distanceMm = (uint16_t)data.byteVal[0] | ((uint16_t)data.byteVal[1] << 8);
+                  handleUltrasonicResponse(isLeft, valid, distanceMm);
+                  break;
+                }
+                case owlctl::can_val_power_off_state:
+                  handlePowerOffState((owlctl::powerOffState_t)data.byteVal[0], data.byteVal[1], data.byteVal[2]);
+                  break;
+                case owlctl::can_val_power_off_command:
+                  handlePowerOffCommandAck(data.byteVal[0], data.byteVal[1]);
+                  break;
               }
             }
             break;
 
-        } 
-    }
+              }
+            }
   }
 }
 
 void CanRobotDriver::run(){  
+  unsigned long now = millis();
+  if (simulatePowerOffHangCommandPending && now >= simulatePowerOffHangCommandTime){
+    simulatePowerOffHangCommandPending = false;
+    simulatePowerOffHangCommandTime = 0;
+    sendPowerOffCommand(powerOffDecisionDelaySeconds);
+    powerOffDecisionPending = false;
+    powerOffDecisionTrigger = PowerOffDecisionTrigger::None;
+    powerOffDecisionStartTime = 0;
+    powerOffDecisionDeadline = 0;
+    simulatePowerOffHangNotified = false;
+  }
+  if (simulatePiSelfShutdownPending && now >= simulatePiSelfShutdownTime){
+    simulatePiSelfShutdownPending = false;
+    simulatePiSelfShutdownTime = 0;
+    if (!linuxShutdownIssued){
+      linuxShutdownIssued = true;
+      #ifdef __linux__
+        Process p;
+        p.runShellCommand("shutdown now");
+        CONSOLE.println("CAN: simulated update complete - issuing linux shutdown");
+      #else
+        CONSOLE.println("CAN: simulated update complete - linux shutdown requested (mock)");
+      #endif
+    }
+  }
+  if (simulatePowerOffHang && (simulatePowerOffHangUntil != 0) && now >= simulatePowerOffHangUntil){
+    setSimulatePowerOffHang(false);
+    simulatePowerOffHangNotified = false;
+    CONSOLE.println("CAN: simulated update finished - power-off responses re-enabled");
+  }
   processResponse();
+  processPowerOffDecision();
+  processPendingPowerOffCommand();
   if (millis() > nextMotorTime){
     nextMotorTime = millis() + 20; // 50 hz
     /*while (can.available()){
@@ -538,6 +1335,11 @@ void CanRobotDriver::run(){
     nextSummaryTime = millis() + 100; // 10 hz
     requestSummary();
   }
+  if (SONAR_ENABLE && (millis() > nextUltrasonicPollTime)) {
+    nextUltrasonicPollTime = millis() + kUltrasonicPollMs;
+    requestUltrasonicDistances();
+  }
+  processUltrasonicTimeouts();
   if (millis() > nextCheckErrorTime){
     nextCheckErrorTime = millis() + 2000; // 0.5 hz
     requestMotorErrorStatus();
@@ -546,6 +1348,13 @@ void CanRobotDriver::run(){
     nextMowTime = millis() + 300;  // 3 hz      
     requestMotorMowPwm(requestMowPwm);
     requestPushboxState();
+  }
+  if (millis() > nextDisplayStateTime){
+    nextDisplayStateTime = millis() + 1000;  // refresh every second
+    if (stateEstimator.stateOp != lastDisplayOpSent){
+      lastDisplayOpSent = stateEstimator.stateOp;
+      sendDisplayOperation(lastDisplayOpSent);
+    }
   }
   if (millis() > nextConsoleTime){
     nextConsoleTime = millis() + 1000;  // 1 hz    
@@ -611,6 +1420,10 @@ void CanRobotDriver::run(){
     } else if (cpuTemp > 65){
       //setFanPowerState(true);
     }
+  }
+  if (millis() > nextDisplayTelemetryTime){
+    nextDisplayTelemetryTime = millis() + 2000;
+    updateDisplayTelemetry();
   }
   if (millis() > nextWifiTime){
     nextWifiTime = millis() + 7000; // 7 sec
@@ -748,6 +1561,7 @@ CanBatteryDriver::CanBatteryDriver(CanRobotDriver &sr) : canRobot(sr){
   batteryTemp = 0;
   adcTriggered = false;
   linuxShutdownTime = 0;
+  owlPowerOffNotified = false;
 }
 
 void CanBatteryDriver::begin(){
@@ -812,6 +1626,13 @@ void CanBatteryDriver::enableCharging(bool flag){
 
 
 void CanBatteryDriver::keepPowerOn(bool flag){
+  if (flag){
+    owlPowerOffNotified = false;
+  } else if (!owlPowerOffNotified){
+    canRobot.requestManagedShutdown(canRobot.getPowerOffDelaySeconds());
+    owlPowerOffNotified = true;
+  }
+
   #ifdef __linux__
     if (flag){
       // keep power on
@@ -947,5 +1768,45 @@ void CanBuzzerDriver::tone(int freq){
   canRobot.sendCanData(OWL_CONTROL_MSG_ID, CONTROL_NODE_ID, can_cmd_set, owlctl::can_val_buzzer_state, data );
 }
 
-#endif
+// ------------------------------------------------------------------------------------
 
+CanRelaisDriver::CanRelaisDriver(CanRobotDriver &sr): canRobot(sr){
+}
+
+void CanRelaisDriver::begin(){
+}
+
+void CanRelaisDriver::run(){
+}
+
+void CanRelaisDriver::setRelaisState(int relais_node_id, bool state){
+  canDataType_t data;
+  if (state) data.byteVal[0] = 1;
+  else data.byteVal[0] = 0;
+
+  canRobot.sendCanData(OWL_RELAIS_MSG_ID, relais_node_id, can_cmd_set, owlrls::can_val_relais_state, data);
+  CONSOLE.print(" Relais is now set to");
+  CONSOLE.println(state);
+}
+
+
+bool CanRelaisDriver::getRelaisState(int relais_node_id){
+  canDataType_t data;
+  bool state = false;
+
+  canRobot.sendCanData(OWL_RELAIS_MSG_ID, relais_node_id, can_cmd_request, owlrls::can_val_relais_state, data);
+
+  if (data.byteVal[0] == 1) state = true;
+  else state = false;
+
+  return state;
+}
+
+void CanRelaisDriver::setRelaisStateCountdown(int relais_node_id, bool state, unsigned long countdown){
+  canDataType_t data;
+  data.intValue = countdown;
+
+  canRobot.sendCanData(OWL_RELAIS_MSG_ID, relais_node_id, can_cmd_set, owlrls::can_val_relais_countdown, data);
+}
+
+#endif

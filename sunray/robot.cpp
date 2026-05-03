@@ -16,12 +16,6 @@
 #include "LineTracker.h"
 #include "comm.h"
 #include "src/op/op.h"
-#ifdef __linux__
-  #include <BridgeClient.h>
-#else
-  #include "src/esp/WiFiEsp.h"
-#endif
-#include "PubSubClient.h"
 #include "RunningMedian.h"
 #include "pinman.h"
 #include "ble.h"
@@ -83,6 +77,7 @@ const signed char orientationMatrix[9] = {
   SerialRainSensorDriver rainDriver(robotDriver);
   SerialLiftSensorDriver liftDriver(robotDriver);
   SerialBuzzerDriver buzzerDriver(robotDriver);
+  RelaisDriver relaisDriver(robotDriver);
 #elif defined(DRV_CAN_ROBOT)
   CanRobotDriver robotDriver;
   CanMotorDriver motorDriver(robotDriver);
@@ -92,6 +87,7 @@ const signed char orientationMatrix[9] = {
   CanRainSensorDriver rainDriver(robotDriver);
   CanLiftSensorDriver liftDriver(robotDriver);
   CanBuzzerDriver buzzerDriver(robotDriver);
+  CanRelaisDriver relaisDriver(robotDriver);
 #elif defined(DRV_SIM_ROBOT)
   SimRobotDriver robotDriver;
   SimMotorDriver motorDriver(robotDriver);
@@ -101,6 +97,7 @@ const signed char orientationMatrix[9] = {
   SimRainSensorDriver rainDriver(robotDriver);
   SimLiftSensorDriver liftDriver(robotDriver);
   SimBuzzerDriver buzzerDriver(robotDriver);
+  RelaisDriver relaisDriver(robotDriver);
 #else
   AmRobotDriver robotDriver;
   AmMotorDriver motorDriver;
@@ -110,6 +107,7 @@ const signed char orientationMatrix[9] = {
   AmRainSensorDriver rainDriver;
   AmLiftSensorDriver liftDriver;
   AmBuzzerDriver buzzerDriver;
+  RelaisDriver relaisDriver;
 #endif
 Motor motor;
 Battery battery;
@@ -124,47 +122,38 @@ PinManager pinMan;
   UBLOX gps;
 #endif 
 BLEConfig bleConfig;
+BLEComm ble;
 Buzzer buzzer;
 LidarBumperDriver lidarBumper;
 Sonar sonar;
 Bumper bumper;
 VL53L0X tof(VL53L0X_ADDRESS_DEFAULT);
 Map maps;
+Comm comm;
+MqttService mqttService;
+HttpServer httpServer;
+StateEstimator stateEstimator;
+LineTracker lineTracker;
+Stats stats;
+Storage storage;
 RCModel rcmodel;
 TimeTable timetable;
 
-int stateButton = 0;  
 int stateButtonTemp = 0;
 unsigned long stateButtonTimeout = 0;
 
-OperationType stateOp = OP_IDLE; // operation-mode
-Sensor stateSensor = SENS_NONE; // last triggered sensor
-
-unsigned long controlLoops = 0;
-String stateOpText = "";  // current operation as text
-String gpsSolText = ""; // current gps solution as text
-float stateTemp = 20; // degreeC
+// controlLoops is tracked in StateEstimator
 //float stateHumidity = 0; // percent
 unsigned long stateInMotionLastTime = 0;
 bool stateChargerConnected = false;
-bool stateInMotionLP = false; // robot is in angular or linear motion? (with motion low-pass filtering)
-
-unsigned long lastFixTime = 0;
-int fixTimeout = 0;
-bool absolutePosSource = false;
-double absolutePosSourceLon = 0;
-double absolutePosSourceLat = 0;
 float lastGPSMotionX = 0;
 float lastGPSMotionY = 0;
 unsigned long nextGPSMotionCheckTime = 0;
 
-bool finishAndRestart = false;
-bool dockAfterFinish = true;
+bool testRelais = false;
 
 unsigned long nextBadChargingContactCheck = 0;
 unsigned long nextToFTime = 0;
-unsigned long linearMotionStartTime = 0;
-unsigned long angularMotionStartTime = 0;
 unsigned long overallMotionTimeout = 0;
 unsigned long nextControlTime = 0;
 unsigned long lastComputeTime = 0;
@@ -172,7 +161,7 @@ unsigned long lastComputeTime = 0;
 unsigned long nextLedTime = 0;
 unsigned long nextImuTime = 0;
 unsigned long nextTempTime = 0;
-unsigned long imuDataTimeout = 0;
+// imuDataTimeout is now managed inside StateEstimator
 unsigned long nextSaveTime = 0;
 unsigned long nextTimetableTime = 0;
 unsigned long nextGenerateGGATime = 0;
@@ -188,14 +177,9 @@ String psOutput = "";
 unsigned long wdResetTimer = millis();
 //##################################################################################
 
-bool wifiFound = false;
 char ssid[] = WIFI_SSID;      // your network SSID (name)
 char pass[] = WIFI_PASS;        // your network password
-WiFiEspServer server(80);
 bool hasClient = false;
-WiFiEspClient client;
-WiFiEspClient espClient;
-PubSubClient mqttClient(espClient);
 //int status = WL_IDLE_STATUS;     // the Wifi radio's status
 #ifdef ENABLE_NTRIP
   NTRIPClient ntrip;  // NTRIP tcp client (optional)
@@ -203,8 +187,6 @@ PubSubClient mqttClient(espClient);
 #ifdef GPS_USE_TCP
   WiFiClient gpsClient; // GPS tcp client (optional)  
 #endif
-
-int motorErrorCounter = 0;
 
 
 RunningMedian<unsigned int,3> tofMeasurements;
@@ -216,13 +198,13 @@ void watchdogSetup (void){}
 
 // reset linear motion measurement
 void resetLinearMotionMeasurement(){
-  linearMotionStartTime = millis();  
-  //stateGroundSpeed = 1.0;
+  stateEstimator.linearMotionStartTime = millis();  
+  //stateEstimator.stateGroundSpeed = 1.0;
 }
 
 // reset angular motion measurement
 void resetAngularMotionMeasurement(){
-  angularMotionStartTime = millis();
+  stateEstimator.angularMotionStartTime = millis();
 }
 
 // reset overall motion timeout
@@ -309,7 +291,7 @@ void sensorTest(){
 void startWIFI(){
 #ifdef __linux__
   WiFi.begin();
-  wifiFound = true;
+  stateEstimator.wifiFound = true;
 #else  
   CONSOLE.println("probing for ESP8266 (NOTE: will fail for ESP32)...");
   int status = WL_IDLE_STATUS;     // the Wifi radio's status
@@ -330,7 +312,7 @@ void startWIFI(){
     CONSOLE.println("ERROR: WiFi not present");       
     return;
   }   
-  wifiFound = true;
+  stateEstimator.wifiFound = true;
   CONSOLE.print("WiFi found! ESP8266 firmware: ");
   CONSOLE.println(WiFi.firmwareVersion());       
   if (START_AP){
@@ -364,13 +346,11 @@ void startWIFI(){
     udpSerial.beginUDP();  
   #endif    
   if (ENABLE_SERVER){
-    //server.listenOnLocalhost();
-    server.begin();
+    httpServer.begin();
   }
   if (ENABLE_MQTT){
     CONSOLE.println("MQTT: enabled");
-    mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
-    mqttClient.setCallback(mqttCallback);
+    mqttService.begin();
   }  
 }
 
@@ -651,6 +631,7 @@ void start(){
   String rid = "";
   robotDriver.getRobotID(rid);
   CONSOLE.println(rid);
+  relaisDriver.begin();
   motorDriver.begin();
   rainDriver.begin();
   liftDriver.begin();  
@@ -695,6 +676,9 @@ void start(){
     gps.begin(GPS, GPS_BAUDRATE);   
   #endif
 
+  // perform estimator early checks now that GPS is up
+  stateEstimator.begin();
+
   maps.begin();      
   //maps.clipperTest();
     
@@ -706,14 +690,14 @@ void start(){
   
   watchdogEnable(15000L);   // 15 seconds  
   
-  startIMU(false);        
+  stateEstimator.startIMU(false);        
   
   buzzer.sound(SND_READY);  
   battery.resetIdle();        
-  loadState();
+  storage.loadState();
 
   #ifdef DRV_SIM_ROBOT
-    robotDriver.setSimRobotPosState(stateX, stateY, stateDelta);
+    robotDriver.setSimRobotPosState(stateEstimator.stateX, stateEstimator.stateY, stateEstimator.stateDelta);
     tester.begin();
   #endif
   //Logger.event(EVT_SYSTEM_STARTED);
@@ -743,12 +727,12 @@ bool robotShouldRotate(){
 bool robotShouldBeInMotion(){  
   if (robotShouldMove() || (robotShouldRotate())) {
     stateInMotionLastTime = millis();
-    stateInMotionLP = true;    
+    stateEstimator.stateInMotionLP = true;    
   }
   if (millis() > stateInMotionLastTime + 2000) {
-    stateInMotionLP = false;
+    stateEstimator.stateInMotionLP = false;
   }
-  return stateInMotionLP;
+  return stateEstimator.stateInMotionLP;
 }
 
 
@@ -814,7 +798,7 @@ bool detectObstacle(){
           //CONSOLE.println(avg);
           if (avg < TOF_OBSTACLE_CM * 10){
             CONSOLE.println("ToF obstacle!");    
-            statMowToFCounter++;
+            stats.statMowToFCounter++;
             triggerObstacle();                
             return true; 
           }
@@ -825,14 +809,14 @@ bool detectObstacle(){
   
   #ifdef ENABLE_LIFT_DETECTION
     #ifdef LIFT_OBSTACLE_AVOIDANCE    
-      if ( millis() > linearMotionStartTime + BUMPER_DEADTIME) { 
+      if ( millis() > stateEstimator.linearMotionStartTime + BUMPER_DEADTIME) { 
         bool liftTriggered = liftDriver.triggered();  
         if (LIFT_INVERT) liftTriggered = !liftTriggered; 
         if (liftTriggered)  {
           CONSOLE.println("lift sensor obstacle!");    
           Logger.event(EVT_LIFTED_OBSTACLE);
           //statMowBumperCounter++;
-          statMowLiftCounter++;
+          stats.statMowLiftCounter++;
           triggerObstacle();    
           return true;
         }
@@ -840,26 +824,50 @@ bool detectObstacle(){
     #endif
   #endif
 
-  if ( (millis() > linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){  
+  if ( (millis() > stateEstimator.linearMotionStartTime + BUMPER_DEADTIME) && (bumper.obstacle()) ){  
     CONSOLE.println("bumper obstacle!");    
     Logger.event(EVT_BUMPER_OBSTACLE);
-    statMowBumperCounter++;
+    stats.statMowBumperCounter++;
     triggerObstacle();    
     return true;
   }
 
-  if ( (millis() > linearMotionStartTime + LIDAR_BUMPER_DEADTIME) && (lidarBumper.obstacle()) ){  
+  if ( (millis() > stateEstimator.linearMotionStartTime + LIDAR_BUMPER_DEADTIME) && (lidarBumper.obstacle()) ){  
     CONSOLE.println("LiDAR bumper obstacle!");    
     Logger.event(EVT_LIDAR_BUMPER_OBSTACLE);
-    statMowBumperCounter++;
+    stats.statMowBumperCounter++;
     triggerObstacle();    
     return true;
   }
   
+  #ifndef CAN_SONAR_TRIGGER_OBSTACLES
+  #define CAN_SONAR_TRIGGER_OBSTACLES 0
+  #endif
+
+  #ifdef DRV_CAN_ROBOT
+  if (CAN_SONAR_TRIGGER_OBSTACLES && (maps.wayMode != WAY_DOCK)) {
+    bool canSonarTriggered = false;
+    if (robotDriver.ultrasonicLeftValid &&
+        robotDriver.ultrasonicLeftDistance <= (SONAR_LEFT_OBSTACLE_CM * 10)) {
+      canSonarTriggered = true;
+    }
+    if (robotDriver.ultrasonicRightValid &&
+        robotDriver.ultrasonicRightDistance <= (SONAR_RIGHT_OBSTACLE_CM * 10)) {
+      canSonarTriggered = true;
+    }
+    if (canSonarTriggered) {
+      CONSOLE.println("can sonar obstacle!");
+      stats.statMowSonarCounter++;
+      triggerObstacle();
+      return true;
+    }
+  }
+  #endif
+
   if (sonar.obstacle() && (maps.wayMode != WAY_DOCK)){
     if (SONAR_TRIGGER_OBSTACLES){
       CONSOLE.println("sonar obstacle!");            
-      statMowSonarCounter++;
+      stats.statMowSonarCounter++;
       triggerObstacle();
       return true;
     }        
@@ -869,22 +877,22 @@ bool detectObstacle(){
     updateGPSMotionCheckTime();
     resetOverallMotionTimeout(); // this resets overall motion timeout (overall motion timeout happens if e.g. 
     // motion between anuglar-only and linar-only toggles quickly, and their specific timeouts cannot apply due to the quick toggling)
-    float dX = lastGPSMotionX - stateX;
-    float dY = lastGPSMotionY - stateY;
+    float dX = lastGPSMotionX - stateEstimator.stateX;
+    float dY = lastGPSMotionY - stateEstimator.stateY;
     float delta = sqrt( sq(dX) + sq(dY) );    
     if (delta < 0.05){
       if (GPS_MOTION_DETECTION){
-        if (stateLocalizationMode == LOC_GPS) {
+        if (stateEstimator.stateLocalizationMode == LOC_GPS) {
           CONSOLE.println("gps no motion => obstacle!");
           Logger.event(EVT_NO_ROBOT_MOTION_OBSTACLE);    
-          statMowGPSMotionTimeoutCounter++;
+        stats.statMowGPSMotionTimeoutCounter++;
           triggerObstacle();
           return true;
         }
       }
     }
-    lastGPSMotionX = stateX;      
-    lastGPSMotionY = stateY;      
+    lastGPSMotionX = stateEstimator.stateX;      
+    lastGPSMotionY = stateEstimator.stateY;      
   }    
   return false;
 }
@@ -901,36 +909,36 @@ bool detectObstacleRotation(){
     return false;
   }  
   if (!OBSTACLE_DETECTION_ROTATION) return false; 
-  if (millis() > angularMotionStartTime + 15000) { // too long rotation time (timeout), e.g. due to obstacle
+  if (millis() > stateEstimator.angularMotionStartTime + 15000) { // too long rotation time (timeout), e.g. due to obstacle
     CONSOLE.println("too long rotation time (timeout) for requested rotation => assuming obstacle");
     Logger.event(EVT_ANGULAR_MOTION_TIMEOUT_OBSTACLE);
-    statMowRotationTimeoutCounter++;
+    stats.statMowRotationTimeoutCounter++;
     triggerObstacleRotation();
     return true;
   }
   /*if (BUMPER_ENABLE){
-    if (millis() > angularMotionStartTime + 500) { // FIXME: do we actually need a deadtime here for the freewheel sensor?        
+    if (millis() > stateEstimator.angularMotionStartTime + 500) { // FIXME: do we actually need a deadtime here for the freewheel sensor?        
       if (bumper.obstacle()){  
         CONSOLE.println("bumper obstacle!");    
-        statMowBumperCounter++;
+        stats.statMowBumperCounter++;
         triggerObstacleRotation();    
         return true;
       }
     }
   }*/
   if (imuDriver.imuFound){
-    if (millis() > angularMotionStartTime + 3000) {                  
-      if (fabs(stateDeltaSpeedLP) < 3.0/180.0 * PI){ // less than 3 degree/s yaw speed, e.g. due to obstacle
+    if (millis() > stateEstimator.angularMotionStartTime + 3000) {                  
+      if (fabs(stateEstimator.stateDeltaSpeedLP) < 3.0/180.0 * PI){ // less than 3 degree/s yaw speed, e.g. due to obstacle
         CONSOLE.println("no IMU rotation speed detected for requested rotation => assuming obstacle");    
-        statMowImuNoRotationSpeedCounter++;
+        stats.statMowImuNoRotationSpeedCounter++;
         Logger.event(EVT_IMU_NO_ROTATION_OBSTACLE);    
         triggerObstacleRotation();
         return true;      
       }
     }
-    if (diffIMUWheelYawSpeedLP > 10.0/180.0 * PI) {  // yaw speed difference between wheels and IMU more than 8 degree/s, e.g. due to obstacle
+    if (stateEstimator.diffIMUWheelYawSpeedLP > 10.0/180.0 * PI) {  // yaw speed difference between wheels and IMU more than 8 degree/s, e.g. due to obstacle
       CONSOLE.println("yaw difference between wheels and IMU for requested rotation => assuming obstacle");            
-      statMowDiffIMUWheelYawSpeedCounter++;
+      stats.statMowDiffIMUWheelYawSpeedCounter++;
       Logger.event(EVT_IMU_WHEEL_DIFFERENCE_OBSTACLE);            
       triggerObstacleRotation();
       return true;            
@@ -948,6 +956,10 @@ void run(){
   #ifdef ENABLE_NTRIP
     if (millis() > nextGenerateGGATime){
       nextGenerateGGATime = millis() + 10000;
+      CONSOLE.print("absolutePosSourceLon=");
+      CONSOLE.print(stateEstimator.absolutePosSourceLon,8);
+      CONSOLE.print(" absolutePosSourceLat=");
+      CONSOLE.println(stateEstimator.absolutePosSourceLat,8);    
       #ifdef NTRIP_SIM_GGA_MESSAGE
         ntrip.nmeaGGAMessage = NTRIP_SIM_GGA_MESSAGE; 
         ntrip.nmeaGGAMessageSource = "SIM";
@@ -955,7 +967,7 @@ void run(){
         if (gps.iTOW != 0){
           // generate NMEA GGA messsage base on base coordinate entered in Sunray App      
           gps.decodeTOW();
-          ntrip.nmeaGGAMessage = gps.generateGGA(gps.hour, gps.mins, gps.sec, absolutePosSourceLon, absolutePosSourceLat, gps.height); 
+          ntrip.nmeaGGAMessage = gps.generateGGA(gps.hour, gps.mins, gps.sec, stateEstimator.absolutePosSourceLon, stateEstimator.absolutePosSourceLat, gps.height); 
           ntrip.nmeaGGAMessageSource = "SunrayApp";
         }
       #elif NTRIP_GPS_GGA_MESSAGE
@@ -977,6 +989,7 @@ void run(){
   stopButton.run();
   battery.run();
   batteryDriver.run();
+  relaisDriver.run();
   motorDriver.run();
   rainDriver.run();
   liftDriver.run();
@@ -985,11 +998,11 @@ void run(){
   maps.run();  
   rcmodel.run();
   bumper.run();
-  
+
   // state saving
   if (millis() >= nextSaveTime){  
     nextSaveTime = millis() + 5000;
-    saveState();
+    storage.saveState();
   }
   
   // temp
@@ -1004,12 +1017,12 @@ void run(){
     //logCPUHealth();
     CONSOLE.println();    
     if (batTemp < -999){
-      stateTemp = cpuTemp;
+      stateEstimator.stateTemp = cpuTemp;
     } else {
-      stateTemp = batTemp;    
+      stateEstimator.stateTemp = batTemp;    
     }
-    statTempMin = min(statTempMin, stateTemp);
-    statTempMax = max(statTempMax, stateTemp);    
+    stats.statTempMin = min(stats.statTempMin, stateEstimator.stateTemp);
+    stats.statTempMax = max(stats.statTempMax, stateEstimator.stateTemp);    
   }
   
   // IMU
@@ -1017,10 +1030,10 @@ void run(){
     int ims = 750 / IMU_FIFO_RATE;
     nextImuTime = millis() + ims;        
     //imu.resetFifo();    
-    if (imuIsCalibrating) {
+    if (stateEstimator.imuIsCalibrating) {
       activeOp->onImuCalibration();             
     } else {
-      readIMU();    
+      stateEstimator.readIMU();    
       // LiDAR relocalization
       if (gps.isRelocalizing){
         activeOp->onRelocalization();
@@ -1033,7 +1046,7 @@ void run(){
     nextLedTime = millis() + 1000;
     robotDriver.ledStateGpsFloat = (gps.solution == SOL_FLOAT);
     robotDriver.ledStateGpsFix = (gps.solution == SOL_FIXED);
-    robotDriver.ledStateError = (stateOp == OP_ERROR);            
+    robotDriver.ledStateError = (stateEstimator.stateOp == OP_ERROR);            
   }
 
   gps.run();
@@ -1045,14 +1058,14 @@ void run(){
     timetable.run();
   }
 
-  calcStats();  
+  stats.calc();  
   
   
   if (millis() >= nextControlTime){        
     nextControlTime = millis() + 20; 
-    controlLoops++;    
+    stateEstimator.controlLoops++;    
     
-    computeRobotState();
+    stateEstimator.computeRobotState();
     if (!robotShouldMove()){
       resetLinearMotionMeasurement();
       updateGPSMotionCheckTime();  
@@ -1071,7 +1084,7 @@ void run(){
       CONSOLE.println("restarting operation (gps jump)");
       gpsJump = false;
       motor.stopImmediately(true);
-      setOperation(stateOp, true);    // restart current operation
+      setOperation(stateEstimator.stateOp, true);    // restart current operation
     }*/
     
     if (battery.chargerConnected() != stateChargerConnected) {    
@@ -1096,10 +1109,10 @@ void run(){
     else {      
 #if USE_TEMP_SENSOR == 1 || USE_TEMP_SENSOR == true
       if (USE_TEMP_SENSOR){
-        if (stateTemp > DOCK_OVERHEAT_TEMP){
+        if (stateEstimator.stateTemp > DOCK_OVERHEAT_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         } 
-        else if (stateTemp < DOCK_TOO_COLD_TEMP){
+        else if (stateEstimator.stateTemp < DOCK_TOO_COLD_TEMP){
           activeOp->onTempOutOfRangeTriggered();
         }
       }
@@ -1113,9 +1126,7 @@ void run(){
         }                           
       }    
       if (battery.shouldGoHome()){
-        if (DOCKING_STATION){
-           activeOp->onBatteryLowShouldDock();
-        }
+        activeOp->onBatteryLowShouldDock();        
       }   
        
       if (battery.chargerConnected()){
@@ -1131,40 +1142,40 @@ void run(){
     activeOp->run();     
       
     // process button state
-    if (stateButton == 5){
-      stateButton = 0; // reset button state
-      stateSensor = SENS_STOP_BUTTON;
+    if (stateEstimator.stateButton == 5){
+      stateEstimator.stateButton = 0; // reset button state
+      stateEstimator.stateSensor = SENS_STOP_BUTTON;
       setOperation(OP_DOCK, false);
-    } else if (stateButton == 6){ 
-      stateButton = 0; // reset button state        
-      stateSensor = SENS_STOP_BUTTON;
+    } else if (stateEstimator.stateButton == 6){ 
+      stateEstimator.stateButton = 0; // reset button state        
+      stateEstimator.stateSensor = SENS_STOP_BUTTON;
       setOperation(OP_MOW, false);
     } 
     //else if (stateButton > 0){  // stateButton 1 (or unknown button state)        
-    else if (stateButton == 1){  // stateButton 1                   
-      stateButton = 0;  // reset button state
-      stateSensor = SENS_STOP_BUTTON;
+    else if (stateEstimator.stateButton == 1){  // stateButton 1                   
+      stateEstimator.stateButton = 0;  // reset button state
+      stateEstimator.stateSensor = SENS_STOP_BUTTON;
       setOperation(OP_IDLE, false);                             
-    } else if (stateButton == 9){
-      stateButton = 0;  // reset button state
-      stateSensor = SENS_STOP_BUTTON;
-      cmdSwitchOffRobot();
-    } else if (stateButton == 12){
-      stateButton = 0; // reset button state
-      stateSensor = SENS_STOP_BUTTON;
+    } else if (stateEstimator.stateButton == 9){
+      stateEstimator.stateButton = 0;  // reset button state
+      stateEstimator.stateSensor = SENS_STOP_BUTTON;
+      comm.cmdSwitchOffRobot();
+    } else if (stateEstimator.stateButton == 12){
+      stateEstimator.stateButton = 0; // reset button state
+      stateEstimator.stateSensor = SENS_STOP_BUTTON;
       #ifdef __linux__
         WiFi.startWifiProtectedSetup();
       #endif
     }
 
     // update operation type      
-    stateOp = activeOp->getGoalOperationType();  
+    stateEstimator.stateOp = activeOp->getGoalOperationType();  
             
   }   // if (millis() >= nextControlTime)
     
   // ----- read serial input (BT/console) -------------
-  processComm();
-  outputConsole();    
+  comm.processComm();
+  comm.outputConsole();    
 
   //##############################################################################
 
@@ -1189,7 +1200,7 @@ void run(){
         p.runShellCommand("ps -eo pcpu,pid,user,args | sort -k 1 -r | head -3");
         psOutput = p.readString();    
       }
-    }
+    }    
   #endif
 
   if(millis() > loopTimeTimer + 10000){
@@ -1220,10 +1231,10 @@ void run(){
     bool buttonTriggered = stopButton.triggered();
     if (BUTTON_INVERT) buttonTriggered = !buttonTriggered; 
     if (buttonTriggered){
-      if ((stateOp != OP_IDLE) && (stateOp != OP_CHARGE)) {   // if not in idle or charge state
+      if ((stateEstimator.stateOp != OP_IDLE) && (stateEstimator.stateOp != OP_CHARGE)) {   // if not in idle or charge state
         // stop all pendings actions if button pressed 
         CONSOLE.println("BUTTON triggered, going IDLE");
-        stateSensor = SENS_STOP_BUTTON;  
+        stateEstimator.stateSensor = SENS_STOP_BUTTON;  
         setOperation(OP_IDLE, false);  // go into idle-state
       } 
       if (BUTTON_CONTROL){     
@@ -1241,23 +1252,39 @@ void run(){
       if (stateButtonTemp > 0){
         // button released => set stateButton
         stateButtonTimeout = 0;
-        stateButton = stateButtonTemp;
+        stateEstimator.stateButton = stateButtonTemp;
         stateButtonTemp = 0;
         CONSOLE.print("stateButton ");
-        CONSOLE.println(stateButton);
+        CONSOLE.println(stateEstimator.stateButton);
       }
     }
-  }    
+  }
+
+  if(testRelais){
+    // Relais 1 Test activation
+    relaisDriver.setRelaisState(RELAIS_1_NODE_ID, true);
+    delay(500);
+    // Relais 2 Test activation
+    relaisDriver.setRelaisState(RELAIS_2_NODE_ID, true);
+    delay(500);
+    // Relais 1 Test deactivation
+    relaisDriver.setRelaisState(RELAIS_1_NODE_ID, false);
+    delay(500);
+    // Relais 2 Test deactivation
+    relaisDriver.setRelaisState(RELAIS_2_NODE_ID, false);
+    delay(500);
+ }
 }        
 
 
 
 // set new robot operation
 void setOperation(OperationType op, bool allowRepeat){  
-  if ((stateOp == op) && (!allowRepeat)) return;  
+  if ((stateEstimator.stateOp == op) && (!allowRepeat)) return;  
   CONSOLE.print("setOperation op=");
   CONSOLE.println(op);
-  stateOp = op;  
-  activeOp->changeOperationTypeByOperator(stateOp);
-  saveState();
+  stateEstimator.stateOp = op;  
+  robotDriver.sendDisplayOperation(op);
+  activeOp->changeOperationTypeByOperator(stateEstimator.stateOp);
+  storage.saveState();
 }
