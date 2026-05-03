@@ -41,7 +41,7 @@ private:
   String cmdResponse;
 
   float statControlCycleTime = 0; 
-  float statMaxControlCycleTime = 0; 
+  float statMaxControlCycleTime = 0;  
 
   // helpers
   void cmdAnswer(String s);
@@ -67,6 +67,7 @@ private:
   void cmdToggleGPSSolution();
   void cmdObstacles();
   void cmdSummary();
+  void cmdSensorSummary();
   void cmdStats();
   void cmdClearStats();
   void cmdWiFiScan();

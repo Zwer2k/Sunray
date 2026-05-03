@@ -45,6 +45,10 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
    
 */
 
+#ifndef CONFIG_H
+#define CONFIG_H
+
+
 
 
 #ifdef __cplusplus
@@ -67,10 +71,18 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define DRV_ARDUMOWER     1   // keep this for Ardumower
 //#define DRV_SIM_ROBOT     1   // simulation
 
+// ---- Optional hardware -----------------------------------------------------
+// Set to 1 when an owlDisplay CAN-Display is connected; otherwise all display-related
+// CAN frames remain disabled.
+#define ENABLE_CAN_DISPLAY 0
+
+// if compiling for ROS, specify robot launch file (.launch) for robot-specific ROS launch (if not running in ROS, this option will not be used )
+#define ROS_LAUNCH_FILE "ardumower"
 
 // ------- Bluetooth4.0/BLE module -----------------------------------
 // see Wiki on how to install the BLE module and configure the jumpers:
 // https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#Bluetooth_BLE_UART_module
+#define BLE_NAME      "Ardumower" // Bluetooth Low Energy (BLE) name to advertise
 #define ENABLE_PASS   1        // comment out to disable password authentication
 #define PASS          BLE_PASS // choose password for WiFi/BLE communication (NOTE: has to match the connection password in the App!)
 
@@ -156,6 +168,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // ...for Matrix MOW800 (MC33035 driver)
 #define TICKS_PER_REVOLUTION  192    // odometry ticks per wheel revolution 
 
+#define ODO_TEST_PWM_SPEED 100         // pwm speed for odometry test (20-200)
 
 // ----- gear motors --------------------------------------------------
 // for brushless motors, study the sections (drivers, adapter, protection etc.) in the Wiki (https://wiki.ardumower.de/index.php?title=DIY_Brushless_Driver_Board)
@@ -242,6 +255,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // shall the mow motor be activated for normal operation? Deactivate this option for GPS tests and path tracking running tests
 #define ENABLE_MOW_MOTOR true // Default is true, set false for testing purpose to switch off mow motor permanently
 
+//#define MOTOR_MOW_SWAP_DIRECTION 1  // uncomment to swap mow motor direction
+
 // ----------- dynamic mowingm motor RPM --------------
 // RPM of the mow motor will be adjust over the actual current of the mow motor. If the motor needs more current the PWM will be higher.
 // it can be used 3 different functions for the calculation of the PWM depended´nt on the mowMotor current. The root-Function is recommended
@@ -282,12 +297,23 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define UDP_SERVER_PORT 4210
 
 // --------- NTRIP client (linux only, highly experimental) ---------------------------------
+// you can activate an NTRIP client to receive RTK RTCM data from an NTRIP caster/server and to send this data to the ublox receiver (via USB)
+// (Sunray will properly configure the ublox receiver for this, if 'GPS_CONFIG true')
 //#define ENABLE_NTRIP 1            // must be activated to use Linux NTRIP
 #define NTRIP_HOST "195.227.70.119"   // sapos nrw
 #define NTRIP_PORT 2101
 #define NTRIP_MOUNT "VRS_3_4G_NW"
 #define NTRIP_USER "user"
 #define NTRIP_PASS "pass"
+#define NTRIP_CLIENT_AGENT_NAME "NTRIPClient for Arduino v1.0"
+// choose ONE option only how to generate the GGA message for the NTRIP login (disable ALL to disable GGA sending):
+// 1) the GGA message will be generated based on the base coordinate in the Sunray App (you can either use relative or absolute position mode) 
+#define NTRIP_APP_GGA_MESSAGE 1
+// 2) the GGA message from the GPS receiver is used (you can only use absolute position mode)
+// #define NTRIP_GPS_GGA_MESSAGE 1
+// 3) the GGA message is a fixed text (you will need to generate the GGA message yourself) 
+// #define NTRIP_SIM_GGA_MESSAGE "$GNGGA,082947.40,5408.81295,N,01239.42452,E,1,12,0.67,34.2,M,41.1,M,,*77"
+
 
 // ------ MQTT (for ESP8266 only, highly experimental - ENABLE_SERVER must be set to false for this to work :-/ ) -----------------------------
 // you can access your robot using a MQTT broker - choose a topic prefix for your robot below - available MQTT topics:
@@ -295,12 +321,15 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // robot1/op            (current robot operation as text)
 // robot1/gps/sol       (current gps solution as text)
 // robot1/gps/pos       (current gps position as text)
+// ... lot of other information -> see comm.cpp or check with your MQTT Explorer
+
 //#define ENABLE_MQTT  true                           // start MQTT client?  (true for yes, false for no)
 #define ENABLE_MQTT  false
 #define MQTT_TOPIC_PREFIX  "robot1"                 // the MQTT topic prefix for your robot 
 #define MQTT_SERVER  "192.168.44.7"                 // your MQTT broker IP or hostname (e.g. "broker.mqtt-dashboard.com")
 #define MQTT_PORT  1883
-
+#define MQTT_USER "user"
+#define MQTT_PASS "pass"
 
 // ------ ultrasonic sensor -----------------------------
 // see Wiki on how to install the ultrasonic sensors: 
@@ -310,9 +339,11 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define SONAR_ENABLE true              // should ultrasonic sensor be used?
 //#define SONAR_ENABLE false
 #define SONAR_TRIGGER_OBSTACLES true     // should sonar be used to trigger obstacles? if not, mower will only slow down
+#define CAN_SONAR_TRIGGER_OBSTACLES 1    // enable owlController CAN ultrasonic obstacle trigger
 #define SONAR_LEFT_OBSTACLE_CM   6      // stop mowing operation below this distance (cm) 
 #define SONAR_CENTER_OBSTACLE_CM 8      // stop mowing operation below this distance (cm) 
 #define SONAR_RIGHT_OBSTACLE_CM  6      // stop mowing operation below this distance (cm) 
+#define SONAR_POLL_INTERVAL_MS   200     // CAN polling interval for sonar distances
 
 // ------ rain sensor ----------------------------------------------------------
 //#define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers
@@ -462,6 +493,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 // below this robot-to-target distance (m) a target is considered as reached
 #define TARGET_REACHED_TOLERANCE 0.05
+#define TARGET_ANGLE_TOLERANCE 20
 
 // stanley control for path tracking - determines gain how fast to correct for lateral path errors
 #define STANLEY_CONTROL_P_NORMAL  3.0   // 3.0 for path tracking control (angular gain) when mowing
@@ -527,7 +559,6 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define CONSOLE_BAUDRATE    115200    // baudrate used for console
 //#define CONSOLE_BAUDRATE    921600  // baudrate used for console
 #define BLE_BAUDRATE    115200        // baudrate used for BLE
-#define BLE_NAME      "Ardumower"     // name for BLE module
 #define GPS_BAUDRATE  115200          // baudrate for GPS RTK module
 #define WIFI_BAUDRATE 115200          // baudrate for WIFI module
 #define ROBOT_BAUDRATE 115200         // baudrate for Linux serial robot (non-Ardumower)
@@ -551,7 +582,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #elif __linux__ 
   #define WIFI SerialWIFI                
   #define SERIAL_WIFI_PATH "/dev/null"  
+  #define LINUX_BLE       // comment to disable BLE
   #define BLE SerialBLE
+  #define SERIAL_BLE_PATH "/dev/null"    // dummy serial device    
   #define GPS SerialGPS
   #define SERIAL_GPS_PATH "/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00"  
   #define GPS_HOST "127.0.0.1"  
@@ -613,10 +646,6 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinBumerUseInterrupt true  // use interrrupt for bumper trigger
   #define pinBumerDisablePullUp true  // disable pull up for bumper pin (deafult pull up is enabled) 
 
-  #define pinLift PE7                 // Lift sensor (marked as 'Tilt' on PCB1.3/1.4)
-  #define pinLiftTriggerdLevel HIGH    // robot lifted pin state 
-  #define pinLiftDisablePullUp true   // disable pull up for bumper pin (deafult pull up is enabled)
-
   // #define pinDropLeft 45           // drop pins                                                                                          Dropsensor - Absturzsensor
   // #define pinDropRight 23          // drop pins                                                                                          Dropsensor - Absturzsensor
 
@@ -634,6 +663,10 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinBuzzer PG4               // Buzzer
   //#define pinTilt 35                 // Tilt sensor (required for TC-G158 board)  
   //#define pinButton 51               // digital ON/OFF button
+  #define pinLift PE7                 // Lift sensor (marked as 'Tilt' on PCB1.3/1.4)
+  #define pinLiftTriggerdLevel HIGH    // robot lifted pin state 
+  #define pinLiftDisablePullUp true   // disable pull up for bumper pin (deafult pull up is enabled)
+
   #define pinBatteryVoltage PA3       // battery voltage sensor
   //#define pinBatterySwitch 4         // battery-OFF switch   
   //#define pinChargeVoltage A9        // charging voltage sensor
@@ -710,3 +743,5 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #ifdef ICM20948
   #define MPU9250   // just to make mpu driver happy to compile something
 #endif
+
+#endif // CONFIG_H

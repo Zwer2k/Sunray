@@ -1260,6 +1260,7 @@ void run(){
     }
   }
 
+#if defined(DRV_CAN_ROBOT)
   if(testRelais){
     // Relais 1 Test activation
     relaisDriver.setRelaisState(RELAIS_1_NODE_ID, true);
@@ -1274,6 +1275,7 @@ void run(){
     relaisDriver.setRelaisState(RELAIS_2_NODE_ID, false);
     delay(500);
  }
+#endif
 }        
 
 

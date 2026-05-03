@@ -1034,7 +1034,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
   if (cmd[3] == 'G') cmdToggleGPSSolution();   // for developers
   if (cmd[3] == 'K') cmdKidnap();   // for developers
   if (cmd[3] == 'Z') cmdStressTest();   // for developers
-  if (cmd[3] == 'Y') {
+    if (cmd[3] == 'Y') {
     if (cmd.length() <= 4){
       cmdTriggerWatchdog();   // for developers
     } else {
@@ -1042,6 +1042,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
       if (cmd[4] == '3') cmdSwitchOffRobot();   // for developers
     }
   }
+  cmd = "";
 }
 
 // Handle AT+CAM,enable,index,width,height,fps
