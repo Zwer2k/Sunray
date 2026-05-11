@@ -725,6 +725,43 @@ void Comm::cmdSensorSummary(){
   cmdAnswer(s);  
 }
 
+// request GPS satellite details
+void Comm::cmdGpsDetails(){
+  String s = F("S4,");
+  s += gps.numSV;
+  s += ",";
+  s += gps.numSVdgps;
+  s += ",";
+  s += gps.solution;
+  s += ",";
+  s += gps.hAccuracy;
+  s += ",";
+  s += gps.vAccuracy;
+  s += ",";
+  s += gps.dgpsAge;
+  s += ",";
+  s += gps.satelliteCount;
+  for (int i=0; i < gps.satelliteCount; i++){
+    s += ",";
+    s += gps.satellites[i].gnssId;
+    s += ",";
+    s += gps.satellites[i].svId;
+    s += ",";
+    s += gps.satellites[i].sigId;
+    s += ",";
+    s += gps.satellites[i].cno;
+    s += ",";
+    s += gps.satellites[i].qualityInd;
+    s += ",";
+    s += (gps.satellites[i].prUsed ? 1 : 0);
+    s += ",";
+    s += (gps.satellites[i].crCorrUsed ? 1 : 0);
+    s += ",";
+    s += gps.satellites[i].prRes;
+  }
+  cmdAnswer(s);
+}
+
 // request statistics
 void Comm::cmdStats(){
   String s = F("T,");
@@ -992,6 +1029,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     } else {
       if (cmd[4] == '2') cmdObstacles();
       if (cmd[4] == '3') cmdSensorSummary();
+      if (cmd[4] == '4') cmdGpsDetails();
     }
   }
   if (cmd[3] == 'M') cmdMotor();
