@@ -70,6 +70,7 @@ private:
   void cmdSensorSummary();
   void cmdGpsDetails();
   void cmdStats();
+  void cmdUbxProxy();
   void cmdClearStats();
   void cmdWiFiScan();
   void cmdWiFiSetup();

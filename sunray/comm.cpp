@@ -762,6 +762,66 @@ void Comm::cmdGpsDetails(){
   cmdAnswer(s);
 }
 
+static uint8_t hexCharToByte(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  return 0;
+}
+
+static void hexStringToBytes(const String& hex, uint8_t* out, size_t& outLen) {
+  outLen = 0;
+  size_t len = hex.length();
+  for (size_t i = 0; i + 1 < len; i += 2) {
+    out[outLen++] = (hexCharToByte(hex[i]) << 4) | hexCharToByte(hex[i+1]);
+  }
+}
+
+static String bytesToHexString(const uint8_t* data, size_t len) {
+  String hex;
+  hex.reserve(len * 2);
+  for (size_t i = 0; i < len; i++) {
+    char buf[3];
+    sprintf(buf, "%02X", data[i]);
+    hex += buf;
+  }
+  return hex;
+}
+
+// UBX Proxy: send hex bytes to GPS, receive response, return as hex
+void Comm::cmdUbxProxy(){
+  String hexPayload = cmd.substring(4); // skip "AT+U,"
+  uint8_t txBuf[256];
+  size_t txLen = 0;
+  hexStringToBytes(hexPayload, txBuf, txLen);
+
+  // Send to GPS
+  for (size_t i = 0; i < txLen; i++) {
+    GPS.write(txBuf[i]);
+  }
+
+  // Wait for response (max 1s)
+  uint32_t start = millis();
+  uint8_t rxBuf[512];
+  size_t rxLen = 0;
+  while (millis() - start < 1000 && rxLen < sizeof(rxBuf)) {
+    while (GPS.available() && rxLen < sizeof(rxBuf)) {
+      rxBuf[rxLen++] = GPS.read();
+    }
+    delay(1);
+  }
+
+  // Drain any remaining bytes quickly
+  while (GPS.available() && rxLen < sizeof(rxBuf)) {
+    rxBuf[rxLen++] = GPS.read();
+  }
+
+  String responseHex = bytesToHexString(rxBuf, rxLen);
+  String s = F("U,");
+  s += responseHex;
+  cmdAnswer(s);
+}
+
 // request statistics
 void Comm::cmdStats(){
   String s = F("T,");
@@ -1048,6 +1108,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ((cmd.length() > 4) && (cmd[4] == 'T')) cmdTimetable();
     else cmdStats();
   }
+  if (cmd[3] == 'U') cmdUbxProxy();
   if (cmd[3] == 'L') cmdClearStats();
   if (cmd[3] == 'E') cmdMotorTest();  
   if (cmd[3] == 'Q') cmdMotorPlot();  
