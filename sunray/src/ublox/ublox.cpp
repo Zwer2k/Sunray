@@ -8,7 +8,9 @@
 #include "ublox.h"
 #include "../../config.h"
 #include "../../events.h"
-#include "SparkFun_Ublox_Arduino_Library.h" 
+#include "SparkFun_Ublox_Arduino_Library.h"
+
+extern UBLOX gps; 
 
 
 SFE_UBLOX_GPS configGPS; // used for f9p module configuration only
@@ -630,24 +632,28 @@ void UBLOX::dispatchMessage() {
               float rsum = 0;                  
               int crcnt = 0;              
               int healthycnt = 0;              
-              for (int i=0; i < numSigs; i++){                
-                float prRes = ((float)((short)this->unpack_int16(12+16*i))) * 0.1;
-                // float cno = ((float)this->unpack_int8(14+16*i));
-                // int qualityInd = this->unpack_int8(15+16*i);                                                
+              gps.satelliteCount = min(numSigs, 40);
+              for (int i=0; i < gps.satelliteCount; i++){                
+                gps.satellites[i].gnssId = this->unpack_int8(8+16*i);
+                gps.satellites[i].svId = this->unpack_int8(9+16*i);
+                gps.satellites[i].sigId = this->unpack_int8(10+16*i);
+                gps.satellites[i].prRes = ((float)((short)this->unpack_int16(12+16*i))) * 0.1;
+                gps.satellites[i].cno = this->unpack_int8(14+16*i);
+                gps.satellites[i].qualityInd = this->unpack_int8(15+16*i);
                 // int corrSource = this->unpack_int8(16+16*i);                                                
                 int sigFlags = (unsigned short)this->unpack_int16(18+16*i);                                                
-                bool prUsed = ((sigFlags & 8) != 0);                                    
+                gps.satellites[i].prUsed = ((sigFlags & 8) != 0);                                    
                 // bool crUsed = ((sigFlags & 16) != 0);                                    
                 // bool doUsed = ((sigFlags & 32) != 0);                                    
                 // bool prCorrUsed = ((sigFlags & 64) != 0);                    
-                bool crCorrUsed = ((sigFlags & 128) != 0);                    
+                gps.satellites[i].crCorrUsed = ((sigFlags & 128) != 0);                    
                 //bool doCorrUsed = ((sigFlags & 256) != 0);                    
                 bool health = ((sigFlags & 3) == 1);                                                    
                 if (health){       // signal is healthy               
-                  if (prUsed){     // pseudorange has been used (indicates satellites will be also used for carrier correction)
+                  if (gps.satellites[i].prUsed){     // pseudorange has been used (indicates satellites will be also used for carrier correction)
                   //if (cno > 0){  // signal has some strength (carriar-to-noise)
                     healthycnt++;                   
-                    if (crCorrUsed){  // Carrier range corrections have been used
+                    if (gps.satellites[i].crCorrUsed){  // Carrier range corrections have been used
                       /*CONSOLE.print(sigFlags);
                       CONSOLE.print(",");                                
                       CONSOLE.print(qualityInd);
@@ -655,9 +661,9 @@ void UBLOX::dispatchMessage() {
                       CONSOLE.print(prRes);
                       CONSOLE.print(",");
                       CONSOLE.println(cno); */
-                      rsum += fabs(prRes);    // pseudorange residual
-                      rmax = max(rmax, fabs(prRes));
-                      rmin = min(rmin, fabs(prRes));
+                      rsum += fabs(gps.satellites[i].prRes);    // pseudorange residual
+                      rmax = max(rmax, fabs(gps.satellites[i].prRes));
+                      rmin = min(rmin, fabs(gps.satellites[i].prRes));
                       crcnt++;
                     }                    
                   }

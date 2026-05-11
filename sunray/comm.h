@@ -68,6 +68,7 @@ private:
   void cmdObstacles();
   void cmdSummary();
   void cmdSensorSummary();
+  void cmdGpsDetails();
   void cmdStats();
   void cmdClearStats();
   void cmdWiFiScan();
