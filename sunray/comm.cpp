@@ -790,30 +790,32 @@ static String bytesToHexString(const uint8_t* data, size_t len) {
 
 // UBX Proxy: send hex bytes to GPS, receive response, return as hex
 void Comm::cmdUbxProxy(){
-  String hexPayload = cmd.substring(4); // skip "AT+U,"
+  String hexPayload = cmd.substring(5); // skip "AT+U,"
   uint8_t txBuf[256];
   size_t txLen = 0;
   hexStringToBytes(hexPayload, txBuf, txLen);
+
+  // Drain stale data from GPS buffer before sending
+  while (GPS.available()) GPS.read();
 
   // Send to GPS
   for (size_t i = 0; i < txLen; i++) {
     GPS.write(txBuf[i]);
   }
 
-  // Wait for response (max 1s)
+  // Wait for response (max 300ms) – u-blox typically answers polls within <50ms
   uint32_t start = millis();
   uint8_t rxBuf[512];
   size_t rxLen = 0;
-  while (millis() - start < 1000 && rxLen < sizeof(rxBuf)) {
+  while (millis() - start < 300 && rxLen < sizeof(rxBuf)) {
     while (GPS.available() && rxLen < sizeof(rxBuf)) {
       rxBuf[rxLen++] = GPS.read();
     }
+    if (rxLen > 0) {
+      // Once data starts arriving, give a short grace period for multi-frame responses
+      start = millis() - 250; // extend to ~50ms more after last byte
+    }
     delay(1);
-  }
-
-  // Drain any remaining bytes quickly
-  while (GPS.available() && rxLen < sizeof(rxBuf)) {
-    rxBuf[rxLen++] = GPS.read();
   }
 
   String responseHex = bytesToHexString(rxBuf, rxLen);
