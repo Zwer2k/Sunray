@@ -758,6 +758,10 @@ void Comm::cmdGpsDetails(){
     s += (gps.satellites[i].crCorrUsed ? 1 : 0);
     s += ",";
     s += gps.satellites[i].prRes;
+    s += ",";
+    s += gps.satellites[i].elevation;
+    s += ",";
+    s += gps.satellites[i].azimuth;
   }
   cmdAnswer(s);
 }

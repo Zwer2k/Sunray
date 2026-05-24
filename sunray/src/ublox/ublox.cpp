@@ -640,6 +640,8 @@ void UBLOX::dispatchMessage() {
                 gps.satellites[i].prRes = ((float)((short)this->unpack_int16(12+16*i))) * 0.1;
                 gps.satellites[i].cno = this->unpack_int8(14+16*i);
                 gps.satellites[i].qualityInd = this->unpack_int8(15+16*i);
+                gps.satellites[i].elevation = this->unpack_int8(20+16*i);
+                gps.satellites[i].azimuth = this->unpack_int8(21+16*i);
                 // int corrSource = this->unpack_int8(16+16*i);                                                
                 int sigFlags = (unsigned short)this->unpack_int16(18+16*i);                                                
                 gps.satellites[i].prUsed = ((sigFlags & 8) != 0);                                    

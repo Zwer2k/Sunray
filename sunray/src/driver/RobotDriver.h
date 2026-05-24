@@ -145,10 +145,12 @@ struct UbxSatelliteInfo {
   bool prUsed;
   bool crCorrUsed;
   float prRes;
+  int8_t elevation; // degrees from NAV-SIG (byte 12)
+  int8_t azimuth;   // degrees from NAV-SIG (byte 13)
 
   UbxSatelliteInfo()
       : gnssId(0), svId(0), sigId(0), cno(0), qualityInd(0),
-        prUsed(false), crCorrUsed(false), prRes(0)
+        prUsed(false), crCorrUsed(false), prRes(0), elevation(0), azimuth(0)
   {
   }
 };
