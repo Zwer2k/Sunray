@@ -803,18 +803,32 @@ void Comm::cmdUbxProxy(){
     GPS.write(txBuf[i]);
   }
 
-  // Wait for response (max 300ms) – u-blox typically answers polls within <50ms
+  // Collect response: wait for at least one complete UBX frame
+  // UBX frame: sync(2) + class(1) + id(1) + length(2) + payload(N) + checksum(2)
   uint32_t start = millis();
-  uint8_t rxBuf[512];
+  uint8_t rxBuf[2048];
   size_t rxLen = 0;
-  while (millis() - start < 300 && rxLen < sizeof(rxBuf)) {
+  bool gotFrame = false;
+  const uint32_t maxWait = 500;
+
+  while (millis() - start < maxWait && rxLen < sizeof(rxBuf)) {
     while (GPS.available() && rxLen < sizeof(rxBuf)) {
       rxBuf[rxLen++] = GPS.read();
     }
-    if (rxLen > 0) {
-      // Once data starts arriving, give a short grace period for multi-frame responses
-      start = millis() - 250; // extend to ~50ms more after last byte
+    if (!gotFrame && rxLen >= 6) {
+      // Nach Sync-Byte-Paar 0xB5 0x62 suchen und Frame-Ende berechnen
+      for (size_t i = 0; i + 5 < rxLen; i++) {
+        if (rxBuf[i] == 0xB5 && rxBuf[i+1] == 0x62) {
+          uint16_t payloadLen = (uint16_t)rxBuf[i+4] | ((uint16_t)rxBuf[i+5] << 8);
+          size_t frameEnd = i + 8 + payloadLen; // sync + class + id + length + payload + checksum
+          if (frameEnd <= rxLen) {
+            gotFrame = true;
+            break;
+          }
+        }
+      }
     }
+    if (gotFrame) break;
     delay(1);
   }
 
