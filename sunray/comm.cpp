@@ -803,32 +803,22 @@ void Comm::cmdUbxProxy(){
     GPS.write(txBuf[i]);
   }
 
-  // Collect response: wait for at least one complete UBX frame
-  // UBX frame: sync(2) + class(1) + id(1) + length(2) + payload(N) + checksum(2)
+  // Collect ALL bytes from the GPS for up to 300ms.
+  // We do NOT stop on the first frame because periodic messages
+  // (NAV-HPPOSLLH, NAV-RELPOSNED, …) arrive asynchronously and
+  // may precede the actual poll response.  The frontend will
+  // extract the relevant UBX frame from the complete hex dump.
   uint32_t start = millis();
   uint8_t rxBuf[2048];
   size_t rxLen = 0;
-  bool gotFrame = false;
-  const uint32_t maxWait = 500;
+  const uint32_t maxWait = 300;
 
   while (millis() - start < maxWait && rxLen < sizeof(rxBuf)) {
     while (GPS.available() && rxLen < sizeof(rxBuf)) {
       rxBuf[rxLen++] = GPS.read();
     }
-    if (!gotFrame && rxLen >= 6) {
-      // Nach Sync-Byte-Paar 0xB5 0x62 suchen und Frame-Ende berechnen
-      for (size_t i = 0; i + 5 < rxLen; i++) {
-        if (rxBuf[i] == 0xB5 && rxBuf[i+1] == 0x62) {
-          uint16_t payloadLen = (uint16_t)rxBuf[i+4] | ((uint16_t)rxBuf[i+5] << 8);
-          size_t frameEnd = i + 8 + payloadLen; // sync + class + id + length + payload + checksum
-          if (frameEnd <= rxLen) {
-            gotFrame = true;
-            break;
-          }
-        }
-      }
-    }
-    if (gotFrame) break;
+    // Grace period: once data starts arriving, give 50ms for more
+    if (rxLen > 0) start = millis() - (maxWait - 50);
     delay(1);
   }
 
