@@ -489,7 +489,10 @@ void Map::begin(){
   dockPointsIdx = 0;
   shouldDock = false; 
   shouldRetryDock = false; 
-  shouldMow = false;         
+  shouldMow = false;       
+  gotoActive = false;
+  savedMowMotorRunningBeforeGoto = false;
+  restoreMowStateAfterGoto = false;
   mapCRC = 0;  
   CONSOLE.print("sizeof Point=");
   CONSOLE.println(sizeof(Point));  

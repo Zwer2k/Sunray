@@ -226,14 +226,11 @@ void Motor::setReleaseBrakesWhenZero(bool release){
 
 
 void Motor::setMowState(bool switchOn){
-  //CONSOLE.print("Motor::setMowState ");
-  //CONSOLE.println(switchOn);
   if ((enableMowMotor) && (switchOn)){
     if (abs(motorMowPWMSet) > 0) return; // mowing motor already switch ON
     CONSOLE.println("Motor::setMowState ON");
     motorMowSpinUpTime = millis();
     if (toggleMowDir){
-      // toggle mowing motor direction each mow motor start
       motorMowForwardSet = !motorMowForwardSet;
       if (motorMowForwardSet) motorMowPWMSet = 255;  
         else motorMowPWMSet = -255;  

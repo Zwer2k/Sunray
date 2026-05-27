@@ -461,6 +461,44 @@ void Comm::cmdPosMode(){
   cmdAnswer(s);
 }
 
+// navigate to point (AT+R,<x>,<y>)
+void Comm::cmdRoute(){
+  if (cmd.length() < 8) return;
+  int firstComma = cmd.indexOf(',', 4);
+  if (firstComma < 0) return;
+  int secondComma = cmd.indexOf(',', firstComma + 1);
+  if (secondComma < 0) return;
+  float x = cmd.substring(firstComma + 1, secondComma).toFloat();
+  float y = cmd.substring(secondComma + 1).toFloat();
+  CONSOLE.print("AT+R: goto ");
+  CONSOLE.print(x);
+  CONSOLE.print(",");
+  CONSOLE.println(y);
+
+  // set free point at target
+  maps.freePoints.dealloc();
+  if (!maps.freePoints.alloc(1)){
+    CONSOLE.println("ERROR AT+R: alloc failed");
+    return;
+  }
+  maps.freePoints.points[0].setXY(x, y);
+  maps.freePointsIdx = 0;
+  maps.wayMode = WAY_FREE;
+  maps.shouldMow = false;
+  maps.shouldDock = false;
+  maps.gotoActive = true;
+
+  // save mow motor state before idle clears it
+  maps.savedMowMotorRunningBeforeGoto = (motor.motorMowPWMCurr > 0.01);
+  maps.restoreMowStateAfterGoto = maps.savedMowMotorRunningBeforeGoto;
+
+  // switch to idle first, then mow
+  setOperation(OP_IDLE);
+  setOperation(OP_MOW);
+  String s = F("R");
+  cmdAnswer(s);
+}
+
 // request version
 void Comm::cmdVersion(){  
 #ifdef ENABLE_PASS
@@ -1141,6 +1179,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ((cmd.length() > 4) && (cmd[4] == '1')) cmdFirmwareUpdate();
   }
   if (cmd[3] == 'G') cmdToggleGPSSolution();   // for developers
+  if (cmd[3] == 'R') cmdRoute();   // navigate to point
   if (cmd[3] == 'K') cmdKidnap();   // for developers
   if (cmd[3] == 'Z') cmdStressTest();   // for developers
     if (cmd[3] == 'Y') {

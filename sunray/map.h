@@ -158,7 +158,10 @@ class Map
            
     bool shouldDock;  // start docking?
     bool shouldRetryDock; // retry docking?
-    bool shouldMow;  // start mowing?       
+    bool shouldMow;  // start mowing?
+    bool gotoActive; // navigate to single point (AT+R)
+    bool savedMowMotorRunningBeforeGoto; // mow motor state saved before goto
+    bool restoreMowStateAfterGoto; // don't turn off mow motor in idle if it was on before goto
     
     long mapCRC;  // map data CRC
         
