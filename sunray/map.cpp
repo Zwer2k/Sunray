@@ -107,7 +107,7 @@ void Polygon::init(){
 }
 
 Polygon::~Polygon(){
-  // dealloc();
+  dealloc();
 }
 
 bool Polygon::alloc(short aNumPoints){
@@ -226,7 +226,7 @@ void PolygonList::init(){
 }
 
 PolygonList::~PolygonList(){
-  //dealloc();
+  dealloc();
 }
 
 bool PolygonList::alloc(short aNumPolygons){  
@@ -242,14 +242,13 @@ bool PolygonList::alloc(short aNumPolygons){
     return false;
   }
   if (polygons != NULL){
-    memcpy(newPolygons, polygons, sizeof(Polygon)* min(numPolygons, aNumPolygons));        
-    if (aNumPolygons < numPolygons){
-      for (int i=aNumPolygons; i < numPolygons; i++){
-        //polygons[i].dealloc();        
-      }  
+    short copyCount = min(numPolygons, aNumPolygons);
+    for (int i=0; i < copyCount; i++){
+      newPolygons[i].alloc(polygons[i].numPoints);
+      memcpy(newPolygons[i].points, polygons[i].points, sizeof(Point) * polygons[i].numPoints);
     }
     if (polygons[numPolygons].points != CHECK_POINT) memoryCorruptions++;
-    delete[] polygons;    
+    dealloc();
   } 
   polygons = newPolygons;              
   numPolygons = aNumPolygons;  
