@@ -306,6 +306,10 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define SONAR_CENTER_OBSTACLE_CM 15      // stop mowing operation below this distance (cm)
 #define SONAR_RIGHT_OBSTACLE_CM  15      // stop mowing operation below this distance (cm)
 #define SONAR_POLL_INTERVAL_MS   200     // CAN polling interval for sonar distances
+#define SONAR_DEBOUNCE_US 100            // software debounce echo pin (µs), 0 = disable
+#define SONAR_EVAL_INTERVAL_MS 50        // how often to evaluate median distances (ms)
+#define SONAR_MEDIAN_SAMPLES 5           // median filter buffer size (3/5/7/9)
+//#define SONAR_PARALLEL_TRIGGER         // trigger all 3 sensors simultaneously (instead of sequential)
 
 // ------ rain sensor ----------------------------------------------------------
 //#define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers

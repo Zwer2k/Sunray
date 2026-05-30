@@ -6,7 +6,6 @@
 
 #include "sonar.h"
 #include "config.h"
-#include "robot.h"
 #include "RunningMedian.h"
 #include <Arduino.h>
 
@@ -26,67 +25,85 @@
 // Conversion from uS to distance (round result to nearest cm or inch).
 #define NewPingConvert(echoTime, conversionFactor) (max(((unsigned int)echoTime + conversionFactor / 2) / conversionFactor, (echoTime ? 1 : 0)))
 
+#ifndef SONAR_MEDIAN_SAMPLES
+  #define SONAR_MEDIAN_SAMPLES 9
+#endif
+#ifndef SONAR_EVAL_INTERVAL_MS
+  #define SONAR_EVAL_INTERVAL_MS 50
+#endif
+#ifndef SONAR_DEBOUNCE_US
+  #define SONAR_DEBOUNCE_US 0
+#endif
 
+RunningMedian<unsigned int, SONAR_MEDIAN_SAMPLES> sonarLeftMeasurements;
+RunningMedian<unsigned int, SONAR_MEDIAN_SAMPLES> sonarRightMeasurements;
+RunningMedian<unsigned int, SONAR_MEDIAN_SAMPLES> sonarCenterMeasurements;
 
-RunningMedian<unsigned int, 9> sonarLeftMeasurements;
-RunningMedian<unsigned int, 9> sonarRightMeasurements;
-RunningMedian<unsigned int, 9> sonarCenterMeasurements;
-
-volatile unsigned long startTime = 0;
-volatile unsigned long echoTime = 0;
-volatile unsigned long echoDuration = 0;
+volatile unsigned long startTime[3] = {0, 0, 0};
+volatile unsigned long echoDuration[3] = {0, 0, 0};
 volatile byte sonarIdx = 0;
 bool added = false;
 unsigned long timeoutTime = 0;
 unsigned long nextEvalTime = 0;
+#ifdef SONAR_PARALLEL_TRIGGER
+  bool triggered[3] = {false, false, false};
+#endif
 
 
 #ifdef SONAR_INSTALLED
 
 // HC-SR04 ultrasonic sensor driver (2cm - 400cm)
-void startHCSR04(int triggerPin, int aechoPin) {
-  unsigned int uS;
+void startHCSR04(int triggerPin) {
   digitalWrite(triggerPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(triggerPin, LOW);
-  /*// if there is no reflection, we will get 0  (NO_ECHO)
-    uS = pulseIn(echoPin, HIGH, MAX_ECHO_TIME);
-    //if (uS == MAX_ECHO_TIME) uS = NO_ECHO;
-    //if (uS < MIN_ECHO_TIME) uS = NO_ECHO;
-    return uS;*/
+}
 
+static bool debounce(unsigned long &lastTime, unsigned long now) {
+  if (now - lastTime < SONAR_DEBOUNCE_US) return false;
+  lastTime = now;
+  return true;
 }
 
 void echoLeft() {
+#ifndef SONAR_PARALLEL_TRIGGER
   if (sonarIdx != 0) return;
+#endif
+  unsigned long now = micros();
+  static unsigned long lastInt = 0;
+  if (SONAR_DEBOUNCE_US > 0 && !debounce(lastInt, now)) return;
   if (digitalRead(pinSonarLeftEcho) == HIGH) {
-    startTime = micros();
-    echoTime = 0;
+    startTime[0] = now;
   } else {
-    echoTime = micros();
-    echoDuration = echoTime - startTime;
+    if (now >= startTime[0]) echoDuration[0] = now - startTime[0];
   }
 }
 
 void echoCenter() {
+#ifndef SONAR_PARALLEL_TRIGGER
   if (sonarIdx != 1) return;
+#endif
+  unsigned long now = micros();
+  static unsigned long lastInt = 0;
+  if (SONAR_DEBOUNCE_US > 0 && !debounce(lastInt, now)) return;
   if (digitalRead(pinSonarCenterEcho) == HIGH) {
-    startTime = micros();
-    echoTime = 0;
+    startTime[1] = now;
   } else {
-    echoTime = micros();
-    echoDuration = echoTime - startTime;
+    if (now >= startTime[1]) echoDuration[1] = now - startTime[1];
   }
 }
 
 void echoRight() {
+#ifndef SONAR_PARALLEL_TRIGGER
   if (sonarIdx != 2) return;
+#endif
+  unsigned long now = micros();
+  static unsigned long lastInt = 0;
+  if (SONAR_DEBOUNCE_US > 0 && !debounce(lastInt, now)) return;
   if (digitalRead(pinSonarRightEcho) == HIGH) {
-    startTime = micros();
-    echoTime = 0;
+    startTime[2] = now;
   } else {
-    echoTime = micros();
-    echoDuration = echoTime - startTime;
+    if (now >= startTime[2]) echoDuration[2] = now - startTime[2];
   }
 }
 
@@ -99,14 +116,43 @@ void Sonar::run() {
     distanceRight = distanceLeft = distanceCenter = 0;
     return;
   }
-  if (echoDuration != 0) {
+
+#ifdef SONAR_PARALLEL_TRIGGER
+  for (int i = 0; i < 3; i++) {
+    if (echoDuration[i] != 0) {
+      unsigned long raw = echoDuration[i];
+      if (raw > MAX_DURATION) raw = MAX_DURATION;
+      if (i == 0) sonarLeftMeasurements.add(raw);
+      else if (i == 1) sonarCenterMeasurements.add(raw);
+      else sonarRightMeasurements.add(raw);
+      echoDuration[i] = 0;
+      triggered[i] = true;
+    }
+  }
+
+  if (millis() > timeoutTime) {
+    for (int i = 0; i < 3; i++) {
+      if (!triggered[i]) {
+        if (i == 0) sonarLeftMeasurements.add(MAX_DURATION);
+        else if (i == 1) sonarCenterMeasurements.add(MAX_DURATION);
+        else sonarRightMeasurements.add(MAX_DURATION);
+      }
+      triggered[i] = false;
+    }
+    startHCSR04(pinSonarLeftTrigger);
+    startHCSR04(pinSonarCenterTrigger);
+    startHCSR04(pinSonarRightTrigger);
+    timeoutTime = millis() + 50;
+  }
+#else
+  if (echoDuration[sonarIdx] != 0) {
     added = true;
-    unsigned long raw = echoDuration;
+    unsigned long raw = echoDuration[sonarIdx];
     if (raw > MAX_DURATION) raw = MAX_DURATION;
     if (sonarIdx == 0) sonarLeftMeasurements.add(raw);
     else if (sonarIdx == 1) sonarCenterMeasurements.add(raw);
     else sonarRightMeasurements.add(raw);
-    echoDuration = 0;
+    echoDuration[sonarIdx] = 0;
   }
   if (millis() > timeoutTime) {
     if (!added) {
@@ -114,33 +160,25 @@ void Sonar::run() {
       else if (sonarIdx == 1) sonarCenterMeasurements.add(MAX_DURATION);
       else sonarRightMeasurements.add(MAX_DURATION);
     }
-    //if (millis() > nextSonarTime){
     sonarIdx = (sonarIdx + 1) % 3;
-    //nextSonarTime = millis() + 100;
-    //}
-    echoDuration = 0;
-    if (sonarIdx == 0) startHCSR04(pinSonarLeftTrigger, pinSonarLeftEcho);
-    else if (sonarIdx == 1) startHCSR04(pinSonarCenterTrigger, pinSonarCenterEcho);
-    else startHCSR04(pinSonarRightTrigger, pinSonarRightEcho);
-    timeoutTime = millis() + 50;    			 // 10
+    echoDuration[sonarIdx] = 0;
+    if (sonarIdx == 0) startHCSR04(pinSonarLeftTrigger);
+    else if (sonarIdx == 1) startHCSR04(pinSonarCenterTrigger);
+    else startHCSR04(pinSonarRightTrigger);
+    timeoutTime = millis() + 50;
     added = false;
   }
-  if (millis() > nextEvalTime) {
-    nextEvalTime = millis() + 200;
-    float value;
-    //sonarLeftMeasurements.getLowest(distanceLeft);
-    sonarLeftMeasurements.getMedian(distanceLeft);
-    //sonar1Measurements.getAverage(avg);
-    distanceLeft = convertCm(distanceLeft);
+#endif
 
-    //sonarRightMeasurements.getLowest(distanceRight);
+  if (millis() > nextEvalTime) {
+    nextEvalTime = millis() + SONAR_EVAL_INTERVAL_MS;
+    float value;
+    sonarLeftMeasurements.getMedian(distanceLeft);
+    distanceLeft = convertCm(distanceLeft);
     sonarRightMeasurements.getMedian(distanceRight);
     distanceRight = convertCm(distanceRight);
-
-    //sonarCenterMeasurements.getLowest(distanceCenter);
     sonarCenterMeasurements.getMedian(distanceCenter);
     distanceCenter = convertCm(distanceCenter);
-
   }
 #endif
 }
@@ -164,9 +202,6 @@ void Sonar::begin()
   attachInterrupt(digitalPinToInterrupt(pinSonarCenterEcho), echoCenter, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pinSonarRightEcho), echoRight, CHANGE);
 
-  //pinMan.setDebounce(pinSonarCenterEcho, 100);  // reject spikes shorter than usecs on pin
-  //pinMan.setDebounce(pinSonarRightEcho, 100);  // reject spikes shorter than usecs on pin
-  //pinMan.setDebounce(pinSonarLeftEcho, 100);  // reject spikes shorter than usecs on pin
   verboseOutput = false;
   nearObstacleTimeout = 0;
 #endif
