@@ -11,6 +11,7 @@
 #include "robot.h"
 #include "Stats.h"
 #include "helper.h"
+#include <Wire.h>
 #include "i2c.h"
 #include "events.h"
 
@@ -49,7 +50,7 @@ void StateEstimator::begin(){
 // start IMU sensor and calibrate
 bool StateEstimator::startIMU(bool forceIMU){    
   // detect IMU
-  uint8_t data = 0;
+  //uint8_t data = 0;
   int counter = 0;  
   while ((forceIMU) || (counter < 1)){          
      imuDriver.detect();
@@ -59,7 +60,9 @@ bool StateEstimator::startIMU(bool forceIMU){
      I2Creset();  
      Wire.begin();    
      #ifdef I2C_SPEED
-       Wire.setClock(I2C_SPEED);   
+        #ifndef ARDUINO_ARCH_STM32
+          Wire.setClock(I2C_SPEED);  
+        #endif
      #endif
      counter++;
      if (counter > 5){    

@@ -287,7 +287,7 @@ bool Adafruit_ZeroTimer::tc_init() {
     @returns True on success
 */
 /**************************************************************************/
-boolean Adafruit_ZeroTimer::PWMout(boolean pwmout, uint8_t channum,
+bool Adafruit_ZeroTimer::PWMout(bool pwmout, uint8_t channum,
                                    uint8_t pin) {
   Tc *const tc_modules[TC_INST_NUM] = TC_INSTS;
 
@@ -560,7 +560,7 @@ void Adafruit_ZeroTimer::setPeriodMatch(uint32_t period, uint32_t match,
    called
 */
 /**************************************************************************/
-void Adafruit_ZeroTimer::setCallback(boolean enable, tc_callback cb_type,
+void Adafruit_ZeroTimer::setCallback(bool enable, tc_callback cb_type,
                                      void (*callback_func)(void)) {
   if (callback_func == NULL)
     return;
@@ -672,7 +672,7 @@ void Adafruit_ZeroTimer::setCompare(uint8_t channum, uint32_t compare) {
     @param  en True to enable, False to disable
 */
 /**************************************************************************/
-void Adafruit_ZeroTimer::enable(boolean en) {
+void Adafruit_ZeroTimer::enable(bool en) {
   // First, check if its enabled
 #if defined(__SAMD51__)
   while (_hw->COUNT8.SYNCBUSY.bit.ENABLE)

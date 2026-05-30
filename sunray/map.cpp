@@ -696,7 +696,7 @@ bool Map::setPoint(int idx, float x, float y){
   }    
   if (idx % 100 == 0){
     if (freeMemory () < 20000){
-      CONSOLE.println("OUT OF MEMORY");
+      CONSOLE.println("setPoint: OUT OF MEMORY");
       return false;
     }
   }
@@ -1864,7 +1864,7 @@ bool Map::findPath(Point &src, Point &dst){
     if (!pathFinderObstacles.alloc(1 + exclusions.numPolygons + obstacles.numPolygons)) return false;
     
     if (freeMemory () < 5000){
-      CONSOLE.println("OUT OF MEMORY");
+      CONSOLE.println("findPath: OUT OF MEMORY");
       return false;
     }
 

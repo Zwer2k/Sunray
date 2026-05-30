@@ -3,9 +3,9 @@
 // Licensed GPLv3 for open source use
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
+#include "../../config.h"
 #include "Arduino.h"
 #include "skytraq.h"
-#include "../../config.h"
 
 
 //#define GPS_DUMP 1
@@ -137,7 +137,7 @@ void SKYTRAQ::parseBinary(int b)
   else if (this->state == GOT_ID) {
 
       this->addchk(b);
-      if (this->count < sizeof(this->payload)){
+      if (this->count < (int)sizeof(this->payload)){
         this->payload[this->count] = b; 
       } 
       this->count += 1;
@@ -258,7 +258,7 @@ void SKYTRAQ::run()
 
 // --------- NMEA parser callback ----------
 
-bool SKYTRAQ::gnssUpdated(U32 f, const char* buf, ParsingType type)
+bool SKYTRAQ::gnssUpdated(TU32 f, const char* buf, ParsingType type)
 {
   gnssUpdateFlag |= f;
   gdata = parser.GetGnssData();
@@ -267,14 +267,14 @@ bool SKYTRAQ::gnssUpdated(U32 f, const char* buf, ParsingType type)
   return true;
 }
 
-bool SKYTRAQ::processNmea(U32 f, const char* buf, ParsingType type)
+bool SKYTRAQ::processNmea(TU32 f, const char* buf, ParsingType type)
 {
-  U32 i = 0;
+  TU32 i = 0;
   const GnssData& gnss = *gdata;
 
   for(; i < 32; ++i)
   {
-    U32 mask = (1 << i);
+    TU32 mask = (1 << i);
     switch((mask & f))
     {
     case SkyTraqNmeaParser::NoUpdate:

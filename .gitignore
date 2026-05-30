@@ -1,2 +1,6 @@
+config.h
+configSecret.h
 .pio
-.vscode
+*/.pio
+.vscode/*
+*/.vscode/*

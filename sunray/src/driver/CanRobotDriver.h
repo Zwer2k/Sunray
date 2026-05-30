@@ -5,6 +5,8 @@
 
 // owlRobotics platform mower: robot (with motor drivers, battery, bumper etc.) connected and controlled via CAN bus
 
+#ifdef DRV_CAN_ROBOT
+
 #ifndef CAN_ROBOT_DRIVER_H
 #define CAN_ROBOT_DRIVER_H
 
@@ -499,4 +501,5 @@ class CanRelaisDriver: public RelaisDriver {
 
 };
 
+#endif
 #endif

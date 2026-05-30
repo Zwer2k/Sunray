@@ -85,6 +85,8 @@ class AmMotorDriver: public MotorDriver {
     DriverChip A4931;
     DriverChip BLDC8015A;
     DriverChip JYQD;
+    DriverChip MOW800_MC33035;
+    DriverChip MOW800_MC33035_MOW;
     DriverChip OWL;
     DriverChip CUSTOM;
     DriverChip mowDriverChip;

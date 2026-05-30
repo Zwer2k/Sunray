@@ -83,6 +83,9 @@ void Bumper::run() {
     */
     lastCallBumperObstacle = millis();
   }
+
+  leftPressed = outputLeftPressed;
+  rightPressed = outputRightPressed;
 }
 
 

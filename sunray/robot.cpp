@@ -21,7 +21,9 @@
 #include "ble.h"
 #include "motor.h"
 #include "src/driver/AmRobotDriver.h"
-#include "src/driver/CanRobotDriver.h"
+#if defined(DRV_CAN_ROBOT)
+  #include "src/driver/CanRobotDriver.h"
+#endif
 #include "src/driver/SerialRobotDriver.h"
 #include "src/driver/MpuDriver.h"
 #include "src/driver/BnoDriver.h"
@@ -45,7 +47,9 @@
 #include "events.h"
 
 // #define I2C_SPEED  10000
-#define _BV(x) (1 << (x))
+#ifndef _BV
+  #define _BV(x) (1 << (x))
+#endif
 
 const signed char orientationMatrix[9] = {
   1, 0, 0,
@@ -433,6 +437,12 @@ void outputConfig(){
   #ifdef MOTOR_DRIVER_BRUSHLESS_GEARS_JYQD
     CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_GEARS_JYQD");
   #endif
+  #ifdef MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035
+    CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035");
+  #endif 
+  #ifdef MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035
+    CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_MOW800_MC33035");
+  #endif 
   #ifdef MOTOR_DRIVER_BRUSHLESS_GEARS_OWL
     CONSOLE.println("MOTOR_DRIVER_BRUSHLESS_GEARS_OWL");
   #endif
@@ -572,17 +582,22 @@ void start(){
     
   Wire.begin();      
   analogReadResolution(12);  // configure ADC 12 bit resolution
-  unsigned long timeout = millis() + 2000;
-  while (millis() < timeout){
-    if (!checkAT24C32()){
-      CONSOLE.println(F("PCB not powered ON or RTC module missing"));      
-      I2Creset();  
-      Wire.begin();    
-      #ifdef I2C_SPEED
-        Wire.setClock(I2C_SPEED);     
-      #endif
-    } else break;
-  }  
+  #if __MOW800__
+  #else
+    unsigned long timeout = millis() + 2000;
+    while (millis() < timeout){
+      if (!checkAT24C32()){
+        CONSOLE.println(F("PCB not powered ON or RTC module missing"));      
+        I2Creset();  
+        Wire.begin();    
+        #ifdef I2C_SPEED
+          #ifndef ARDUINO_ARCH_STM32
+            Wire.setClock(I2C_SPEED);
+          #endif     
+        #endif
+      } else break;
+    }
+  #endif  
   
   // give Arduino IDE users some time to open serial console to actually see very first console messages
   #ifndef __linux__
@@ -1092,6 +1107,7 @@ void run(){
       activeOp->onBatteryUndervoltage();
     } 
     else {      
+#if USE_TEMP_SENSOR == 1 || USE_TEMP_SENSOR == true
       if (USE_TEMP_SENSOR){
         if (stateEstimator.stateTemp > DOCK_OVERHEAT_TEMP){
           activeOp->onTempOutOfRangeTriggered();
@@ -1100,6 +1116,7 @@ void run(){
           activeOp->onTempOutOfRangeTriggered();
         }
       }
+#endif
       if (RAIN_ENABLE){
         // rain sensor should trigger serveral times to robustly detect rain (robust rain detection)
         // it should not trigger if one rain drop or wet tree leaves touches the sensor  
@@ -1243,6 +1260,7 @@ void run(){
     }
   }
 
+#if defined(DRV_CAN_ROBOT)
   if(testRelais){
     // Relais 1 Test activation
     relaisDriver.setRelaisState(RELAIS_1_NODE_ID, true);
@@ -1257,6 +1275,7 @@ void run(){
     relaisDriver.setRelaisState(RELAIS_2_NODE_ID, false);
     delay(500);
  }
+#endif
 }        
 
 

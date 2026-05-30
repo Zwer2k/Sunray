@@ -3,8 +3,8 @@
 // Licensed GPLv3 for open source use
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
-#include "udpserial.h"
 #include "config.h"
+#include "udpserial.h"
 #ifdef __linux__
   #include <BridgeUdp.h>
 #else
@@ -15,7 +15,9 @@
 #if defined(_SAM3XA_)                 // Arduino Due
   #define CONSOLE SerialUSB
 #else
-  #define CONSOLE Serial
+  #ifndef CONSOLE
+    #define CONSOLE Serial
+  #endif
 #endif
 
 

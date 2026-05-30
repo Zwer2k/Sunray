@@ -3,6 +3,7 @@
 // Licensed GPLv3 for open source use
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
+#ifdef DRV_CAN_ROBOT
 
 #include "CanRobotDriver.h"
 #include "../../config.h"
@@ -1807,3 +1808,5 @@ void CanRelaisDriver::setRelaisStateCountdown(int relais_node_id, bool state, un
 
   canRobot.sendCanData(OWL_RELAIS_MSG_ID, relais_node_id, can_cmd_set, owlrls::can_val_relais_countdown, data);
 }
+
+#endif

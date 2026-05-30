@@ -3,9 +3,8 @@
 // Licensed GPLv3 for open source use
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
-
-#include "LineTracker.h"
 #include "robot.h"
+#include "LineTracker.h"
 #include "StateEstimator.h"
 #include "helper.h"
 #include "pid.h"
@@ -127,7 +126,7 @@ void LineTracker::trackLine(bool runControl){
     } 
     else {
       if ((stateEstimator.stateLocalizationMode == LOC_GPS) && (gps.solution == SOL_FLOAT)){        
-        linear = min(stateEstimator.setSpeed, 0.1); // reduce speed for float solution
+        linear = min(stateEstimator.setSpeed, (float)0.1); // reduce speed for float solution
         //CONSOLE.println("SLOW: float");
       } else
         linear = stateEstimator.setSpeed;         // desired speed
@@ -151,7 +150,7 @@ void LineTracker::trackLine(bool runControl){
           CONSOLE.println("motor overload detected: reducing linear speed");
       }
       printmotoroverload = true;
-      linear = min(linear, MOTOR_OVERLOAD_SPEED);  
+      linear = min(linear, (float)MOTOR_OVERLOAD_SPEED);  
       //CONSOLE.println("SLOW: overload");
     } else {
       printmotoroverload = false;
@@ -227,7 +226,7 @@ void LineTracker::trackLine(bool runControl){
       if (!buzzer.isPlaying()) buzzer.sound(SND_WARNING, true);
       float maxAngular = 0.015;  // 0.02
       float maxLinear = 0.05;      
-      angular =  max(min(1.0 * trackerDiffDelta, maxAngular), -maxAngular);
+      angular =  max(min((float)1.0 * trackerDiffDelta, maxAngular), -maxAngular);
       angular =  max(min(angular, maxAngular), -maxAngular);      
       linear = 0.05;      
       if (maps.trackReverse) linear = -0.05;   // reverse line tracking needs negative speed           

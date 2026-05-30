@@ -4,6 +4,7 @@ extern "C" void cameraStreamerStart(int index, int width, int height, int fps, i
 extern "C" void cameraStreamerStop();
 #endif
 #include "config.h"
+#include "comm.h"
 #include "robot.h"
 #include "StateEstimator.h"
 #include "LineTracker.h"
@@ -37,7 +38,7 @@ extern "C" void cameraStreamerStop();
 // answer Bluetooth with CRC
 void Comm::cmdAnswer(String s){  
   byte crc = 0;
-  for (int i=0; i < s.length(); i++) crc += s[i];
+  for (int i=0; i < (int)s.length(); i++) crc += s[i];
   s += F(",0x");
   if (crc <= 0xF) s += F("0");
   s += String(crc, HEX);  
@@ -52,11 +53,11 @@ void Comm::cmdTuneParam(){
   int counter = 0;
   int paramIdx = -1;
   int lastCommaIdx = 0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
           paramIdx = floatValue;
@@ -128,7 +129,7 @@ void Comm::cmdControl(){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
@@ -222,11 +223,11 @@ void Comm::cmdMotor(){
   int lastCommaIdx = 0;
   float linear=0;
   float angular=0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       float value = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
           linear = value;
@@ -318,12 +319,12 @@ void Comm::cmdWaypoint(){
   float x=0;
   float y=0;
   bool success = true;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){            
-      int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){            
+      float intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
       float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
           widx = intValue;
@@ -368,13 +369,13 @@ void Comm::cmdWayCount(){
   if (cmd.length()<6) return;  
   int counter = 0;
   int lastCommaIdx = 0;
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){            
-      int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
-      float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();      
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){            
+      float intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
+      //float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();      
       if (counter == 1){                            
           if (!maps.setWayCount(WAY_PERIMETER, intValue)) return;                
       } else if (counter == 2){
@@ -403,13 +404,13 @@ void Comm::cmdExclusionCount(){
   int counter = 0;
   int lastCommaIdx = 0;
   int widx=0;  
-  for (int idx=0; idx < cmd.length(); idx++){
+  for (int idx=0; idx < (int)cmd.length(); idx++){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
     if ((ch == ',') || (idx == cmd.length()-1)){            
-      int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
-      float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
+      float intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
+      //float floatValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toFloat();
       if (counter == 1){                            
           widx = intValue;
       } else if (counter == 2){
@@ -436,7 +437,7 @@ void Comm::cmdPosMode(){
     char ch = cmd[idx];
     //Serial.print("ch=");
     //Serial.println(ch);
-    if ((ch == ',') || (idx == cmd.length()-1)){
+    if ((ch == ',') || (idx == (int)cmd.length()-1)){
       int intValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toInt();
       double doubleValue = cmd.substring(lastCommaIdx+1, ch==',' ? idx : idx+1).toDouble();
       if (counter == 1){                            
@@ -693,6 +694,144 @@ void Comm::cmdSummary(){
   cmdAnswer(s);  
 }
 
+// request sensor summary
+void Comm::cmdSensorSummary(){
+  String s = F("S3,");
+  s += sonar.distanceLeft;  
+  s += ",";
+  s += sonar.distanceCenter;
+  s += ",";
+  s += sonar.distanceRight;
+  s += ",";
+  s += sonar.obstacle();
+  s += ",";
+  s += sonar.nearObstacle();
+  s += ",";
+  s += bumper.testLeft();
+  s += ",";
+  s += bumper.testRight();
+  s += ",";
+  s += bumper.obstacle();
+  s += ",";
+  s += bumper.nearObstacle();
+  s += ",";
+  s += lidarBumper.obstacle();  
+  s += ",";
+  s += lidarBumper.nearObstacle();
+  s += ",";
+  s += liftDriver.triggered();
+  s += ",";
+  s += rainDriver.triggered();
+  cmdAnswer(s);  
+}
+
+// request GPS satellite details
+void Comm::cmdGpsDetails(){
+  String s = F("S4,");
+  s += gps.numSV;
+  s += ",";
+  s += gps.numSVdgps;
+  s += ",";
+  s += gps.solution;
+  s += ",";
+  s += gps.hAccuracy;
+  s += ",";
+  s += gps.vAccuracy;
+  s += ",";
+  s += gps.dgpsAge;
+  s += ",";
+  s += gps.satelliteCount;
+  for (int i=0; i < gps.satelliteCount; i++){
+    s += ",";
+    s += gps.satellites[i].gnssId;
+    s += ",";
+    s += gps.satellites[i].svId;
+    s += ",";
+    s += gps.satellites[i].sigId;
+    s += ",";
+    s += gps.satellites[i].cno;
+    s += ",";
+    s += gps.satellites[i].qualityInd;
+    s += ",";
+    s += (gps.satellites[i].prUsed ? 1 : 0);
+    s += ",";
+    s += (gps.satellites[i].crCorrUsed ? 1 : 0);
+    s += ",";
+    s += gps.satellites[i].prRes;
+    s += ",";
+    s += gps.satellites[i].elevation;
+    s += ",";
+    s += gps.satellites[i].azimuth;
+  }
+  cmdAnswer(s);
+}
+
+static uint8_t hexCharToByte(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  return 0;
+}
+
+static void hexStringToBytes(const String& hex, uint8_t* out, size_t& outLen) {
+  outLen = 0;
+  size_t len = hex.length();
+  for (size_t i = 0; i + 1 < len; i += 2) {
+    out[outLen++] = (hexCharToByte(hex[i]) << 4) | hexCharToByte(hex[i+1]);
+  }
+}
+
+static String bytesToHexString(const uint8_t* data, size_t len) {
+  String hex;
+  hex.reserve(len * 2);
+  for (size_t i = 0; i < len; i++) {
+    char buf[3];
+    sprintf(buf, "%02X", data[i]);
+    hex += buf;
+  }
+  return hex;
+}
+
+// UBX Proxy: send hex bytes to GPS, receive response, return as hex
+void Comm::cmdUbxProxy(){
+  String hexPayload = cmd.substring(5); // skip "AT+U,"
+  uint8_t txBuf[256];
+  size_t txLen = 0;
+  hexStringToBytes(hexPayload, txBuf, txLen);
+
+  // Drain stale data from GPS buffer before sending
+  while (GPS.available()) GPS.read();
+
+  // Send to GPS
+  for (size_t i = 0; i < txLen; i++) {
+    GPS.write(txBuf[i]);
+  }
+
+  // Collect ALL bytes from the GPS for up to 300ms.
+  // We do NOT stop on the first frame because periodic messages
+  // (NAV-HPPOSLLH, NAV-RELPOSNED, …) arrive asynchronously and
+  // may precede the actual poll response.  The frontend will
+  // extract the relevant UBX frame from the complete hex dump.
+  uint32_t start = millis();
+  uint8_t rxBuf[2048];
+  size_t rxLen = 0;
+  const uint32_t maxWait = 300;
+
+  while (millis() - start < maxWait && rxLen < sizeof(rxBuf)) {
+    while (GPS.available() && rxLen < sizeof(rxBuf)) {
+      rxBuf[rxLen++] = GPS.read();
+    }
+    // Grace period: once data starts arriving, give 50ms for more
+    if (rxLen > 0) start = millis() - (maxWait - 50);
+    delay(1);
+  }
+
+  String responseHex = bytesToHexString(rxBuf, rxLen);
+  String s = F("U,");
+  s += responseHex;
+  cmdAnswer(s);
+}
+
 // request statistics
 void Comm::cmdStats(){
   String s = F("T,");
@@ -901,7 +1040,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ( s != "AT+V"){
       if (encryptMode == 1){
         // decrypt        
-        for (int i=0; i < cmd.length(); i++) {
+        for (int i=0; i < (int)cmd.length(); i++) {
           if ( (byte(cmd[i]) >= 32) && (byte(cmd[i]) <= 126) ){  // ASCII between 32..126
             int code = byte(cmd[i]);
             code -= encryptKey;
@@ -958,7 +1097,9 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if (cmd.length() <= 4){
       cmdSummary(); 
     } else {
-      if (cmd[4] == '2') cmdObstacles();      
+      if (cmd[4] == '2') cmdObstacles();
+      if (cmd[4] == '3') cmdSensorSummary();
+      if (cmd[4] == '4') cmdGpsDetails();
     }
   }
   if (cmd[3] == 'M') cmdMotor();
@@ -977,6 +1118,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ((cmd.length() > 4) && (cmd[4] == 'T')) cmdTimetable();
     else cmdStats();
   }
+  if (cmd[3] == 'U') cmdUbxProxy();
   if (cmd[3] == 'L') cmdClearStats();
   if (cmd[3] == 'E') cmdMotorTest();  
   if (cmd[3] == 'Q') cmdMotorPlot();  
@@ -1001,7 +1143,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
   if (cmd[3] == 'G') cmdToggleGPSSolution();   // for developers
   if (cmd[3] == 'K') cmdKidnap();   // for developers
   if (cmd[3] == 'Z') cmdStressTest();   // for developers
-  if (cmd[3] == 'Y') {
+    if (cmd[3] == 'Y') {
     if (cmd.length() <= 4){
       cmdTriggerWatchdog();   // for developers
     } else {
@@ -1009,6 +1151,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
       if (cmd[4] == '3') cmdSwitchOffRobot();   // for developers
     }
   }
+  cmd = "";
 }
 
 // Handle AT+CAM,enable,index,width,height,fps

@@ -9,10 +9,12 @@
 #ifndef ROBOT_H
 #define ROBOT_H
 
-#include "motor.h"
 #include "config.h"
+#include "motor.h"
 #include "src/driver/AmRobotDriver.h"
-#include "src/driver/CanRobotDriver.h"
+#if defined(DRV_CAN_ROBOT)
+  #include "src/driver/CanRobotDriver.h"
+#endif
 #include "src/driver/SerialRobotDriver.h"
 #include "src/driver/SimRobotDriver.h"
 #include "src/driver/MpuDriver.h"

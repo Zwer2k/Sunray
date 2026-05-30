@@ -34,7 +34,9 @@ void MowOp::begin(){
     battery.setIsDocked(false);                
     timetable.setMowingCompletedInCurrentTimeFrame(false); 
     CONSOLE.println(" Relais will be set to true (on)");
+#ifdef DRV_CAN_ROBOT
     relaisDriver.setRelaisState(RELAIS_1_NODE_ID, true); // enable relais 1 (Lidar) when not charging               
+#endif
 
     // plan route to next target point 
 

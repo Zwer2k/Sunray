@@ -12,6 +12,8 @@
   #define CONSOLE SerialUSB
 #elif __SAMD51__
   #define CONSOLE Serial
+#elif __MOW800__
+  #define CONSOLE Serial1
 #else
   #include <Console.h>
   #define CONSOLE Console

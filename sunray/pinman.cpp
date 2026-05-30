@@ -19,7 +19,9 @@
 
 
 static uint8_t PWMEnabled = 0;
+#if defined(_SAM3XA_)
 static uint8_t pinEnabled[PINS_COUNT];
+#endif
 static uint8_t TCChanEnabled[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 
@@ -76,9 +78,11 @@ void PinManager::begin() {
   TCCR3B = (TCCR3B & 0xF8) | 0x02;    // set PWM frequency 3.9 Khz (pin2,3,5)
 #endif
 
+#if defined(_SAM3XA_)
   uint8_t i;
   for (i = 0; i < PINS_COUNT; i++)
     pinEnabled[i] = 0;
+#endif
 }
 
 
@@ -143,6 +147,16 @@ void PinManager::analogWrite(uint32_t ulPin, uint32_t ulValue, byte pwmFreq) {
     case PWM_FREQ_29300:
       tcc_ctrla_prescaler = TCC_CTRLA_PRESCALER_DIV16;
       tccTop = 0xFF;  
+      break;    
+  }
+#elif defined(__MOW800__)
+  int pwmFrequency = 3900;
+  switch(pwmFreq){    
+    case PWM_FREQ_3900:
+      pwmFrequency = 3900;
+      break;
+    case PWM_FREQ_29300:
+      pwmFrequency = 29300;
       break;    
   }
 #endif
@@ -530,7 +544,9 @@ void PinManager::analogWrite(uint32_t ulPin, uint32_t ulValue, byte pwmFreq) {
   } else {
     digitalWrite(ulPin, HIGH);
   }
-
+#elif defined(__MOW800__)
+  ::analogWriteFrequency(pwmFrequency);
+  ::analogWrite(ulPin, ulValue);
 #else // ----------------------------------------------------------------------------------------
   ::analogWrite(ulPin, ulValue);
 

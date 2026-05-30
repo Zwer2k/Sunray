@@ -4,8 +4,8 @@
 // or Grau GmbH Commercial License for commercial use (http://grauonline.de/cms2/?page_id=153)
 
 
-#include "SimRobotDriver.h"
 #include "../../config.h"
+#include "SimRobotDriver.h"
 #include "../../robot.h"
 #include "../../helper.h"
 
