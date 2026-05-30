@@ -340,10 +340,14 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define SONAR_ENABLE false
 #define SONAR_TRIGGER_OBSTACLES true     // should sonar be used to trigger obstacles? if not, mower will only slow down
 #define CAN_SONAR_TRIGGER_OBSTACLES 1    // enable owlController CAN ultrasonic obstacle trigger
-#define SONAR_LEFT_OBSTACLE_CM   6      // stop mowing operation below this distance (cm) 
-#define SONAR_CENTER_OBSTACLE_CM 8      // stop mowing operation below this distance (cm) 
-#define SONAR_RIGHT_OBSTACLE_CM  6      // stop mowing operation below this distance (cm) 
+#define SONAR_LEFT_OBSTACLE_CM   12     // stop mowing operation below this distance (cm) 
+#define SONAR_CENTER_OBSTACLE_CM 16     // stop mowing operation below this distance (cm) 
+#define SONAR_RIGHT_OBSTACLE_CM  12     // stop mowing operation below this distance (cm) 
 #define SONAR_POLL_INTERVAL_MS   200     // CAN polling interval for sonar distances
+#define SONAR_DEBOUNCE_US 100            // software debounce echo pin (µs), 0 = disable
+#define SONAR_EVAL_INTERVAL_MS 50        // how often to evaluate median distances (ms)
+#define SONAR_MEDIAN_SAMPLES 5           // median filter buffer size (3/5/7/9)
+#define SONAR_PARALLEL_TRIGGER         // trigger all 3 sensors simultaneously (instead of sequential)
 
 // ------ rain sensor ----------------------------------------------------------
 //#define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers
@@ -477,7 +481,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 #define DOCK_UNDOCK_TRACKSLOW_DISTANCE 5 // set distance (m) from dock for trackslow (speed limit)
 
-#define UNDOCK_IGNORE_GPS_DISTANCE 2 // set distance (m) from dock to ignore gps while undocking
+#define UNDOCK_IGNORE_GPS_DISTANCE 4 // set distance (m) from dock to ignore gps while undocking
 
 #define DOCK_FRONT_SIDE true    // dock with mower front side (true) or back side (false)? 
 
@@ -496,8 +500,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define TARGET_ANGLE_TOLERANCE 20
 
 // stanley control for path tracking - determines gain how fast to correct for lateral path errors
-#define STANLEY_CONTROL_P_NORMAL  3.0   // 3.0 for path tracking control (angular gain) when mowing
-#define STANLEY_CONTROL_K_NORMAL  1.0   // 1.0 for path tracking control (lateral gain) when mowing
+#define STANLEY_CONTROL_P_NORMAL  1.5   // 3.0 for path tracking control (angular gain) when mowing
+#define STANLEY_CONTROL_K_NORMAL  0.3   // 1.0 for path tracking control (lateral gain) when mowing
 
 #define STANLEY_CONTROL_P_SLOW    3.0   // 3.0 for path tracking control (angular gain) when docking tracking
 #define STANLEY_CONTROL_K_SLOW    0.1   // 0.1 for path tracking control (lateral gain) when docking tracking
