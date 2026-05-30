@@ -23,6 +23,35 @@ String MowOp::name(){
 }
 
 void MowOp::begin(){
+    // goto mode (AT+R) - skip pathfinding, drive directly to free point
+    if (maps.gotoActive){
+        maps.gotoActive = false;
+        CONSOLE.print("OP_MOW (goto mode)");
+        CONSOLE.print(" mowPWMCurr=");
+        CONSOLE.print(motor.motorMowPWMCurr);
+        CONSOLE.print(" saved=");
+        CONSOLE.println(maps.savedMowMotorRunningBeforeGoto);
+        motor.enableTractionMotors(true);
+        motor.setReleaseBrakesWhenZero(false);
+        motor.setLinearAngularSpeed(0,0);
+        if (maps.savedMowMotorRunningBeforeGoto){
+            CONSOLE.println("goto: mow ON (was ON before)");
+            motor.enableMowMotor = true;
+            motor.setMowState(true);
+        } else {
+            CONSOLE.println("goto: mow OFF (was OFF before)");
+            motor.enableMowMotor = false;
+            motor.stopImmediately(true);
+        }
+        battery.setIsDocked(false);
+        timetable.setMowingCompletedInCurrentTimeFrame(false);
+        stateEstimator.lastFixTime = millis();
+        maps.setLastTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
+        lastMapRoutingFailed = false;
+        mapRoutingFailedCounter = 0;
+        return;
+    }
+
     bool error = false;
     bool routingFailed = false;      
 
