@@ -18,6 +18,10 @@
 // we check for memory corruptions by storing one additional item in all dynamic arrays and 
 // checking the value of the item during free operation
 #define CHECK_CORRUPT   1
+
+#ifndef SETPOINT_MIN_FREE_MEMORY
+#define SETPOINT_MIN_FREE_MEMORY 20000
+#endif
 #define CHECK_ID        0x4A4A
 
 Point *CHECK_POINT = (Point*)0x12345678;  // just some arbitray address for corruption check
@@ -697,7 +701,7 @@ bool Map::setPoint(int idx, float x, float y){
     clearMap();
   }    
   if (idx % 100 == 0){
-    if (freeMemory () < 20000){
+    if (freeMemory () < SETPOINT_MIN_FREE_MEMORY){
       CONSOLE.println("setPoint: OUT OF MEMORY");
       return false;
     }

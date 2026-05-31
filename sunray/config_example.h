@@ -402,6 +402,12 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define CPG_CONFIG_FILTER_CNOTHRS  30   // 30 dbHz (robust), 13 dbHz (less robust)
 #define GPS_CONFIG_DGNSS_TIMEOUT 60    // 60 sec DGNSS timeout
 
+// ------ map setPoint memory threshold ---------------------------------
+// minimum free heap (bytes) required for setPoint to succeed
+// STM32F103ZE (~19KB free after 8h) needs a lower threshold than SAMD51 (~60KB free)
+#ifndef SETPOINT_MIN_FREE_MEMORY
+#define SETPOINT_MIN_FREE_MEMORY  5000
+#endif
 
 // ------ obstacle detection and avoidance  -------------------------
 
