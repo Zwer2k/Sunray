@@ -846,12 +846,8 @@ void Comm::cmdUbxProxy(){
   }
 
   // Collect ALL bytes from the GPS for up to 300ms.
-  // We do NOT stop on the first frame because periodic messages
-  // (NAV-HPPOSLLH, NAV-RELPOSNED, …) arrive asynchronously and
-  // may precede the actual poll response.  The frontend will
-  // extract the relevant UBX frame from the complete hex dump.
   uint32_t start = millis();
-  uint8_t rxBuf[2048];
+  uint8_t rxBuf[512];
   size_t rxLen = 0;
   const uint32_t maxWait = 300;
 
@@ -864,10 +860,22 @@ void Comm::cmdUbxProxy(){
     delay(1);
   }
 
-  String responseHex = bytesToHexString(rxBuf, rxLen);
-  String s = F("U,");
-  s += responseHex;
-  cmdAnswer(s);
+  // Build "U,<hex>" response directly into cmdResponse without large intermediate Strings
+  cmdResponse = F("U,");
+  size_t hexReserve = 3 + rxLen * 2 + 7; // "U," + hex + ",0x" + "HH" + "\r\n"
+  cmdResponse.reserve(hexReserve);
+  char buf[3];
+  for (size_t i = 0; i < rxLen; i++) {
+    snprintf(buf, sizeof(buf), "%02X", rxBuf[i]);
+    cmdResponse += buf;
+  }
+  // Append CRC and terminator
+  byte crc = 0;
+  for (size_t i = 0; i < (size_t)cmdResponse.length(); i++) crc += (byte)cmdResponse[i];
+  cmdResponse += F(",0x");
+  if (crc <= 0xF) cmdResponse += '0';
+  cmdResponse += String(crc, HEX);
+  cmdResponse += F("\r\n");
 }
 
 // request statistics
