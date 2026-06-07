@@ -1843,107 +1843,120 @@ int Map::findNextNeighbor(NodeList &nodes, PolygonList &obstacles, Node &node, i
 bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY) {
     if (perimeterPoints.numPoints < 3) return false;
 
-    Point startPt(startX, startY);
-    Point targetPt(targetX, targetY);
+    Point startPt(startX, startY), targetPt(targetX, targetY);
 
-    // Direct path is safe (inside perimeter, no crossing) → let caller use direct
     if (pointIsInsidePolygon(perimeterPoints, startPt) &&
         pointIsInsidePolygon(perimeterPoints, targetPt) &&
-        !linePolygonIntersection(startPt, targetPt, perimeterPoints)) {
+        !linePolygonIntersection(startPt, targetPt, perimeterPoints))
         return false;
-    }
 
-    // Find closest perimeter points to start and target
     int startIdx = -1, targetIdx = -1;
-    float minStartDist = 1e9, minTargetDist = 1e9;
-
+    float minStart = 1e9, minTarget = 1e9;
     for (int i = 0; i < perimeterPoints.numPoints; i++) {
         float d = distance(perimeterPoints.points[i], startPt);
-        if (d < minStartDist) { minStartDist = d; startIdx = i; }
-
+        if (d < minStart) { minStart = d; startIdx = i; }
         d = distance(perimeterPoints.points[i], targetPt);
-        if (d < minTargetDist) { minTargetDist = d; targetIdx = i; }
+        if (d < minTarget) { minTarget = d; targetIdx = i; }
     }
-
     if (startIdx < 0 || targetIdx < 0) return false;
 
-    // Shorter direction along perimeter
-    int numPts = perimeterPoints.numPoints;
-    int fwdSteps, revSteps;
-    if (targetIdx >= startIdx) {
-        fwdSteps = targetIdx - startIdx;
-        revSteps = numPts - fwdSteps;
-    } else {
-        revSteps = startIdx - targetIdx;
-        fwdSteps = numPts - revSteps;
-    }
-
-    bool useFwd = (fwdSteps <= revSteps);
-    int steps = useFwd ? fwdSteps : revSteps;
-
+    int N = perimeterPoints.numPoints;
+    int fwd = (targetIdx >= startIdx) ? targetIdx - startIdx : targetIdx + N - startIdx;
+    int rev = N - fwd;
+    bool fwdDir = (fwd <= rev);
+    int steps = fwdDir ? fwd : rev;
     if (steps <= 1) return false;
 
-    // Subsample perimeter waypoints
-    const int MAX_WP = 25;
-    int interval = max(1, steps / MAX_WP);
+    float cx = 0, cy = 0;
+    for (int j = 0; j < N; j++) {
+        cx += perimeterPoints.points[j].x();
+        cy += perimeterPoints.points[j].y();
+    }
+    cx /= N; cy /= N;
 
-    // Count waypoints
-    int i = startIdx;
-    int pos = 0;
-    int numWP = 0;
-    while (true) {
-        if (pos % interval == 0 || i == targetIdx) numWP++;
-        if (i == targetIdx) break;
-        pos++;
-        if (useFwd) { i++; if (i >= numPts) i = 0; }
-        else { i--; if (i < 0) i = numPts - 1; }
+    auto offsetPt = [&](int pi) {
+        float x = perimeterPoints.points[pi].x(), y = perimeterPoints.points[pi].y();
+        float dx = cx - x, dy = cy - y;
+        float d = sqrt(dx*dx + dy*dy);
+        if (d > 0.01f) { dx /= d; dy /= d; }
+        return Point(x + dx * 0.2f, y + dy * 0.2f);
+    };
+
+    auto angleAt = [&](Point &a, Point &b, Point &c) {
+        float ax = b.x()-a.x(), ay = b.y()-a.y();
+        float bx = c.x()-b.x(), by = c.y()-b.y();
+        float la = sqrt(ax*ax+ay*ay), lb = sqrt(bx*bx+by*by);
+        if (la < 0.01f || lb < 0.01f) return 180.0f;
+        float dot = (ax*bx + ay*by) / (la * lb);
+        if (dot > 1.0f) dot = 1.0f; if (dot < -1.0f) dot = -1.0f;
+        return acos(dot) * 180.0f / 3.14159265f;
+    };
+
+    // Phase 1: collect offset perimeter points between startIdx and targetIdx
+    Point buf[256];
+    int bufN = 0;
+    {
+        int pi = startIdx;
+        while (true) {
+            buf[bufN++] = offsetPt(pi);
+            if (pi == targetIdx) break;
+            pi = fwdDir ? (pi+1)%N : (pi-1+N)%N;
+        }
     }
 
-    int total = numWP + 1; // + target
+    // Count final waypoints
+    const float CORNER_THRESH = 150.0f;
+    const float RADIUS = 0.4f;
+    const int ARC = 4;
+    int total = 1;
+    for (int j = 1; j < bufN - 1; j++) {
+        if (angleAt(buf[j-1], buf[j], buf[j+1]) < CORNER_THRESH) total += ARC;
+        else total += 1;
+    }
+    total += 2; // last buf point + target
 
     freePoints.dealloc();
     if (!freePoints.alloc(total)) return false;
 
-    // Perimeter center for inward offset
-    float cx = 0, cy = 0;
-    for (int j = 0; j < numPts; j++) {
-        cx += perimeterPoints.points[j].x();
-        cy += perimeterPoints.points[j].y();
-    }
-    cx /= numPts;
-    cy /= numPts;
-
-    // Build freePoints: perim waypoints → target
+    // Phase 2: build with corner rounding
     int idx = 0;
-    i = startIdx;
-    pos = 0;
-    while (true) {
-        if (pos % interval == 0 || i == targetIdx) {
-            float px = perimeterPoints.points[i].x();
-            float py = perimeterPoints.points[i].y();
-            float dx = cx - px;
-            float dy = cy - py;
-            float d = sqrt(dx*dx + dy*dy);
-            if (d > 0.01f) { dx /= d; dy /= d; }
-            freePoints.points[idx++].setXY(px + dx * 0.2f, py + dy * 0.2f);
+    freePoints.points[idx++].setXY(buf[0].x(), buf[0].y());
+
+    for (int j = 1; j < bufN - 1; j++) {
+        if (angleAt(buf[j-1], buf[j], buf[j+1]) < CORNER_THRESH) {
+            float dxIn = buf[j].x() - buf[j-1].x();
+            float dyIn = buf[j].y() - buf[j-1].y();
+            float li = sqrt(dxIn*dxIn + dyIn*dyIn);
+            if (li > 0.01f) { dxIn /= li; dyIn /= li; }
+
+            float dxOut = buf[j+1].x() - buf[j].x();
+            float dyOut = buf[j+1].y() - buf[j].y();
+            float lo = sqrt(dxOut*dxOut + dyOut*dyOut);
+            if (lo > 0.01f) { dxOut /= lo; dyOut /= lo; }
+
+            float sx = buf[j].x() - dxIn * RADIUS;
+            float sy = buf[j].y() - dyIn * RADIUS;
+            float ex = buf[j].x() + dxOut * RADIUS;
+            float ey = buf[j].y() + dyOut * RADIUS;
+
+            for (int k = 1; k <= ARC; k++) {
+                float t = (float)k / (float)(ARC + 1);
+                float qx = (1-t)*(1-t)*sx + 2*(1-t)*t*buf[j].x() + t*t*ex;
+                float qy = (1-t)*(1-t)*sy + 2*(1-t)*t*buf[j].y() + t*t*ey;
+                freePoints.points[idx++].setXY(qx, qy);
+            }
+        } else {
+            freePoints.points[idx++].setXY(buf[j].x(), buf[j].y());
         }
-        if (i == targetIdx) break;
-        pos++;
-        if (useFwd) { i++; if (i >= numPts) i = 0; }
-        else { i--; if (i < 0) i = numPts - 1; }
     }
 
+    freePoints.points[idx++].setXY(buf[bufN-1].x(), buf[bufN-1].y());
     freePoints.points[idx++].setXY(targetX, targetY);
     freePointsIdx = 0;
 
     CONSOLE.print("findGotoRoute: ");
-    CONSOLE.print(numWP);
-    CONSOLE.print(" waypoints (");
-    CONSOLE.print(useFwd ? "fwd" : "rev");
-    CONSOLE.print(" steps=");
-    CONSOLE.print(steps);
-    CONSOLE.println(")");
-
+    CONSOLE.print(idx);
+    CONSOLE.println(" waypoints");
     return true;
 }
 
