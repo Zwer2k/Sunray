@@ -1840,6 +1840,114 @@ int Map::findNextNeighbor(NodeList &nodes, PolygonList &obstacles, Node &node, i
 
 // astar path finder 
 // https://briangrinstead.com/blog/astar-search-algorithm-in-javascript/
+bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY) {
+    if (perimeterPoints.numPoints < 3) return false;
+
+    Point startPt(startX, startY);
+    Point targetPt(targetX, targetY);
+
+    // Direct path is safe (inside perimeter, no crossing) → let caller use direct
+    if (pointIsInsidePolygon(perimeterPoints, startPt) &&
+        pointIsInsidePolygon(perimeterPoints, targetPt) &&
+        !linePolygonIntersection(startPt, targetPt, perimeterPoints)) {
+        return false;
+    }
+
+    // Find closest perimeter points to start and target
+    int startIdx = -1, targetIdx = -1;
+    float minStartDist = 1e9, minTargetDist = 1e9;
+
+    for (int i = 0; i < perimeterPoints.numPoints; i++) {
+        float d = distance(perimeterPoints.points[i], startPt);
+        if (d < minStartDist) { minStartDist = d; startIdx = i; }
+
+        d = distance(perimeterPoints.points[i], targetPt);
+        if (d < minTargetDist) { minTargetDist = d; targetIdx = i; }
+    }
+
+    if (startIdx < 0 || targetIdx < 0) return false;
+
+    // Shorter direction along perimeter
+    int numPts = perimeterPoints.numPoints;
+    int fwdSteps, revSteps;
+    if (targetIdx >= startIdx) {
+        fwdSteps = targetIdx - startIdx;
+        revSteps = numPts - fwdSteps;
+    } else {
+        revSteps = startIdx - targetIdx;
+        fwdSteps = numPts - revSteps;
+    }
+
+    bool useFwd = (fwdSteps <= revSteps);
+    int steps = useFwd ? fwdSteps : revSteps;
+
+    if (steps <= 1) return false;
+
+    // Subsample perimeter waypoints
+    const int MAX_WP = 25;
+    int interval = max(1, steps / MAX_WP);
+
+    // Count waypoints
+    int i = startIdx;
+    int pos = 0;
+    int numWP = 0;
+    while (true) {
+        if (pos % interval == 0 || i == targetIdx) numWP++;
+        if (i == targetIdx) break;
+        pos++;
+        if (useFwd) { i++; if (i >= numPts) i = 0; }
+        else { i--; if (i < 0) i = numPts - 1; }
+    }
+
+    int total = numWP + 1; // + target
+
+    freePoints.dealloc();
+    if (!freePoints.alloc(total)) return false;
+
+    // Perimeter center for inward offset
+    float cx = 0, cy = 0;
+    for (int j = 0; j < numPts; j++) {
+        cx += perimeterPoints.points[j].x();
+        cy += perimeterPoints.points[j].y();
+    }
+    cx /= numPts;
+    cy /= numPts;
+
+    // Build freePoints: perim waypoints → target
+    int idx = 0;
+    i = startIdx;
+    pos = 0;
+    while (true) {
+        if (pos % interval == 0 || i == targetIdx) {
+            float px = perimeterPoints.points[i].x();
+            float py = perimeterPoints.points[i].y();
+            float dx = cx - px;
+            float dy = cy - py;
+            float d = sqrt(dx*dx + dy*dy);
+            if (d > 0.01f) { dx /= d; dy /= d; }
+            freePoints.points[idx++].setXY(px + dx * 0.2f, py + dy * 0.2f);
+        }
+        if (i == targetIdx) break;
+        pos++;
+        if (useFwd) { i++; if (i >= numPts) i = 0; }
+        else { i--; if (i < 0) i = numPts - 1; }
+    }
+
+    freePoints.points[idx++].setXY(targetX, targetY);
+    freePointsIdx = 0;
+
+    CONSOLE.print("findGotoRoute: ");
+    CONSOLE.print(numWP);
+    CONSOLE.print(" waypoints (");
+    CONSOLE.print(useFwd ? "fwd" : "rev");
+    CONSOLE.print(" steps=");
+    CONSOLE.print(steps);
+    CONSOLE.println(")");
+
+    return true;
+}
+
+
 bool Map::findPath(Point &src, Point &dst){
   if ((memoryCorruptions != 0) || (memoryAllocErrors != 0)){
     CONSOLE.println("ERROR findPath: memory errors");

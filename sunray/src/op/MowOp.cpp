@@ -16,6 +16,8 @@
 MowOp::MowOp(){
     lastMapRoutingFailed = false;
     mapRoutingFailedCounter = 0;
+    gotoNearTargetSince = 0;
+    gotoDone = false;
 }
 
 String MowOp::name(){
@@ -26,6 +28,8 @@ void MowOp::begin(){
     // goto mode (AT+R) - skip pathfinding, drive directly to free point
     if (maps.gotoActive){
         maps.gotoActive = false;
+        gotoNearTargetSince = 0;
+        gotoDone = false;
         CONSOLE.print("OP_MOW (goto mode)");
         CONSOLE.print(" mowPWMCurr=");
         CONSOLE.print(motor.motorMowPWMCurr);
@@ -49,6 +53,21 @@ void MowOp::begin(){
         maps.setLastTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
         lastMapRoutingFailed = false;
         mapRoutingFailedCounter = 0;
+        return;
+    }
+
+    // Resuming existing free points (GoTo/pathfinder) after interruption (e.g. GPS loss)
+    if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0) {
+        CONSOLE.println("OP_MOW (resume free path)");
+        gotoNearTargetSince = 0;
+        gotoDone = false;
+        motor.enableTractionMotors(true);
+        motor.setReleaseBrakesWhenZero(false);
+        motor.setLinearAngularSpeed(0, 0);
+        battery.setIsDocked(false);
+        timetable.setMowingCompletedInCurrentTimeFrame(false);
+        stateEstimator.lastFixTime = millis();
+        maps.setLastTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
         return;
     }
 
@@ -123,6 +142,29 @@ void MowOp::run(){
     lineTracker.trackLine(true); 
     detectSensorMalfunction();    
     battery.resetIdle();
+
+    // GoTo waypoint advance / target detection
+    // GPS imprecision may prevent TARGET_REACHED_TOLERANCE (0.1m) from firing
+    if (maps.wayMode == WAY_FREE) {
+        float dist = maps.distanceToTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
+        if (dist >= 0.5) {
+            gotoNearTargetSince = 0;
+        } else if (dist > 0.1) {
+            // near waypoint but trackLine couldn't reach it → start fallback timer
+            if (gotoNearTargetSince == 0) gotoNearTargetSince = millis();
+            if (millis() - gotoNearTargetSince > 8000) {
+                if (maps.freePointsIdx + 1 < maps.freePoints.numPoints) {
+                    CONSOLE.println("goto: advance waypoint (GPS timeout)");
+                    maps.nextPoint(false, stateEstimator.stateX, stateEstimator.stateY);
+                    gotoNearTargetSince = 0;
+                } else {
+                    CONSOLE.println("goto: target reached (GPS timeout)");
+                    onTargetReached();
+                    return;
+                }
+            }
+        }
+    }
     
     if (timetable.shouldAutostopNow()){
         if (DOCKING_STATION){
@@ -281,6 +323,15 @@ void MowOp::onTargetReached(){
         maps.clearObstacles(); // clear obstacles if target reached
         stateEstimator.motorErrorCounter = 0; // reset motor error counter if target reached
         stateEstimator.stateSensor = SENS_NONE; // clear last triggered sensor
+    } else if (maps.wayMode == WAY_FREE) {
+        // Only stop on final waypoint; intermediate perimeter waypoints just pass through
+        if (maps.freePointsIdx + 1 >= maps.freePoints.numPoints) {
+            CONSOLE.println("goto: target reached");
+            gotoDone = true;
+            changeOp(idleOp);
+        } else {
+            CONSOLE.println("goto: waypoint reached");
+        }
     }
 }
 
@@ -322,6 +373,13 @@ void MowOp::onKidnapped(bool state){
 }
 
 void MowOp::onNoFurtherWaypoints(){
+    // GoTo completion is already handled in onTargetReached() → changeOp(idleOp)
+    // Prevent this from overriding to dockOp
+    if (gotoDone){
+        gotoDone = false;
+        CONSOLE.println("goto: done (onNoFurtherWaypoints)");
+        return;
+    }
     CONSOLE.println("mowing finished!");
     Logger.event(EVT_MOWING_COMPLETED);
     timetable.setMowingCompletedInCurrentTimeFrame(true);

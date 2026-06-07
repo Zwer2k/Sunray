@@ -204,9 +204,14 @@ void Comm::cmdControl(){
     setOperation(OP_IDLE);    
   }
   if (op == 0){
-      // special security case: directly calling IDLE state ensures all motors to stop
-      CONSOLE.println("direct call: idleOp.begin()");
-      idleOp.begin();
+      if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0){
+          // GoTo active: let setOperation handle transition (preserves mow via restoreMowStateAfterGoto)
+          CONSOLE.println("goto: idleOp via setOperation");
+      } else {
+          // special security case: directly calling IDLE state ensures all motors to stop
+          CONSOLE.println("direct call: idleOp.begin()");
+          idleOp.begin();
+      }
   }
   if (op >= 0) setOperation((OperationType)op, false); // new operation by operator
     else if (restartRobot){     // no operation given by operator, continue current operation from IDLE state
@@ -242,6 +247,13 @@ void Comm::cmdMotor(){
   CONSOLE.print(linear);
   CONSOLE.print(" angular=");
   CONSOLE.println(angular);*/
+  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0)){
+    // any AT+M while GoTo active → cancel GoTo (preserve mow via restoreMowStateAfterGoto)
+    CONSOLE.println("AT+M: goto cancelled");
+    maps.freePoints.dealloc();
+    maps.freePointsIdx = 0;
+    setOperation(OP_IDLE);
+  }
   motor.setLinearAngularSpeed(linear, angular, false);
   String s = F("M");
   cmdAnswer(s);
@@ -475,14 +487,17 @@ void Comm::cmdRoute(){
   CONSOLE.print(",");
   CONSOLE.println(y);
 
-  // set free point at target
-  maps.freePoints.dealloc();
-  if (!maps.freePoints.alloc(1)){
-    CONSOLE.println("ERROR AT+R: alloc failed");
-    return;
+  // Try perimeter-aware routing (stays within map, avoids crossing perimeter)
+  if (!maps.findGotoRoute(stateEstimator.stateX, stateEstimator.stateY, x, y)) {
+    CONSOLE.println("AT+R: direct route");
+    maps.freePoints.dealloc();
+    if (!maps.freePoints.alloc(1)){
+      CONSOLE.println("ERROR AT+R: alloc failed");
+      return;
+    }
+    maps.freePoints.points[0].setXY(x, y);
+    maps.freePointsIdx = 0;
   }
-  maps.freePoints.points[0].setXY(x, y);
-  maps.freePointsIdx = 0;
   maps.wayMode = WAY_FREE;
   maps.shouldMow = false;
   maps.shouldDock = false;
