@@ -417,8 +417,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define REQUIRE_VALID_GPS  true       // mower will pause if no float and no fix GPS solution during mowing (recommended)
 //#define REQUIRE_VALID_GPS  false    // mower will continue to mow if no float or no fix solution (not recommended)
 
-#define GPS_SPEED_DETECTION true  // will detect obstacles via GPS feedback (no speed)  - recommended
-//#define GPS_SPEED_DETECTION false
+//#define GPS_SPEED_DETECTION true  // will detect obstacles via GPS feedback (no speed)  - recommended
+#define GPS_SPEED_DETECTION false
 
 // detect if robot is actually moving (obstacle detection via GPS feedback)
 #define GPS_MOTION_DETECTION          true    // if robot is not moving trigger obstacle avoidance (recommended)
@@ -436,8 +436,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 #define GPS_CONFIG_FILTER   true     // use signal strength filter? (recommended to get rid of 'FIX jumps') - adjust filter settings below
 //#define GPS_CONFIG_FILTER   false     // use this if you have difficulties to get a FIX solution (uses ublox default filter settings)
-#define CPG_CONFIG_FILTER_MINELEV  10   // Min SV elevation degree: 14 (high elevation, less robust), 10 (low elevation, robust) 
-#define CPG_CONFIG_FILTER_NCNOTHRS 10   // C/N0 Threshold #SVs: 10 (robust), 6 (less robust)
+#define CPG_CONFIG_FILTER_MINELEV  15   // Min SV elevation degree: 14 (high elevation, less robust), 10 (low elevation, robust) 
+#define CPG_CONFIG_FILTER_NCNOTHRS 8   // C/N0 Threshold #SVs: 10 (robust), 6 (less robust)
 #define CPG_CONFIG_FILTER_CNOTHRS  30   // 30 dbHz (robust), 13 dbHz (less robust)
 #define GPS_CONFIG_DGNSS_TIMEOUT 60    // 60 sec DGNSS timeout
 
