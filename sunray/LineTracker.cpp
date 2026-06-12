@@ -81,7 +81,7 @@ void LineTracker::trackLine(bool runControl){
   if (!angleToTargetFits){
     // angular control (if angle to far away, rotate to next waypoint)
     linear = 0;
-    angular = 29.0 / 180.0 * PI; //  29 degree/s (0.5 rad/s);               
+    angular = 15.0 / 180.0 * PI; //  15 degree/s (0.26 rad/s);               
      // decide for one rotation direction (and keep it)
     if ((!rotateLeft) && (!rotateRight)) {
       if (trackerDiffDelta < 0) rotateLeft = true;

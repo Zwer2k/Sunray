@@ -140,7 +140,8 @@ bool Polygon::alloc(short aNumPoints){
 }
 
 void Polygon::dealloc(){
-  if (points == NULL) return;  
+  if (points == NULL) return;
+  if (points == CHECK_POINT) { points = NULL; numPoints = 0; return; }  // sentinel, not a real allocation
   if (points[numPoints].px != CHECK_ID) memoryCorruptions++;
   if (points[numPoints].py != CHECK_ID) memoryCorruptions++;
   delete[] points;  
@@ -248,7 +249,13 @@ bool PolygonList::alloc(short aNumPolygons){
   if (polygons != NULL){
     short copyCount = min(numPolygons, aNumPolygons);
     for (int i=0; i < copyCount; i++){
-      newPolygons[i].alloc(polygons[i].numPoints);
+      if (!newPolygons[i].alloc(polygons[i].numPoints)){
+        for (int j=0; j < i; j++) newPolygons[j].dealloc();
+        delete[] newPolygons;
+        CONSOLE.println("ERROR PolygonList::alloc out of memory");
+        memoryAllocErrors++;
+        return false;
+      }
       memcpy(newPolygons[i].points, polygons[i].points, sizeof(Point) * polygons[i].numPoints);
     }
     if (polygons[numPolygons].points != CHECK_POINT) memoryCorruptions++;
@@ -1893,7 +1900,12 @@ bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY
     };
 
     // Phase 1: collect offset perimeter points between startIdx and targetIdx
-    Point buf[256];
+    Point* buf = new Point[N];
+    if (!buf) {
+        CONSOLE.println("ERROR findGotoRoute: out of memory");
+        memoryAllocErrors++;
+        return false;
+    }
     int bufN = 0;
     {
         int pi = startIdx;
@@ -1916,7 +1928,10 @@ bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY
     total += 2; // last buf point + target
 
     freePoints.dealloc();
-    if (!freePoints.alloc(total)) return false;
+    if (!freePoints.alloc(total)) {
+        delete[] buf;
+        return false;
+    }
 
     // Phase 2: build with corner rounding
     int idx = 0;
@@ -1952,6 +1967,7 @@ bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY
 
     freePoints.points[idx++].setXY(buf[bufN-1].x(), buf[bufN-1].y());
     freePoints.points[idx++].setXY(targetX, targetY);
+    delete[] buf;
     freePointsIdx = 0;
 
     CONSOLE.print("findGotoRoute: ");

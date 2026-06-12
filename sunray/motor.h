@@ -22,6 +22,7 @@ class Motor {
     int ticksPerRevolution; // ticks per revolution
     float ticksPerCm;  // ticks per cm
     bool activateLinearSpeedRamp;  // activate ramp to accelerate/slow down linear speed?
+    bool activateAngularSpeedRamp; // activate ramp to accelerate/slow down angular speed?
     bool toggleMowDir; // toggle mowing motor direction each mow motor start?    
     bool motorLeftSwapDir;
     bool motorRightSwapDir;

@@ -91,6 +91,7 @@ void Motor::begin() {
   motorsSenseLP = 0;
 
   activateLinearSpeedRamp = USE_LINEAR_SPEED_RAMP;
+  activateAngularSpeedRamp = false;
   linearSpeedSet = 0;
   angularSpeedSet = 0;
   motorLeftRpmSet = 0;
@@ -182,12 +183,12 @@ void Motor::speedPWM ( int pwmLeft, int pwmRight, int pwmMow )
 void Motor::setLinearAngularSpeed(float linear, float angular, bool useLinearRamp){
    setLinearAngularSpeedTimeout = millis() + 1000;
    setLinearAngularSpeedTimeoutActive = true;
-   if ((activateLinearSpeedRamp) && (useLinearRamp)) {
-     linearSpeedSet = 0.9 * linearSpeedSet + 0.1 * linear;
-   } else {
-     linearSpeedSet = linear;
-   }
-   angularSpeedSet = angular;   
+    if ((activateLinearSpeedRamp) && (useLinearRamp)) {
+      linearSpeedSet = 0.9 * linearSpeedSet + 0.1 * linear;
+    } else {
+      linearSpeedSet = linear;
+    }
+    angularSpeedSet = angular;
    float rspeed = linearSpeedSet + angularSpeedSet * (wheelBaseCm /100.0 /2);          
    float lspeed = linearSpeedSet - angularSpeedSet * (wheelBaseCm /100.0 /2);          
    // RPM = V / (2*PI*r) * 60
@@ -563,8 +564,12 @@ void Motor::control(){
   //CONSOLE.println();
   motorLeftPID.compute();
   motorLeftPWMCurr = motorLeftPWMCurr + motorLeftPID.y;
-  if (motorLeftRpmSet >= 0) motorLeftPWMCurr = min( max(0, (int)motorLeftPWMCurr), pwmMax); // 0.. pwmMax
-  if (motorLeftRpmSet < 0) motorLeftPWMCurr = max(-pwmMax, min(0, (int)motorLeftPWMCurr));  // -pwmMax..0
+  #ifdef MOTOR_USE_MAGNITUDE_CLAMP
+    motorLeftPWMCurr = max(-pwmMax, min(pwmMax, (int)motorLeftPWMCurr));
+  #else
+    if (motorLeftRpmSet >= 0) motorLeftPWMCurr = min( max(0, (int)motorLeftPWMCurr), pwmMax);
+    if (motorLeftRpmSet < 0) motorLeftPWMCurr = max(-pwmMax, min(0, (int)motorLeftPWMCurr));
+  #endif
 
   //########################  Calculate PWM for right driving motor ############################
   
@@ -577,8 +582,12 @@ void Motor::control(){
   motorRightPID.output_ramp = MOTOR_PID_RAMP;
   motorRightPID.compute();
   motorRightPWMCurr = motorRightPWMCurr + motorRightPID.y;
-  if (motorRightRpmSet >= 0) motorRightPWMCurr = min( max(0, (int)motorRightPWMCurr), pwmMax);  // 0.. pwmMax
-  if (motorRightRpmSet < 0) motorRightPWMCurr = max(-pwmMax, min(0, (int)motorRightPWMCurr));   // -pwmMax..0  
+  #ifdef MOTOR_USE_MAGNITUDE_CLAMP
+    motorRightPWMCurr = max(-pwmMax, min(pwmMax, (int)motorRightPWMCurr));
+  #else
+    if (motorRightRpmSet >= 0) motorRightPWMCurr = min( max(0, (int)motorRightPWMCurr), pwmMax);
+    if (motorRightRpmSet < 0) motorRightPWMCurr = max(-pwmMax, min(0, (int)motorRightPWMCurr));
+  #endif
 
   if ((abs(motorLeftRpmSet) < 0.01) && (motorLeftPWMCurr < 30)) motorLeftPWMCurr = 0;
   if ((abs(motorRightRpmSet) < 0.01) && (motorRightPWMCurr < 30)) motorRightPWMCurr = 0;

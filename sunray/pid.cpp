@@ -45,6 +45,7 @@ float PID::compute() {
     }
     Ta = TaMax;   // should only happen for the very first call
   }
+  if (Ta < 0.001f) Ta = 0.001f;  // protect against division by zero
 
   // compute error
   float e = (w - x);
@@ -97,6 +98,7 @@ float VelocityPID::compute()
   Ta = ((now - lastControlTime) / 1000000.0);
   lastControlTime = now;
   if (Ta > 1.0) Ta = 1.0;   // should only happen for the very first call
+  if (Ta < 0.000001f) Ta = 0.000001f;  // protect against division by zero
 
   // compute error
   float e = (w - x);

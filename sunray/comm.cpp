@@ -826,10 +826,10 @@ static uint8_t hexCharToByte(char c) {
   return 0;
 }
 
-static void hexStringToBytes(const String& hex, uint8_t* out, size_t& outLen) {
+static void hexStringToBytes(const String& hex, uint8_t* out, size_t maxOutLen, size_t& outLen) {
   outLen = 0;
   size_t len = hex.length();
-  for (size_t i = 0; i + 1 < len; i += 2) {
+  for (size_t i = 0; i + 1 < len && outLen < maxOutLen; i += 2) {
     out[outLen++] = (hexCharToByte(hex[i]) << 4) | hexCharToByte(hex[i+1]);
   }
 }
@@ -850,7 +850,7 @@ void Comm::cmdUbxProxy(){
   String hexPayload = cmd.substring(5); // skip "AT+U,"
   uint8_t txBuf[256];
   size_t txLen = 0;
-  hexStringToBytes(hexPayload, txBuf, txLen);
+  hexStringToBytes(hexPayload, txBuf, sizeof(txBuf), txLen);
 
   // Drain stale data from GPS buffer before sending
   while (GPS.available()) GPS.read();
@@ -871,7 +871,10 @@ void Comm::cmdUbxProxy(){
       rxBuf[rxLen++] = GPS.read();
     }
     // Grace period: once data starts arriving, give 50ms for more
-    if (rxLen > 0) start = millis() - (maxWait - 50);
+    if (rxLen > 0) {
+      if (millis() >= maxWait - 50) start = millis() - (maxWait - 50);
+      else start = 0;
+    }
     delay(1);
   }
 

@@ -194,11 +194,12 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // motor speed control (PID coefficients) - these values are tuned for Ardumower motors
 // general information about PID controllers: https://wiki.ardumower.de/index.php?title=PID_control
 #define MOTOR_PID_LP     0.0    // encoder low-pass filter (use for low encoder tickcount - use zero to disable)
-#define MOTOR_PID_KP     2.0    // do not change 2.0 (for non-Ardumower motors or if the motor speed control is too fast you may try: KP=1.0, KI=0, KD=0)
-#define MOTOR_PID_KI     0.03   // do not change 0.03
-#define MOTOR_PID_KD     0.03   // do not change 0.03
-#define MOTOR_PID_LIMIT  255    // output limit - do not change 255
-#define MOTOR_PID_RAMP   0      // output derivative limit - do not change 0
+#define MOTOR_PID_KP     1.0    // do not change 2.0 (for non-Ardumower motors or if the motor speed control is too fast you may try: KP=1.0, KI=0, KD=0)
+#define MOTOR_PID_KI     0.00   // do not change 0.03
+#define MOTOR_PID_KD     0.00   // do not change 0.03
+#define MOTOR_PID_LIMIT  90    // output limit - do not change 255
+#define MOTOR_PID_RAMP   120    // output derivative limit (PWM/s) - limits motor acceleration
+#define MOTOR_USE_MAGNITUDE_CLAMP    // use magnitude-only PWM clamp for smoother direction reversal
 
 //#define MOTOR_LEFT_SWAP_DIRECTION 1  // uncomment to swap left motor direction
 //#define MOTOR_RIGHT_SWAP_DIRECTION 1  // uncomment to swap right motor direction
