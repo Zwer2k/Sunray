@@ -46,7 +46,7 @@ bool added = false;
 unsigned long timeoutTime = 0;
 unsigned long nextEvalTime = 0;
 #ifdef SONAR_PARALLEL_TRIGGER
-  bool triggered[3] = {false, false, false};
+  volatile bool triggered[3] = {false, false, false};
 #endif
 
 

@@ -115,6 +115,7 @@ Polygon::~Polygon(){
 }
 
 bool Polygon::alloc(short aNumPoints){
+  if (points == CHECK_POINT) { points = NULL; numPoints = 0; }  // reset sentinel state before real allocation
   if (aNumPoints == numPoints) return true;
   if ((aNumPoints < 0) || (aNumPoints > 10000)) {
     CONSOLE.println("ERROR Polygon::alloc invalid number");    
