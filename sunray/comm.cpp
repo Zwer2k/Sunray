@@ -247,7 +247,7 @@ void Comm::cmdMotor(){
   CONSOLE.print(linear);
   CONSOLE.print(" angular=");
   CONSOLE.println(angular);*/
-  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0)){
+  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0) && (maps.gotoActive)){
     // any AT+M while GoTo active → cancel GoTo (preserve mow via restoreMowStateAfterGoto)
     CONSOLE.println("AT+M: goto cancelled");
     maps.freePoints.dealloc();
@@ -848,23 +848,45 @@ static String bytesToHexString(const uint8_t* data, size_t len) {
 // UBX Proxy: send hex bytes to GPS, receive response, return as hex
 void Comm::cmdUbxProxy(){
   String hexPayload = cmd.substring(5); // skip "AT+U,"
+
+  // Basic hex validation: even length and only hex characters.
+  // Also accept a trailing CRC (",0xHH") that the sender may append.
+  int commaIdx = hexPayload.indexOf(',');
+  if (commaIdx >= 0) hexPayload = hexPayload.substring(0, commaIdx);
+  hexPayload.trim();
+  if (hexPayload.length() == 0 || hexPayload.length() % 2 != 0) {
+    cmdAnswer(String(F("U,ERR_INVALID_HEX")));
+    return;
+  }
+  for (size_t i = 0; i < hexPayload.length(); i++) {
+    char c = hexPayload.charAt(i);
+    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) {
+      cmdAnswer(String(F("U,ERR_INVALID_HEX")));
+      return;
+    }
+  }
+
   uint8_t txBuf[256];
   size_t txLen = 0;
   hexStringToBytes(hexPayload, txBuf, sizeof(txBuf), txLen);
 
-  // Drain stale data from GPS buffer before sending
-  while (GPS.available()) GPS.read();
+  // NOTE: We intentionally do NOT drain the GPS UART buffer here.
+  // Draining would discard bytes of a UBX frame that the UBLOX parser
+  // is currently receiving, causing checksum errors until it resyncs.
+  // Any spontaneous NAV frames collected while waiting for the answer
+  // are filtered out by the requester on the other side.
 
   // Send to GPS
   for (size_t i = 0; i < txLen; i++) {
     GPS.write(txBuf[i]);
   }
 
-  // Collect ALL bytes from the GPS for up to 300ms.
+  // Collect ALL bytes from the GPS for up to 500ms.
+  // The larger buffer handles long responses such as NAV-SAT with many SVs.
   uint32_t start = millis();
-  uint8_t rxBuf[512];
+  uint8_t rxBuf[2048];
   size_t rxLen = 0;
-  const uint32_t maxWait = 300;
+  const uint32_t maxWait = 500;
 
   while (millis() - start < maxWait && rxLen < sizeof(rxBuf)) {
     while (GPS.available() && rxLen < sizeof(rxBuf)) {
@@ -878,22 +900,16 @@ void Comm::cmdUbxProxy(){
     delay(1);
   }
 
-  // Build "U,<hex>" response directly into cmdResponse without large intermediate Strings
-  cmdResponse = F("U,");
-  size_t hexReserve = 3 + rxLen * 2 + 7; // "U," + hex + ",0x" + "HH" + "\r\n"
-  cmdResponse.reserve(hexReserve);
+  // Build "U,<hex>" response like every other AT command does via cmdAnswer.
+  // This guarantees a consistent format including the command prefix and CRC.
+  String answer = F("U,");
+  answer.reserve(2 + rxLen * 2);
   char buf[3];
   for (size_t i = 0; i < rxLen; i++) {
     snprintf(buf, sizeof(buf), "%02X", rxBuf[i]);
-    cmdResponse += buf;
+    answer += buf;
   }
-  // Append CRC and terminator
-  byte crc = 0;
-  for (size_t i = 0; i < (size_t)cmdResponse.length(); i++) crc += (byte)cmdResponse[i];
-  cmdResponse += F(",0x");
-  if (crc <= 0xF) cmdResponse += '0';
-  cmdResponse += String(crc, HEX);
-  cmdResponse += F("\r\n");
+  cmdAnswer(answer);
 }
 
 // request statistics
@@ -1182,7 +1198,11 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ((cmd.length() > 4) && (cmd[4] == 'T')) cmdTimetable();
     else cmdStats();
   }
-  if (cmd[3] == 'U') cmdUbxProxy();
+  if (cmd[3] == 'U') {
+    // AT+U1 is the firmware-update command and must NOT be handled as UBX proxy.
+    if ((cmd.length() > 4) && (cmd[4] == '1')) cmdFirmwareUpdate();
+    else cmdUbxProxy();
+  }
   if (cmd[3] == 'L') cmdClearStats();
   if (cmd[3] == 'E') cmdMotorTest();  
   if (cmd[3] == 'Q') cmdMotorPlot();  
@@ -1201,9 +1221,6 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if (cmd[4] == '3') cmdWiFiStatus();     
   }
   // Camera control handled above inside 'C' group
-  if (cmd[3] == 'U'){ 
-    if ((cmd.length() > 4) && (cmd[4] == '1')) cmdFirmwareUpdate();
-  }
   if (cmd[3] == 'G') cmdToggleGPSSolution();   // for developers
   if (cmd[3] == 'R') cmdRoute();   // navigate to point
   if (cmd[3] == 'K') cmdKidnap();   // for developers

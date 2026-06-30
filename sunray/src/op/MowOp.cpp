@@ -56,9 +56,10 @@ void MowOp::begin(){
         return;
     }
 
-    // Resuming existing free points (GoTo/pathfinder) after interruption (e.g. GPS loss)
-    if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0) {
-        CONSOLE.println("OP_MOW (resume free path)");
+    // Resuming existing GoTo free points after interruption (e.g. GPS loss)
+    // (WAY_FREE is also used by the mowing pathfinder, so only resume here if this is a GoTo path)
+    if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0 && !maps.shouldMow) {
+        CONSOLE.println("OP_MOW (resume goto path)");
         gotoNearTargetSince = 0;
         gotoDone = false;
         motor.enableTractionMotors(true);
@@ -144,8 +145,9 @@ void MowOp::run(){
     battery.resetIdle();
 
     // GoTo waypoint advance / target detection
+    // (WAY_FREE is also used by the mowing pathfinder; only apply GoTo fallback logic for real GoTo paths)
     // GPS imprecision may prevent TARGET_REACHED_TOLERANCE (0.1m) from firing
-    if (maps.wayMode == WAY_FREE) {
+    if (maps.wayMode == WAY_FREE && !maps.shouldMow) {
         float dist = maps.distanceToTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
         if (dist >= 0.5) {
             gotoNearTargetSince = 0;
@@ -324,13 +326,18 @@ void MowOp::onTargetReached(){
         stateEstimator.motorErrorCounter = 0; // reset motor error counter if target reached
         stateEstimator.stateSensor = SENS_NONE; // clear last triggered sensor
     } else if (maps.wayMode == WAY_FREE) {
-        // Only stop on final waypoint; intermediate perimeter waypoints just pass through
-        if (maps.freePointsIdx + 1 >= maps.freePoints.numPoints) {
-            CONSOLE.println("goto: target reached");
-            gotoDone = true;
-            changeOp(idleOp);
+        if (maps.shouldMow) {
+            // mowing pathfinder path - do not treat as GoTo; onNoFurtherWaypoints/nextPoint will advance the route
+            CONSOLE.println("mowing path: waypoint reached");
         } else {
-            CONSOLE.println("goto: waypoint reached");
+            // Only stop on final waypoint; intermediate perimeter waypoints just pass through
+            if (maps.freePointsIdx + 1 >= maps.freePoints.numPoints) {
+                CONSOLE.println("goto: target reached");
+                gotoDone = true;
+                changeOp(idleOp);
+            } else {
+                CONSOLE.println("goto: waypoint reached");
+            }
         }
     }
 }

@@ -471,6 +471,11 @@ void UBLOX::parse(int b)
 
       this->state = GOT_LENGTH2;
       this->msglen += (b << 8);
+      if (this->msglen > (int)sizeof(this->payload)) {
+        // Payload too large for our buffer - discard frame and resync
+        this->state = GOT_NONE;
+        return;
+      }
       if (debug) {
         CONSOLE.print("payload size ");
         CONSOLE.print(this->msglen, HEX);
