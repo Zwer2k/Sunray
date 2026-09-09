@@ -46,7 +46,8 @@ void EscapeReverseOp::run(){
             changeOp(*nextOp, false);    // continue current operation
         } else {
             CONSOLE.println("continue operation with virtual obstacle");
-            maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);              
+            maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);
+            maps.requestTangentialPerimeterRecovery();
             //Point pt;
             //if (!maps.findObstacleSafeMowPoint(pt)){
             //    changeOp(dockOp); // dock if no more (valid) mowing points
