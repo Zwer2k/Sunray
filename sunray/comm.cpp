@@ -883,20 +883,18 @@ void Comm::cmdUbxProxy(){
 
   // Collect ALL bytes from the GPS for up to 500ms.
   // The larger buffer handles long responses such as NAV-SAT with many SVs.
-  uint32_t start = millis();
+  uint32_t deadline = millis() + 500;
   uint8_t rxBuf[2048];
   size_t rxLen = 0;
-  const uint32_t maxWait = 500;
 
-  while (millis() - start < maxWait && rxLen < sizeof(rxBuf)) {
+  while ((int32_t)(millis() - deadline) < 0 && rxLen < sizeof(rxBuf)) {
+    bool receivedThisRound = false;
     while (GPS.available() && rxLen < sizeof(rxBuf)) {
       rxBuf[rxLen++] = GPS.read();
+      receivedThisRound = true;
     }
-    // Grace period: once data starts arriving, give 50ms for more
-    if (rxLen > 0) {
-      if (millis() >= maxWait - 50) start = millis() - (maxWait - 50);
-      else start = 0;
-    }
+    // Once data starts or continues arriving, allow 50ms for the next bytes.
+    if (receivedThisRound) deadline = millis() + 50;
     delay(1);
   }
 
