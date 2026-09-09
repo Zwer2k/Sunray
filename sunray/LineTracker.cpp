@@ -81,7 +81,7 @@ void LineTracker::trackLine(bool runControl){
   if (!angleToTargetFits){
     // angular control (if angle to far away, rotate to next waypoint)
     linear = 0;
-    angular = 29.0 / 180.0 * PI; //  29 degree/s (0.5 rad/s);
+    angular = 15.0 / 180.0 * PI; //  15 degree/s (0.26 rad/s);               
      // decide for one rotation direction (and keep it)
     if ((!rotateLeft) && (!rotateRight)) {
       if (trackerDiffDelta < 0) rotateLeft = true;
@@ -184,32 +184,6 @@ void LineTracker::trackLine(bool runControl){
       activeOp->onGpsFixTimeout();        
     }           
   }     
-
-  // TEMPORARY DEBUG: log control values every 100ms to diagnose jumps
-  static unsigned long nextDebugTime = 0;
-  if (millis() >= nextDebugTime) {
-    nextDebugTime = millis() + 100;
-    CONSOLE.print("LT_DBG ");
-    CONSOLE.print(millis());
-    CONSOLE.print(",");
-    CONSOLE.print(stateEstimator.setSpeed, 4);
-    CONSOLE.print(",");
-    CONSOLE.print(trackerDiffDelta/PI*180.0, 2);
-    CONSOLE.print(",");
-    CONSOLE.print(stateEstimator.lateralError, 4);
-    CONSOLE.print(",");
-    CONSOLE.print(linear, 4);
-    CONSOLE.print(",");
-    CONSOLE.print(angular/PI*180.0, 4);
-    CONSOLE.print(",");
-    CONSOLE.print(motor.linearSpeedSet, 4);
-    CONSOLE.print(",");
-    CONSOLE.print(motor.angularSpeedSet/PI*180.0, 4);
-    CONSOLE.print(",");
-    CONSOLE.print(rotateLeft);
-    CONSOLE.print(",");
-    CONSOLE.println(rotateRight);
-  }
 
   if (stateEstimator.stateLocalizationMode == LOC_GPS){
     if  ((gps.solution == SOL_FIXED) || (gps.solution == SOL_FLOAT)){        
