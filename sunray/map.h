@@ -227,6 +227,7 @@ class Map
     // -----virtual obstacles----------------------------------
     bool addObstacle(float stateX, float stateY);    
     void clearObstacles();
+    void requestTangentialPerimeterRecovery();
     
     // -----misc-----------------------------------------------
     bool pointIsInsidePolygon( Polygon &polygon, Point &pt);
@@ -254,10 +255,13 @@ class Map
     bool polygonOffset(Polygon &srcPoly, Polygon &dstPoly, float dist);
     int findNextNeighbor(NodeList &nodes, PolygonList &obstacles, Node &node, int startIdx);
     void findPathFinderSafeStartPoint(Point &src, Point &dst);
+    bool findTangentialPerimeterRecoveryPath(Point &src, Point &dst);
     bool linePolygonIntersectPoint( Point &src, Point &dst, Polygon &poly, Point &sect);
     bool lineLineIntersection(Point &A, Point &B, Point &C, Point &D, Point &pt);
     bool isPointInBoundingBox(Point &pt, Point &A, Point &B);
     int linePolygonIntersectionCount(Point &src, Point &dst, Polygon &poly);
+    bool tangentialPerimeterRecoveryPending;
+    unsigned long tangentialPerimeterRecoveryPendingTime;
     void testIntegerCalcs();
 };
 

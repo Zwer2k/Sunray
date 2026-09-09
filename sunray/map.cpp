@@ -504,6 +504,8 @@ void Map::begin(){
   gotoActive = false;
   savedMowMotorRunningBeforeGoto = false;
   restoreMowStateAfterGoto = false;
+  tangentialPerimeterRecoveryPending = false;
+  tangentialPerimeterRecoveryPendingTime = 0;
   mapCRC = 0;  
   CONSOLE.print("sizeof Point=");
   CONSOLE.println(sizeof(Point));  
@@ -1070,7 +1072,16 @@ bool Map::startMowing(float stateX, float stateY){
     if (findObstacleSafeMowPoint(dst)){
       //dst.assign(mowPoints.points[mowPointsIdx]);      
       //findPathFinderSafeStartPoint(src, dst);      
-      if (findPath(src, dst)){        
+      bool pathFound = false;
+      if (tangentialPerimeterRecoveryPending) {
+        tangentialPerimeterRecoveryPending = false;
+        // Timeout: verwerbe veraltete Requests nach 30 Sekunden
+        if (millis() - tangentialPerimeterRecoveryPendingTime < 30000) {
+          pathFound = findTangentialPerimeterRecoveryPath(src, dst);
+        }
+      }
+      if (!pathFound) pathFound = findPath(src, dst);
+      if (pathFound){        
         return true;
       } else {
         CONSOLE.println("ERROR: no path");
@@ -1125,6 +1136,95 @@ bool Map::addObstacle(float stateX, float stateY){
   obstacles.polygons[idx].points[6].setXY(x-d1, y+d2);
   obstacles.polygons[idx].points[7].setXY(x-d2, y+d1);         
   return true;
+}
+
+void Map::requestTangentialPerimeterRecovery(){
+  tangentialPerimeterRecoveryPending = true;
+  tangentialPerimeterRecoveryPendingTime = millis();
+}
+
+// Add a final, boundary-parallel segment to the interrupted mowing target.
+// The side is selected relative to lastTargetPoint, which is the previously
+// completed mowing point when obstacle recovery starts.
+bool Map::findTangentialPerimeterRecoveryPath(Point &src, Point &dst){
+#if !PERIMETER_TANGENTIAL_RECOVERY
+  return false;
+#else
+  if (perimeterPoints.numPoints < 3) return false;
+
+  Point projection;
+  float nearestDistance = 9999;
+  float tangentX = 0;
+  float tangentY = 0;
+  for (int i = 0; i < perimeterPoints.numPoints; i++) {
+    Point edgeStart;
+    Point edgeEnd;
+    edgeStart.assign(perimeterPoints.points[i]);
+    edgeEnd.assign(perimeterPoints.points[(i + 1) % perimeterPoints.numPoints]);
+    float edgeX = edgeEnd.x() - edgeStart.x();
+    float edgeY = edgeEnd.y() - edgeStart.y();
+    float edgeLength2 = edgeX * edgeX + edgeY * edgeY;
+    if (edgeLength2 < 0.0001) continue;
+    float factor = ((dst.x() - edgeStart.x()) * edgeX +
+                    (dst.y() - edgeStart.y()) * edgeY) / edgeLength2;
+    factor = constrain(factor, 0.0f, 1.0f);
+    Point candidate;
+    candidate.setXY(edgeStart.x() + factor * edgeX, edgeStart.y() + factor * edgeY);
+    float candidateDistance = distance(candidate, dst);
+    if (candidateDistance < nearestDistance) {
+      nearestDistance = candidateDistance;
+      projection.assign(candidate);
+      float edgeLength = sqrt(edgeLength2);
+      tangentX = edgeX / edgeLength;
+      tangentY = edgeY / edgeLength;
+    }
+  }
+
+  if (nearestDistance > PERIMETER_TANGENTIAL_RECOVERY_DISTANCE) return false;
+
+  Point approachA;
+  Point approachB;
+  approachA.setXY(dst.x() + tangentX * PERIMETER_TANGENTIAL_APPROACH_LENGTH,
+                  dst.y() + tangentY * PERIMETER_TANGENTIAL_APPROACH_LENGTH);
+  approachB.setXY(dst.x() - tangentX * PERIMETER_TANGENTIAL_APPROACH_LENGTH,
+                  dst.y() - tangentY * PERIMETER_TANGENTIAL_APPROACH_LENGTH);
+
+  Point *approach = &approachA;
+  bool approachAValid = pointIsInsidePolygon(perimeterPoints, approachA);
+  bool approachBValid = pointIsInsidePolygon(perimeterPoints, approachB);
+  for (int i = 0; i < exclusions.numPolygons; i++) {
+    if (pointIsInsidePolygon(exclusions.polygons[i], approachA)) approachAValid = false;
+    if (pointIsInsidePolygon(exclusions.polygons[i], approachB)) approachBValid = false;
+  }
+  for (int i = 0; i < obstacles.numPolygons; i++) {
+    if (pointIsInsidePolygon(obstacles.polygons[i], approachA)) approachAValid = false;
+    if (pointIsInsidePolygon(obstacles.polygons[i], approachB)) approachBValid = false;
+  }
+  if (!approachAValid && !approachBValid) return false;
+  // Wähle die Seite basierend auf der aktuellen Position (src) statt lastTargetPoint,
+  // da letztere nach einem Rückwärts-Ausweichmanöver eine ungünstige Wahl ergeben kann
+  if (!approachAValid ||
+      (approachBValid && distance(src, approachB) < distance(src, approachA))) {
+    approach = &approachB;
+  }
+
+  // The last part must be obstacle-free; otherwise retain the normal A* route.
+  for (int i = 0; i < exclusions.numPolygons; i++)
+    if (linePolygonIntersection(*approach, dst, exclusions.polygons[i])) return false;
+  for (int i = 0; i < obstacles.numPolygons; i++)
+    if (linePolygonIntersection(*approach, dst, obstacles.polygons[i])) return false;
+
+  if (!findPath(src, *approach)) return false;
+  if (freePoints.numPoints < 1) return false;
+  if (distance(freePoints.points[freePoints.numPoints - 1], dst) > 0.01) {
+    int originalCount = freePoints.numPoints;
+    if (!freePoints.alloc(originalCount + 1)) return false;
+    freePoints.points[originalCount].assign(dst);
+  }
+  freePointsIdx = 0;
+  CONSOLE.println("perimeter recovery: tangential approach");
+  return true;
+#endif
 }
 
 
