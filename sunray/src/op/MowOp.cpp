@@ -228,27 +228,32 @@ void MowOp::onTimetableStartMowing(){
 }
 
 void MowOp::onObstacle(){
+    onObstacle(0);
+}
+
+void MowOp::onObstacle(int side){
     if ((!DOCK_DETECT_OBSTACLE_IN_DOCK) && (maps.isBetweenLastAndNextToLastDockPoint())) {
-      //CONSOLE.println("triggerObstacle: ignoring, because in dock");      
+      //CONSOLE.println("triggerObstacle: ignoring, because in dock");
       return;
     }
-    CONSOLE.println("triggerObstacle");      
-    stats.statMowObstacles++;      
-    if (maps.isDocking()) {    
+    CONSOLE.println("triggerObstacle");
+    stats.statMowObstacles++;
+    if (maps.isDocking()) {
         if (maps.retryDocking(stateEstimator.stateX, stateEstimator.stateY)) {
-            changeOp(escapeReverseOp, true);                      
+            changeOp(escapeReverseOp, true);
             return;
         }
-    } 
-    if ((OBSTACLE_AVOIDANCE) && (maps.wayMode != WAY_DOCK)){    
-        changeOp(escapeReverseOp, true);      
-    } else {     
+    }
+    if ((OBSTACLE_AVOIDANCE) && (maps.wayMode != WAY_DOCK)){
+        escapeReverseOp.avoidSide = side;
+        changeOp(escapeReverseOp, true);
+    } else {
         stateEstimator.stateSensor = SENS_OBSTACLE;
-        CONSOLE.println("error: obstacle!");            
-        changeOp(errorOp);                
+        CONSOLE.println("error: obstacle!");
+        changeOp(errorOp);
     }
 }
-    
+
 void MowOp::onObstacleRotation(){
     CONSOLE.println("triggerObstacleRotation");    
     stats.statMowObstacles++;   

@@ -350,6 +350,19 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define SONAR_MEDIAN_SAMPLES 5           // median filter buffer size (3/5/7/9)
 #define SONAR_PARALLEL_TRIGGER         // trigger all 3 sensors simultaneously (instead of sequential)
 
+// --- Sonar side avoidance ---
+// Approach A: When an obstacle is detected on one side only, the escape-reverse
+// maneuver adds a slight turn away from the detected side while driving backwards.
+#define SONAR_SIDE_AVOIDANCE_ENABLED   true   // enable side-specific avoidance turn
+#define SONAR_SIDE_AVOID_CM            20     // distance in cm for side detection (larger than SONAR_*_OBSTACLE_CM)
+#define SONAR_SIDE_AVOID_STRENGTH      0.3    // avoidance strength in m/s (0.1 = weak, 0.5 = strong)
+
+// --- Sonar offset obstacle ---
+// Approach B: The virtual obstacle is placed with a lateral offset during
+// escape-reverse, so the pathfinder automatically routes around on the free side.
+#define SONAR_OFFSET_OBSTACLE_ENABLED  true  // enable offset obstacle placement
+#define SONAR_OFFSET_OBSTACLE_DIST     0.3    // lateral offset in meters (0.2 - 0.5 reasonable)
+
 // ------ rain sensor ----------------------------------------------------------
 //#define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers
 #define RAIN_ENABLE false

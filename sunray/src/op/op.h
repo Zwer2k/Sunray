@@ -70,8 +70,9 @@ class Op {
     virtual void onMotorOverload();
     virtual void onMotorError();
     virtual void onObstacle();
+    virtual void onObstacle(int side);
     virtual void onObstacleRotation();
-    virtual void onNoFurtherWaypoints();    
+    virtual void onNoFurtherWaypoints();
     virtual void onTargetReached();
     virtual void onKidnapped(bool state);
     virtual void onBatteryUndervoltage();
@@ -144,10 +145,11 @@ class MowOp: public Op {
     virtual void onTimetableStartMowing() override;    
     virtual void onTimetableStopMowing() override;    
     virtual void onObstacle() override;
+    virtual void onObstacle(int side) override;
     virtual void onObstacleRotation() override;
-    virtual void onTargetReached() override;    
-    virtual void onKidnapped(bool state) override;   
-    virtual void onNoFurtherWaypoints() override;     
+    virtual void onTargetReached() override;
+    virtual void onKidnapped(bool state) override;
+    virtual void onNoFurtherWaypoints() override;
     virtual void onImuTilt() override;
     virtual void onImuError() override;
 };
@@ -165,13 +167,14 @@ class DockOp: public Op {
     virtual void end() override;
     virtual void run() override;
     virtual void onObstacle() override;
+    virtual void onObstacle(int side) override;
     virtual void onObstacleRotation() override;
-    virtual void onTargetReached() override;    
+    virtual void onTargetReached() override;
     virtual void onGpsFixTimeout() override;
-    virtual void onNoFurtherWaypoints() override;              
+    virtual void onNoFurtherWaypoints() override;
     virtual void onGpsNoSignal() override;
     virtual void onKidnapped(bool state) override;
-    //virtual void onChargerConnected() override;   
+    //virtual void onChargerConnected() override;
 };
 
 // charging op
@@ -239,9 +242,11 @@ class GpsWaitFloatOp: public Op {
 
 
 // escape obstacle (drive backwards)
+// side: 0 = kein Hindernis auf einer Seite, -1 = Hindernis links, +1 = Hindernis rechts
 class EscapeReverseOp: public Op {
-  public:        
+  public:
     unsigned long driveReverseStopTime;
+    int avoidSide;  // -1 = Hindernis links (nach rechts ausweichen), +1 = Hindernis rechts, 0 = gerade zurück
     virtual String name() override;
     virtual void begin() override;
     virtual void end() override;

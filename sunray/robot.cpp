@@ -741,6 +741,12 @@ void triggerObstacle(){
   activeOp->onObstacle();
 }
 
+// drive reverse if robot cannot move forward, with side info for directional avoidance
+// side: 0 = no side info, -1 = obstacle left (avoid right), +1 = obstacle right (avoid left)
+void triggerObstacle(int side){
+  activeOp->onObstacle(side);
+}
+
 
 // detect sensor malfunction
 void detectSensorMalfunction(){  
@@ -866,12 +872,26 @@ bool detectObstacle(){
 
   if (sonar.obstacle() && (maps.wayMode != WAY_DOCK)){
     if (SONAR_TRIGGER_OBSTACLES){
-      CONSOLE.println("sonar obstacle!");            
-      stats.statMowSonarCounter++;
-      triggerObstacle();
+      #if SONAR_SIDE_AVOIDANCE_ENABLED
+        // Determine which side triggered for directional avoidance
+        int side = 0;
+        bool leftTriggered  = (sonar.distanceLeft  < sonar.triggerLeftBelow);
+        bool rightTriggered = (sonar.distanceRight < sonar.triggerRightBelow);
+        bool centerTriggered = (sonar.distanceCenter < sonar.triggerCenterBelow);
+        if (leftTriggered && !rightTriggered && !centerTriggered) side = -1;  // obstacle left -> avoid right
+        else if (rightTriggered && !leftTriggered && !centerTriggered) side = +1; // obstacle right -> avoid left
+        CONSOLE.print("sonar obstacle! side=");
+        CONSOLE.println(side);
+        stats.statMowSonarCounter++;
+        triggerObstacle(side);
+      #else
+        CONSOLE.println("sonar obstacle!");
+        stats.statMowSonarCounter++;
+        triggerObstacle();
+      #endif
       return true;
-    }        
-  }  
+    }
+  }
   // check if GPS motion (obstacle detection)  
   if ((millis() > nextGPSMotionCheckTime) || (millis() > overallMotionTimeout)) {        
     updateGPSMotionCheckTime();

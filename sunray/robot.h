@@ -152,6 +152,7 @@ void start();
 void run();
 void setOperation(OperationType op, bool allowRepeat = false);
 void triggerObstacle();
+void triggerObstacle(int side);
 void sensorTest();
 void updateStateOpText();
 void detectSensorMalfunction();
