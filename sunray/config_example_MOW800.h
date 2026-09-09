@@ -465,6 +465,12 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define OBSTACLE_DIAMETER 0.4   // choose diameter of obstacles placed in front of robot (m) for obstacle avoidance
 #define DISABLE_MOW_MOTOR_AT_OBSTACLE false // switch off mow motor while escape at detected obstacle; set false if mow motor shall not be stopped at detected obstacles
 
+// After an obstacle near the perimeter, return to the interrupted mowing point
+// along the perimeter instead of aiming at it head-on again.
+#define PERIMETER_TANGENTIAL_RECOVERY true
+#define PERIMETER_TANGENTIAL_RECOVERY_DISTANCE 0.45 // only apply to targets this close to the perimeter (m)
+#define PERIMETER_TANGENTIAL_APPROACH_LENGTH 0.50  // maximum parallel recovery maneuver before the target (m)
+
 // detect robot being kidnapped? robot will try GPS recovery if distance to tracked path is greater than a certain value
 // (false GPS fix recovery), and if that fails go into error 
 #define KIDNAP_DETECT true  // recommended
