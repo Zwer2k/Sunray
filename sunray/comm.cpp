@@ -1209,11 +1209,6 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ((cmd.length() > 4) && (cmd[4] == 'T')) cmdTimetable();
     else cmdStats();
   }
-  if (cmd[3] == 'U') {
-    // AT+U1 is the firmware-update command and must NOT be handled as UBX proxy.
-    if ((cmd.length() > 4) && (cmd[4] == '1')) cmdFirmwareUpdate();
-    else cmdUbxProxy();
-  }
   if (cmd[3] == 'L') cmdClearStats();
   if (cmd[3] == 'E') cmdMotorTest();  
   if (cmd[3] == 'Q') cmdMotorPlot();  
