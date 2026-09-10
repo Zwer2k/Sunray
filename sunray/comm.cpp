@@ -784,7 +784,7 @@ void Comm::cmdSummary(){
 // request sensor summary
 void Comm::cmdSensorSummary(){
   String s = F("S3,");
-  s += sonar.distanceLeft;  
+  s += sonar.distanceLeft;
   s += ",";
   s += sonar.distanceCenter;
   s += ",";
@@ -802,14 +802,14 @@ void Comm::cmdSensorSummary(){
   s += ",";
   s += bumper.nearObstacle();
   s += ",";
-  s += lidarBumper.obstacle();  
+  s += lidarBumper.obstacle();
   s += ",";
   s += lidarBumper.nearObstacle();
   s += ",";
   s += liftDriver.triggered();
   s += ",";
   s += rainDriver.triggered();
-  cmdAnswer(s);  
+  cmdAnswer(s);
 }
 
 // request GPS satellite details
