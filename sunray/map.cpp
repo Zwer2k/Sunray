@@ -490,6 +490,9 @@ void Map::begin(){
   shouldDock = false; 
   shouldRetryDock = false; 
   shouldMow = false;         
+  gotoActive = false;
+  savedMowMotorRunningBeforeGoto = false;
+  restoreMowStateAfterGoto = false;
   mapCRC = 0;  
   CONSOLE.print("sizeof Point=");
   CONSOLE.println(sizeof(Point));  
@@ -1831,6 +1834,102 @@ int Map::findNextNeighbor(NodeList &nodes, PolygonList &obstacles, Node &node, i
   return -1;
 }  
 
+
+bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY){
+  if (perimeterPoints.numPoints < 3) return false;
+
+  Point startPt(startX, startY);
+  Point targetPt(targetX, targetY);
+  if (pointIsInsidePolygon(perimeterPoints, startPt) &&
+      pointIsInsidePolygon(perimeterPoints, targetPt) &&
+      !linePolygonIntersection(startPt, targetPt, perimeterPoints)) {
+    return false;
+  }
+
+  int startIdx = -1;
+  int targetIdx = -1;
+  float minStartDist = 1e9;
+  float minTargetDist = 1e9;
+  for (int i = 0; i < perimeterPoints.numPoints; i++) {
+    float startDist = distance(perimeterPoints.points[i], startPt);
+    if (startDist < minStartDist) {
+      minStartDist = startDist;
+      startIdx = i;
+    }
+    float targetDist = distance(perimeterPoints.points[i], targetPt);
+    if (targetDist < minTargetDist) {
+      minTargetDist = targetDist;
+      targetIdx = i;
+    }
+  }
+  if (startIdx < 0 || targetIdx < 0) return false;
+
+  int numPoints = perimeterPoints.numPoints;
+  int forwardSteps = targetIdx >= startIdx
+      ? targetIdx - startIdx
+      : targetIdx + numPoints - startIdx;
+  int reverseSteps = numPoints - forwardSteps;
+  bool useForward = forwardSteps <= reverseSteps;
+  int steps = useForward ? forwardSteps : reverseSteps;
+  if (steps <= 1) return false;
+
+  const int maxWaypoints = 25;
+  int interval = max(1, steps / maxWaypoints);
+  int pointIndex = startIdx;
+  int position = 0;
+  int waypointCount = 0;
+  while (true) {
+    if (position % interval == 0 || pointIndex == targetIdx) waypointCount++;
+    if (pointIndex == targetIdx) break;
+    position++;
+    if (useForward) {
+      pointIndex = (pointIndex + 1) % numPoints;
+    } else {
+      pointIndex = (pointIndex - 1 + numPoints) % numPoints;
+    }
+  }
+
+  freePoints.dealloc();
+  if (!freePoints.alloc(waypointCount + 1)) return false;
+
+  float centerX = 0;
+  float centerY = 0;
+  for (int i = 0; i < numPoints; i++) {
+    centerX += perimeterPoints.points[i].x();
+    centerY += perimeterPoints.points[i].y();
+  }
+  centerX /= numPoints;
+  centerY /= numPoints;
+
+  int freePointIndex = 0;
+  pointIndex = startIdx;
+  position = 0;
+  while (true) {
+    if (position % interval == 0 || pointIndex == targetIdx) {
+      float pointX = perimeterPoints.points[pointIndex].x();
+      float pointY = perimeterPoints.points[pointIndex].y();
+      float offsetX = centerX - pointX;
+      float offsetY = centerY - pointY;
+      float offsetLength = sqrt(offsetX * offsetX + offsetY * offsetY);
+      if (offsetLength > 0.01f) {
+        offsetX /= offsetLength;
+        offsetY /= offsetLength;
+      }
+      freePoints.points[freePointIndex++].setXY(pointX + offsetX * 0.2f,
+                                                pointY + offsetY * 0.2f);
+    }
+    if (pointIndex == targetIdx) break;
+    position++;
+    if (useForward) {
+      pointIndex = (pointIndex + 1) % numPoints;
+    } else {
+      pointIndex = (pointIndex - 1 + numPoints) % numPoints;
+    }
+  }
+  freePoints.points[freePointIndex].setXY(targetX, targetY);
+  freePointsIdx = 0;
+  return true;
+}
 
 // astar path finder 
 // https://briangrinstead.com/blog/astar-search-algorithm-in-javascript/

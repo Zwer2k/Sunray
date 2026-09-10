@@ -16,6 +16,8 @@
 MowOp::MowOp(){
     lastMapRoutingFailed = false;
     mapRoutingFailedCounter = 0;
+    gotoNearTargetSince = 0;
+    gotoDone = false;
 }
 
 String MowOp::name(){
@@ -23,6 +25,42 @@ String MowOp::name(){
 }
 
 void MowOp::begin(){
+    if (maps.gotoActive){
+        maps.gotoActive = false;
+        gotoNearTargetSince = 0;
+        gotoDone = false;
+        motor.enableTractionMotors(true);
+        motor.setReleaseBrakesWhenZero(false);
+        motor.setLinearAngularSpeed(0, 0);
+        if (maps.savedMowMotorRunningBeforeGoto) {
+            motor.enableMowMotor = true;
+            motor.setMowState(true);
+        } else {
+            motor.enableMowMotor = false;
+            motor.stopImmediately(true);
+        }
+        battery.setIsDocked(false);
+        timetable.setMowingCompletedInCurrentTimeFrame(false);
+        stateEstimator.lastFixTime = millis();
+        maps.setLastTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
+        lastMapRoutingFailed = false;
+        mapRoutingFailedCounter = 0;
+        return;
+    }
+
+    if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0 && !maps.shouldMow){
+        gotoNearTargetSince = 0;
+        gotoDone = false;
+        motor.enableTractionMotors(true);
+        motor.setReleaseBrakesWhenZero(false);
+        motor.setLinearAngularSpeed(0, 0);
+        battery.setIsDocked(false);
+        timetable.setMowingCompletedInCurrentTimeFrame(false);
+        stateEstimator.lastFixTime = millis();
+        maps.setLastTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
+        return;
+    }
+
     bool error = false;
     bool routingFailed = false;      
 
@@ -93,6 +131,24 @@ void MowOp::run(){
     lineTracker.trackLine(true); 
     detectSensorMalfunction();    
     battery.resetIdle();
+
+    if (maps.wayMode == WAY_FREE && !maps.shouldMow) {
+        float distanceToTarget = maps.distanceToTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
+        if (distanceToTarget >= 0.5f) {
+            gotoNearTargetSince = 0;
+        } else if (distanceToTarget > 0.1f) {
+            if (gotoNearTargetSince == 0) gotoNearTargetSince = millis();
+            if (millis() - gotoNearTargetSince > 8000) {
+                if (maps.freePointsIdx + 1 < maps.freePoints.numPoints) {
+                    maps.nextPoint(false, stateEstimator.stateX, stateEstimator.stateY);
+                    gotoNearTargetSince = 0;
+                } else {
+                    onTargetReached();
+                    return;
+                }
+            }
+        }
+    }
     
     if (timetable.shouldAutostopNow()){
         if (DOCKING_STATION){
@@ -251,6 +307,11 @@ void MowOp::onTargetReached(){
         maps.clearObstacles(); // clear obstacles if target reached
         stateEstimator.motorErrorCounter = 0; // reset motor error counter if target reached
         stateEstimator.stateSensor = SENS_NONE; // clear last triggered sensor
+    } else if (maps.wayMode == WAY_FREE && !maps.shouldMow) {
+        if (maps.freePointsIdx + 1 >= maps.freePoints.numPoints) {
+            gotoDone = true;
+            changeOp(idleOp);
+        }
     }
 }
 
@@ -296,6 +357,10 @@ void MowOp::onKidnapped(bool state){
 }
 
 void MowOp::onNoFurtherWaypoints(){
+    if (gotoDone){
+        gotoDone = false;
+        return;
+    }
     CONSOLE.println("mowing finished!");
     Logger.event(EVT_MOWING_COMPLETED);
     timetable.setMowingCompletedInCurrentTimeFrame(true);

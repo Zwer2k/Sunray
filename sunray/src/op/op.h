@@ -126,6 +126,8 @@ class MowOp: public Op {
   public:
     bool lastMapRoutingFailed;
     int mapRoutingFailedCounter;
+    unsigned long gotoNearTargetSince;
+    bool gotoDone;
     MowOp();
     virtual String name() override;
     virtual void begin() override;

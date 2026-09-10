@@ -274,6 +274,12 @@ void Comm::cmdMotor(){
   CONSOLE.print(linear);
   CONSOLE.print(" angular=");
   CONSOLE.println(angular);*/
+  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0) && maps.gotoActive){
+    CONSOLE.println("AT+M: goto cancelled");
+    maps.freePoints.dealloc();
+    maps.freePointsIdx = 0;
+    setOperation(OP_IDLE);
+  }
   linear = applyManualSlowDown(linear);
   motor.setLinearAngularSpeed(linear, angular, false);
   String s = F("M");
@@ -492,6 +498,43 @@ void Comm::cmdPosMode(){
   CONSOLE.println(stateEstimator.absolutePosSourceLat, 8);
   String s = F("P");
   cmdAnswer(s);
+}
+
+// navigate to point (AT+R,<x>,<y>)
+void Comm::cmdRoute(){
+  if (cmd.length() < 8) return;
+  int firstComma = cmd.indexOf(',', 4);
+  if (firstComma < 0) return;
+  int secondComma = cmd.indexOf(',', firstComma + 1);
+  if (secondComma < 0) return;
+  float x = cmd.substring(firstComma + 1, secondComma).toFloat();
+  float y = cmd.substring(secondComma + 1).toFloat();
+
+  CONSOLE.print("AT+R: goto ");
+  CONSOLE.print(x);
+  CONSOLE.print(",");
+  CONSOLE.println(y);
+
+  if (!maps.findGotoRoute(stateEstimator.stateX, stateEstimator.stateY, x, y)){
+    CONSOLE.println("AT+R: direct route");
+    maps.freePoints.dealloc();
+    if (!maps.freePoints.alloc(1)){
+      CONSOLE.println("ERROR AT+R: alloc failed");
+      return;
+    }
+    maps.freePoints.points[0].setXY(x, y);
+    maps.freePointsIdx = 0;
+  }
+  maps.wayMode = WAY_FREE;
+  maps.shouldMow = false;
+  maps.shouldDock = false;
+  maps.gotoActive = true;
+  maps.savedMowMotorRunningBeforeGoto = (motor.motorMowPWMCurr > 0.01);
+  maps.restoreMowStateAfterGoto = maps.savedMowMotorRunningBeforeGoto;
+
+  setOperation(OP_IDLE);
+  setOperation(OP_MOW);
+  cmdAnswer(String(F("R")));
 }
 
 // request version
@@ -1033,6 +1076,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ((cmd.length() > 4) && (cmd[4] == '1')) cmdFirmwareUpdate();
   }
   if (cmd[3] == 'G') cmdToggleGPSSolution();   // for developers
+  if (cmd[3] == 'R') cmdRoute();   // navigate to point
   if (cmd[3] == 'K') cmdKidnap();   // for developers
   if (cmd[3] == 'Z') cmdStressTest();   // for developers
   if (cmd[3] == 'Y') {
