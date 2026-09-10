@@ -280,8 +280,7 @@ void Comm::cmdMotor(){
   CONSOLE.print(linear);
   CONSOLE.print(" angular=");
   CONSOLE.println(angular);*/
-  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0) && (maps.gotoActive)){
-    // any AT+M while GoTo active → cancel GoTo (preserve mow via restoreMowStateAfterGoto)
+  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0) && maps.gotoActive){
     CONSOLE.println("AT+M: goto cancelled");
     maps.freePoints.dealloc();
     maps.freePointsIdx = 0;
@@ -521,8 +520,7 @@ void Comm::cmdRoute(){
   CONSOLE.print(",");
   CONSOLE.println(y);
 
-  // Try perimeter-aware routing (stays within map, avoids crossing perimeter)
-  if (!maps.findGotoRoute(stateEstimator.stateX, stateEstimator.stateY, x, y)) {
+  if (!maps.findGotoRoute(stateEstimator.stateX, stateEstimator.stateY, x, y)){
     CONSOLE.println("AT+R: direct route");
     maps.freePoints.dealloc();
     if (!maps.freePoints.alloc(1)){
@@ -536,16 +534,12 @@ void Comm::cmdRoute(){
   maps.shouldMow = false;
   maps.shouldDock = false;
   maps.gotoActive = true;
-
-  // save mow motor state before idle clears it
   maps.savedMowMotorRunningBeforeGoto = (motor.motorMowPWMCurr > 0.01);
   maps.restoreMowStateAfterGoto = maps.savedMowMotorRunningBeforeGoto;
 
-  // switch to idle first, then mow
   setOperation(OP_IDLE);
   setOperation(OP_MOW);
-  String s = F("R");
-  cmdAnswer(s);
+  cmdAnswer(String(F("R")));
 }
 
 // request version

@@ -106,6 +106,11 @@ Map Upload
 Position Source
 - `AT+P,<enable>,<lon>,<lat>` → Configure external absolute position source (e.g. app provides GNSS lat/lon).
   - Ack: `P,0xHH`
+- `AT+R,<x>,<y>` → Navigate to the target position in meters.
+  - The firmware uses a direct route when it is safe. If the route crosses the perimeter, it creates a perimeter-aware route using free waypoints.
+  - The current cutter motor state is preserved while navigating. The robot returns to `IDLE` after reaching the final waypoint.
+  - An active route can be cancelled with `AT+M,<linear>,<angular>`.
+  - Ack: `R,0xHH`
 
 Statistics
 - `AT+T` → Read statistics.

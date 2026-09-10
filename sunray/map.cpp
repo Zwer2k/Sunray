@@ -500,7 +500,7 @@ void Map::begin(){
   dockPointsIdx = 0;
   shouldDock = false; 
   shouldRetryDock = false; 
-  shouldMow = false;       
+  shouldMow = false;         
   gotoActive = false;
   savedMowMotorRunningBeforeGoto = false;
   restoreMowStateAfterGoto = false;
@@ -1946,138 +1946,107 @@ int Map::findNextNeighbor(NodeList &nodes, PolygonList &obstacles, Node &node, i
 }  
 
 
-// astar path finder 
-// https://briangrinstead.com/blog/astar-search-algorithm-in-javascript/
-bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY) {
-    if (perimeterPoints.numPoints < 3) return false;
+bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY){
+  if (perimeterPoints.numPoints < 3) return false;
 
-    Point startPt(startX, startY), targetPt(targetX, targetY);
+  Point startPt(startX, startY);
+  Point targetPt(targetX, targetY);
+  if (pointIsInsidePolygon(perimeterPoints, startPt) &&
+      pointIsInsidePolygon(perimeterPoints, targetPt) &&
+      !linePolygonIntersection(startPt, targetPt, perimeterPoints)) {
+    return false;
+  }
 
-    if (pointIsInsidePolygon(perimeterPoints, startPt) &&
-        pointIsInsidePolygon(perimeterPoints, targetPt) &&
-        !linePolygonIntersection(startPt, targetPt, perimeterPoints))
-        return false;
-
-    int startIdx = -1, targetIdx = -1;
-    float minStart = 1e9, minTarget = 1e9;
-    for (int i = 0; i < perimeterPoints.numPoints; i++) {
-        float d = distance(perimeterPoints.points[i], startPt);
-        if (d < minStart) { minStart = d; startIdx = i; }
-        d = distance(perimeterPoints.points[i], targetPt);
-        if (d < minTarget) { minTarget = d; targetIdx = i; }
+  int startIdx = -1;
+  int targetIdx = -1;
+  float minStartDist = 1e9;
+  float minTargetDist = 1e9;
+  for (int i = 0; i < perimeterPoints.numPoints; i++) {
+    float startDist = distance(perimeterPoints.points[i], startPt);
+    if (startDist < minStartDist) {
+      minStartDist = startDist;
+      startIdx = i;
     }
-    if (startIdx < 0 || targetIdx < 0) return false;
-
-    int N = perimeterPoints.numPoints;
-    int fwd = (targetIdx >= startIdx) ? targetIdx - startIdx : targetIdx + N - startIdx;
-    int rev = N - fwd;
-    bool fwdDir = (fwd <= rev);
-    int steps = fwdDir ? fwd : rev;
-    if (steps <= 1) return false;
-
-    float cx = 0, cy = 0;
-    for (int j = 0; j < N; j++) {
-        cx += perimeterPoints.points[j].x();
-        cy += perimeterPoints.points[j].y();
+    float targetDist = distance(perimeterPoints.points[i], targetPt);
+    if (targetDist < minTargetDist) {
+      minTargetDist = targetDist;
+      targetIdx = i;
     }
-    cx /= N; cy /= N;
+  }
+  if (startIdx < 0 || targetIdx < 0) return false;
 
-    auto offsetPt = [&](int pi) {
-        float x = perimeterPoints.points[pi].x(), y = perimeterPoints.points[pi].y();
-        float dx = cx - x, dy = cy - y;
-        float d = sqrt(dx*dx + dy*dy);
-        if (d > 0.01f) { dx /= d; dy /= d; }
-        return Point(x + dx * 0.2f, y + dy * 0.2f);
-    };
+  int numPoints = perimeterPoints.numPoints;
+  int forwardSteps = targetIdx >= startIdx
+      ? targetIdx - startIdx
+      : targetIdx + numPoints - startIdx;
+  int reverseSteps = numPoints - forwardSteps;
+  bool useForward = forwardSteps <= reverseSteps;
+  int steps = useForward ? forwardSteps : reverseSteps;
+  if (steps <= 1) return false;
 
-    auto angleAt = [&](Point &a, Point &b, Point &c) {
-        float ax = b.x()-a.x(), ay = b.y()-a.y();
-        float bx = c.x()-b.x(), by = c.y()-b.y();
-        float la = sqrt(ax*ax+ay*ay), lb = sqrt(bx*bx+by*by);
-        if (la < 0.01f || lb < 0.01f) return 180.0f;
-        float dot = (ax*bx + ay*by) / (la * lb);
-        if (dot > 1.0f) dot = 1.0f; if (dot < -1.0f) dot = -1.0f;
-        return acos(dot) * 180.0f / 3.14159265f;
-    };
-
-    // Phase 1: collect offset perimeter points between startIdx and targetIdx
-    Point* buf = new Point[N];
-    if (!buf) {
-        CONSOLE.println("ERROR findGotoRoute: out of memory");
-        memoryAllocErrors++;
-        return false;
+  const int maxWaypoints = 25;
+  int interval = max(1, steps / maxWaypoints);
+  int pointIndex = startIdx;
+  int position = 0;
+  int waypointCount = 0;
+  while (true) {
+    if (position % interval == 0 || pointIndex == targetIdx) waypointCount++;
+    if (pointIndex == targetIdx) break;
+    position++;
+    if (useForward) {
+      pointIndex = (pointIndex + 1) % numPoints;
+    } else {
+      pointIndex = (pointIndex - 1 + numPoints) % numPoints;
     }
-    int bufN = 0;
-    {
-        int pi = startIdx;
-        while (true) {
-            buf[bufN++] = offsetPt(pi);
-            if (pi == targetIdx) break;
-            pi = fwdDir ? (pi+1)%N : (pi-1+N)%N;
-        }
+  }
+
+  freePoints.dealloc();
+  if (!freePoints.alloc(waypointCount + 1)) return false;
+
+  float centerX = 0;
+  float centerY = 0;
+  for (int i = 0; i < numPoints; i++) {
+    centerX += perimeterPoints.points[i].x();
+    centerY += perimeterPoints.points[i].y();
+  }
+  centerX /= numPoints;
+  centerY /= numPoints;
+
+  int freePointIndex = 0;
+  pointIndex = startIdx;
+  position = 0;
+  while (true) {
+    if (position % interval == 0 || pointIndex == targetIdx) {
+      float pointX = perimeterPoints.points[pointIndex].x();
+      float pointY = perimeterPoints.points[pointIndex].y();
+      float offsetX = centerX - pointX;
+      float offsetY = centerY - pointY;
+      float offsetLength = sqrt(offsetX * offsetX + offsetY * offsetY);
+      if (offsetLength > 0.01f) {
+        offsetX /= offsetLength;
+        offsetY /= offsetLength;
+      }
+      freePoints.points[freePointIndex++].setXY(pointX + offsetX * 0.2f,
+                                                pointY + offsetY * 0.2f);
     }
-
-    // Count final waypoints
-    const float CORNER_THRESH = 150.0f;
-    const float RADIUS = 0.4f;
-    const int ARC = 4;
-    int total = 1;
-    for (int j = 1; j < bufN - 1; j++) {
-        if (angleAt(buf[j-1], buf[j], buf[j+1]) < CORNER_THRESH) total += ARC;
-        else total += 1;
+    if (pointIndex == targetIdx) break;
+    position++;
+    if (useForward) {
+      pointIndex = (pointIndex + 1) % numPoints;
+    } else {
+      pointIndex = (pointIndex - 1 + numPoints) % numPoints;
     }
-    total += 2; // last buf point + target
-
-    freePoints.dealloc();
-    if (!freePoints.alloc(total)) {
-        delete[] buf;
-        return false;
-    }
-
-    // Phase 2: build with corner rounding
-    int idx = 0;
-    freePoints.points[idx++].setXY(buf[0].x(), buf[0].y());
-
-    for (int j = 1; j < bufN - 1; j++) {
-        if (angleAt(buf[j-1], buf[j], buf[j+1]) < CORNER_THRESH) {
-            float dxIn = buf[j].x() - buf[j-1].x();
-            float dyIn = buf[j].y() - buf[j-1].y();
-            float li = sqrt(dxIn*dxIn + dyIn*dyIn);
-            if (li > 0.01f) { dxIn /= li; dyIn /= li; }
-
-            float dxOut = buf[j+1].x() - buf[j].x();
-            float dyOut = buf[j+1].y() - buf[j].y();
-            float lo = sqrt(dxOut*dxOut + dyOut*dyOut);
-            if (lo > 0.01f) { dxOut /= lo; dyOut /= lo; }
-
-            float sx = buf[j].x() - dxIn * RADIUS;
-            float sy = buf[j].y() - dyIn * RADIUS;
-            float ex = buf[j].x() + dxOut * RADIUS;
-            float ey = buf[j].y() + dyOut * RADIUS;
-
-            for (int k = 1; k <= ARC; k++) {
-                float t = (float)k / (float)(ARC + 1);
-                float qx = (1-t)*(1-t)*sx + 2*(1-t)*t*buf[j].x() + t*t*ex;
-                float qy = (1-t)*(1-t)*sy + 2*(1-t)*t*buf[j].y() + t*t*ey;
-                freePoints.points[idx++].setXY(qx, qy);
-            }
-        } else {
-            freePoints.points[idx++].setXY(buf[j].x(), buf[j].y());
-        }
-    }
-
-    freePoints.points[idx++].setXY(buf[bufN-1].x(), buf[bufN-1].y());
-    freePoints.points[idx++].setXY(targetX, targetY);
-    delete[] buf;
-    freePointsIdx = 0;
-
-    CONSOLE.print("findGotoRoute: ");
-    CONSOLE.print(idx);
-    CONSOLE.println(" waypoints");
-    return true;
+  }
+  freePoints.points[freePointIndex].setXY(targetX, targetY);
+  freePointsIdx = 0;
+  CONSOLE.print("findGotoRoute: ");
+  CONSOLE.print(freePointIndex);
+  CONSOLE.println(" waypoints");
+  return true;
 }
 
-
+// astar path finder 
+// https://briangrinstead.com/blog/astar-search-algorithm-in-javascript/
 bool Map::findPath(Point &src, Point &dst){
   if ((memoryCorruptions != 0) || (memoryAllocErrors != 0)){
     CONSOLE.println("ERROR findPath: memory errors");
