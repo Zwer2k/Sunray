@@ -4,7 +4,7 @@
      2. WiFi UART bridge (HTTP server UART)
 
 
-  Steps to install ESP32 for Arduino IDE 1.8.13:
+  Steps to install ESP32 for Arduino IDE 1.8.19:
      1. Arduino IDE: File->Preferences:  Add to board manager URLs: ",https://dl.espressif.com/dl/package_esp32_index.json"
      2. Choose "Tools->Board->Boards Manager"
      3. Add board "esp32" (IMPORTANT!!! choose latest version )

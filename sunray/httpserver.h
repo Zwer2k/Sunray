@@ -20,6 +20,24 @@
 #include "RingBuffer.h"
 #include "src/net/WebSocketClient.h"
 
+#ifdef __linux__
+  // Keep potentially slow DNS/TCP/TLS setup out of the robot control loop.
+  #ifdef min
+    #undef min
+  #endif
+  #ifdef max
+    #undef max
+  #endif
+  #include <atomic>
+  #include <thread>
+  #ifndef min
+    #define min(a,b) ((a) < (b) ? (a) : (b))
+  #endif
+  #ifndef max
+    #define max(a,b) ((a) > (b) ? (a) : (b))
+  #endif
+#endif
+
 // Select TCP transport for WebSocket:
 // - On Linux, allow choosing TLS (wss) vs plain TCP (ws) via WS_USE_TLS
 // - On MCUs, use WiFiEspClient (plain)
@@ -41,6 +59,7 @@
 class HttpServer {
 public:
   HttpServer();
+  ~HttpServer();
   void begin();
   void processWifiRelayClient();
   void processWifiAppServer();
@@ -66,6 +85,11 @@ private:
   WebSocketClient wsClient;
   unsigned long wsNextConnectTime = 0;
   unsigned long wsLastRxTime = 0;
+#ifdef __linux__
+  std::thread wsConnectThread;
+  std::atomic<bool> wsConnectInProgress{false};
+  std::atomic<bool> wsConnectSucceeded{false};
+#endif
 };
 
 #endif

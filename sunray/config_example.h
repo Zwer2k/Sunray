@@ -337,14 +337,17 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#Ultrasonic_sensor
 
 #define SONAR_INSTALLED 1              // uncomment if ultrasonic sensors are installed
-#define SONAR_ENABLE true              // should ultrasonic sensor be used?
-//#define SONAR_ENABLE false
-#define SONAR_TRIGGER_OBSTACLES true     // should sonar be used to trigger obstacles? if not, mower will only slow down
-#define CAN_SONAR_TRIGGER_OBSTACLES 1    // enable owlController CAN ultrasonic obstacle trigger
-#define SONAR_LEFT_OBSTACLE_CM   12     // stop mowing operation below this distance (cm) 
-#define SONAR_CENTER_OBSTACLE_CM 16     // stop mowing operation below this distance (cm) 
-#define SONAR_RIGHT_OBSTACLE_CM  12     // stop mowing operation below this distance (cm) 
-#define SONAR_POLL_INTERVAL_MS   200     // CAN polling interval for sonar distances
+//#define SONAR_ENABLE true              // should ultrasonic sensor be used?
+#define SONAR_ENABLE false
+#define SONAR_TRIGGER_OBSTACLES true     // should ultrasonic sensors trigger obstacles? if not, they can only slow down
+#define SONAR_OBSTACLE_WARNING_LEVEL 5   // warning level that triggers an obstacle
+#define SONAR_SLOW_DOWN_WARNING_LEVEL 3  // warning level that slows down autonomous driving
+#define SONAR_MANUAL_OBSTACLE_CONTROL false  // also apply ultrasonic slow-down/stop levels during manual driving
+#define SONAR_LEFT_OBSTACLE_CM   15      // stop mowing operation below this distance (cm)
+#define SONAR_CENTER_OBSTACLE_CM 15      // stop mowing operation below this distance (cm)
+#define SONAR_RIGHT_OBSTACLE_CM  15      // stop mowing operation below this distance (cm)
+#define SONAR_POLL_INTERVAL_MS   200     // ultrasonic polling interval
+
 #define SONAR_DEBOUNCE_US 100            // software debounce echo pin (µs), 0 = disable
 #define SONAR_EVAL_INTERVAL_MS 50        // how often to evaluate median distances (ms)
 #define SONAR_MEDIAN_SAMPLES 5           // median filter buffer size (3/5/7/9)
@@ -500,8 +503,13 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define DOCK_IGNORE_GPS false     // use GPS fix in docking station and IMU for GPS float/invalid
 #define DOCK_IGNORE_GPS true     // ignore GPS fix in docking station and use IMU-only (use this if robot gets false GPS fixes in your docking station)
 
-//#define DOCK_AUTO_START true     // robot will automatically continue mowing after docked automatically
-#define DOCK_AUTO_START false      // robot will not automatically continue mowing after docked automatically
+//#define DOCK_IGNORE_GPS_DISTANCE 1.5 // ignore GPS position/heading on final docking segment within this distance (m)
+
+// Continue straight for this odometry distance after the charging contacts are first detected (m); 0 disables it.
+#define DOCK_CONTACT_ADVANCE_DISTANCE 0.0
+
+#define DOCK_AUTO_START true     // robot will automatically continue mowing after docked automatically
+//#define DOCK_AUTO_START false      // robot will not automatically continue mowing after docked automatically
 
 //#define DOCK_RETRY_TOUCH true   // robot will retry touching docking contacts (max. 1cm) if loosing docking contacts during charging
 #define DOCK_RETRY_TOUCH false   // robot will not retry touching docking contacts (max. 1cm) if loosing docking contacts during charging
@@ -516,7 +524,21 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define DOCK_RELEASE_BRAKES false   // robot will not release electrical brakes in dock
 
 //#define DOCK_APRIL_TAG 1         // use visual (april-tag) docking?
-#define DOCK_LINEAR_SPEED 0.15   // linear speed for docking
+//#define DOCK_LED_STRIP 1         // Linux only: native camera LED-strip docking/undocking (no ROS)
+#define DOCK_LED_STRIP_SWITCH_DISTANCE 1.5 // hand over between GPS and camera this far from dock (m)
+#define DOCK_LED_STRIP_CAMERA_INDEX 0      // logical CameraRegistry index
+#define DOCK_LED_STRIP_DETECTION_FPS 10
+#define DOCK_LED_STRIP_MIN_BRIGHTNESS 220  // minimum RGB channel peak for a white LED
+#define DOCK_LED_STRIP_MAX_COLOR_SPREAD 60 // maximum difference between RGB channels
+#define DOCK_LED_STRIP_MIN_LEDS 5           // minimum aligned bright spots
+#define DOCK_LED_STRIP_MIN_VERTICAL_SPAN 0.18 // minimum LED-chain span relative to image height
+#define DOCK_LED_STRIP_MAX_SLOPE 0.12       // maximum horizontal/vertical slope of the strip
+#define DOCK_LED_STRIP_ACQUIRE_FRAMES 3     // consecutive detections required before driving
+#define DOCK_LED_STRIP_LOST_TIMEOUT_MS 500  // stop if the strip is stale for this long
+#define DOCK_LED_STRIP_ANGULAR_P 0.7        // image-error steering gain (rad/s)
+#define DOCK_LED_STRIP_MAX_ANGULAR 0.35     // steering limit (rad/s)
+#define DOCK_LED_STRIP_MAX_ERROR_FOR_DRIVE 0.65 // rotate only outside this normalized image error
+#define DOCK_LINEAR_SPEED 0.1   // linear speed for docking
 
 #define DOCK_DETECT_OBSTACLE_IN_DOCK true   // enable obstacle detection in dock?
 

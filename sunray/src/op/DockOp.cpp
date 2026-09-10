@@ -10,12 +10,17 @@
 #include "../../LineTracker.h"
 #include "../../Stats.h"
 #include "../../map.h"
+#include "../../events.h"
 
 DockOp::DockOp(){
   lastMapRoutingFailed = false;
   mapRoutingFailedCounter = 0;
   dockReasonRainTriggered = false;
   dockReasonRainAutoStartTime = 0;
+  dockContactAdvanceActive = false;
+  dockContactAdvanceStartLeftTicks = 0;
+  dockContactAdvanceStartRightTicks = 0;
+  dockContactAdvanceStopTime = 0;
 }
 
 
@@ -25,6 +30,7 @@ String DockOp::name(){
 
 
 void DockOp::begin(){
+  dockContactAdvanceActive = false;
   if (previousOp == &chargeOp){
     battery.setIsDocked(true);    
     changeOp(chargeOp);    
@@ -74,6 +80,7 @@ void DockOp::begin(){
       stateEstimator.stateSensor = SENS_MAP_NO_ROUTE;
       changeOp(errorOp);      
     } else {    
+      gpsRebootRecoveryOp.rebootGpsOnBegin = false;
       changeOp(gpsRebootRecoveryOp, true);
     }
   } else {
@@ -86,9 +93,38 @@ void DockOp::begin(){
 
 
 void DockOp::end(){
+  if (dockContactAdvanceActive) motor.setLinearAngularSpeed(0, 0, false);
+  dockContactAdvanceActive = false;
 }
 
 void DockOp::run(){
+#ifdef DOCK_CONTACT_ADVANCE_DISTANCE
+    if (dockContactAdvanceActive){
+        long leftTicks = (long)(motor.motorLeftTicks - dockContactAdvanceStartLeftTicks);
+        long rightTicks = (long)(motor.motorRightTicks - dockContactAdvanceStartRightTicks);
+        float distanceCm = ((float)(abs(leftTicks) + abs(rightTicks))) / (2.0 * motor.ticksPerCm);
+        bool timedOut = millis() >= dockContactAdvanceStopTime;
+        if ((distanceCm >= DOCK_CONTACT_ADVANCE_DISTANCE * 100.0) || timedOut){
+            motor.setLinearAngularSpeed(0, 0, false);
+            dockContactAdvanceActive = false;
+            CONSOLE.print("dock: contact advance finished distance=");
+            CONSOLE.print(distanceCm / 100.0);
+            CONSOLE.print("m timeout=");
+            CONSOLE.println(timedOut);
+            battery.setIsDocked(true);
+            changeOp(chargeOp);
+            return;
+        }
+
+        float speed = DOCK_FRONT_SIDE ? DOCK_LINEAR_SPEED : -DOCK_LINEAR_SPEED;
+        motor.enableTractionMotors(true);
+        motor.setLinearAngularSpeed(speed, 0, false);
+        detectSensorMalfunction();
+        battery.resetIdle();
+        return;
+    }
+#endif
+
     if (!detectObstacle()){
         detectObstacleRotation();                              
     }
@@ -96,6 +132,32 @@ void DockOp::run(){
     lineTracker.trackLine(true);       
     detectSensorMalfunction(); 
     battery.resetIdle();
+}
+
+
+void DockOp::onChargerConnected(){
+#ifdef DOCK_CONTACT_ADVANCE_DISTANCE
+    if (DOCK_CONTACT_ADVANCE_DISTANCE > 0){
+        dockContactAdvanceStartLeftTicks = motor.motorLeftTicks;
+        dockContactAdvanceStartRightTicks = motor.motorRightTicks;
+
+        float speed = abs(DOCK_LINEAR_SPEED);
+        unsigned long timeoutDuration = 5000;
+        if (speed > 0.001){
+            unsigned long expectedDuration = (unsigned long)(DOCK_CONTACT_ADVANCE_DISTANCE / speed * 1000.0);
+            if (expectedDuration * 3 > timeoutDuration) timeoutDuration = expectedDuration * 3;
+        }
+        dockContactAdvanceStopTime = millis() + timeoutDuration;
+        dockContactAdvanceActive = true;
+
+        CONSOLE.print("dock: charger contact, advancing another ");
+        CONSOLE.print(DOCK_CONTACT_ADVANCE_DISTANCE);
+        CONSOLE.println("m using odometry");
+        return;
+    }
+#endif
+
+    Op::onChargerConnected();
 }
 
 
@@ -110,17 +172,37 @@ void DockOp::onTargetReached(){
 
 
 void DockOp::onGpsFixTimeout(){
-    if (REQUIRE_VALID_GPS){    
+    if (activateDeadReckoningNearDock()) return;
+    if (REQUIRE_VALID_GPS){
       stateEstimator.stateSensor = SENS_GPS_FIX_TIMEOUT;
       changeOp(gpsWaitFixOp, true);
     }
 }
 
 void DockOp::onGpsNoSignal(){
-    if (REQUIRE_VALID_GPS){   
+    if (activateDeadReckoningNearDock()) return;
+    if (REQUIRE_VALID_GPS){
       stateEstimator.stateSensor = SENS_GPS_INVALID;
       changeOp(gpsWaitFloatOp, true);
     }
+}
+
+bool DockOp::activateDeadReckoningNearDock(){
+#ifdef DOCK_IGNORE_GPS_DISTANCE
+    if ((!maps.isDocking()) || (!maps.isTargetingLastDockPoint())) return false;
+    float dockDistance = getDockDistance();
+    if (dockDistance > DOCK_IGNORE_GPS_DISTANCE) return false;
+    if (!stateEstimator.dockGpsIgnored){
+      CONSOLE.print("dock: GPS unavailable, activating IMU/odometry at distance=");
+      CONSOLE.println(dockDistance);
+      Logger.event(EVT_DOCK_IGNORING_GPS);
+    }
+    stateEstimator.dockGpsIgnored = true;
+    stateEstimator.stateLocalizationMode = LOC_IMU_ODO_ONLY;
+    return true;
+#else
+    return false;
+#endif
 }
 
 void DockOp::onKidnapped(bool state){

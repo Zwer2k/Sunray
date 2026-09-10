@@ -123,6 +123,7 @@ void MowOp::begin(){
             changeOp(errorOp);      
         } else {    
             Logger.event(EVT_ERROR_NO_MAP_ROUTE);
+            gpsRebootRecoveryOp.rebootGpsOnBegin = false;
             changeOp(gpsRebootRecoveryOp, true);
         }
     } else {
@@ -351,7 +352,9 @@ void MowOp::onTargetReached(){
 void MowOp::onGpsFixTimeout(){
     // no gps solution
     if (REQUIRE_VALID_GPS){
-#ifdef UNDOCK_IGNORE_GPS_DISTANCE
+#ifdef DOCK_LED_STRIP
+        if (!maps.isUndocking() || stateEstimator.dockLedStripUndockCompleted){
+#elif defined(UNDOCK_IGNORE_GPS_DISTANCE)
         if (!maps.isUndocking() || getDockDistance() > UNDOCK_IGNORE_GPS_DISTANCE){
 #else
         if (!maps.isUndocking()){
@@ -364,7 +367,9 @@ void MowOp::onGpsFixTimeout(){
 
 void MowOp::onGpsNoSignal(){
     if (REQUIRE_VALID_GPS){
-#ifdef UNDOCK_IGNORE_GPS_DISTANCE
+#ifdef DOCK_LED_STRIP
+        if (!maps.isUndocking() || stateEstimator.dockLedStripUndockCompleted){
+#elif defined(UNDOCK_IGNORE_GPS_DISTANCE)
         if (!maps.isUndocking() || getDockDistance() > UNDOCK_IGNORE_GPS_DISTANCE){
 #else
         if (!maps.isUndocking()){

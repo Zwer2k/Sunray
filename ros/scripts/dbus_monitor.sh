@@ -116,7 +116,7 @@ sudo dbus-monitor --system "interface='de.sunray.Bus'" | while read -r line; do
       #killall -9 mplayer >/dev/null 2>&1
       #sleep 0.2
       # -volume 100 -af volume=5:1   //  volume 100% (-volume 100) and amplify by 5dB (-af volume=5:1)
-      run_as_user "mplayer -nolirc -noconsolecontrols -really-quiet -volume 100 $filepath" false
+      run_as_user "play -q -v 1.0 $filepath" false
       #echo "OK"
     #else
       #echo "File $filepath does not exist."

@@ -23,6 +23,8 @@ public:
   void setSender(Sender s);
   void start(int index, int width, int height, int fps, int quality = 70);
   void stop();
+  void enableLedStripDetection(int index, int fps);
+  void disableLedStripDetection();
   bool running() const { return running_.load(); }
 
 private:
@@ -33,8 +35,12 @@ private:
 
   void runLoop();
   void buildAndSendFrame();
+  void ensureWorkerRunning();
+  void stopWorkerIfUnused();
 
   std::atomic<bool> running_{false};
+  std::atomic<bool> streamingRequested_{false};
+  std::atomic<bool> ledDetectionRequested_{false};
   std::thread worker_;
   std::mutex mtx_;
   Sender sender_;
@@ -43,6 +49,8 @@ private:
   std::atomic<int> reqH_{120};
   std::atomic<int> reqFps_{5};
   std::atomic<int> reqQ_{70};
+  std::atomic<int> ledCamIndex_{0};
+  std::atomic<int> ledFps_{10};
 };
 
 #endif // __linux__

@@ -34,6 +34,39 @@ extern "C" void cameraStreamerStop();
 
 // moved globals into Comm class (see comm.h)
 
+#ifndef SONAR_MANUAL_OBSTACLE_CONTROL
+#define SONAR_MANUAL_OBSTACLE_CONTROL false
+#endif
+
+#ifndef SONAR_OBSTACLE_WARNING_LEVEL
+#define SONAR_OBSTACLE_WARNING_LEVEL 5
+#endif
+
+#ifndef SONAR_SLOW_DOWN_WARNING_LEVEL
+#define SONAR_SLOW_DOWN_WARNING_LEVEL 3
+#endif
+
+static float applyManualSlowDown(float linear){
+  if (!SONAR_MANUAL_OBSTACLE_CONTROL) return linear;
+
+  #ifdef DRV_CAN_ROBOT
+    CanRobotDriver::UltrasonicMotionDirection direction = CanRobotDriver::ultrasonic_motion_any;
+    if (linear > 0.001f) direction = CanRobotDriver::ultrasonic_motion_forward;
+    else if (linear < -0.001f) direction = CanRobotDriver::ultrasonic_motion_reverse;
+    robotDriver.setUltrasonicMotionDirectionHint(direction);
+
+    if (robotDriver.configuredUltrasonicWarningAtOrAbove(SONAR_OBSTACLE_WARNING_LEVEL, direction)) return 0.0f;
+    if (robotDriver.configuredUltrasonicWarningAtOrAbove(SONAR_SLOW_DOWN_WARNING_LEVEL, direction)) {
+      if (linear > 0.10f) return 0.10f;
+      if (linear < -0.10f) return -0.10f;
+    }
+  #endif
+
+  if (!bumperDriver.nearObstacle()) return linear;
+  if (linear > 0.10f) return 0.10f;
+  if (linear < -0.10f) return -0.10f;
+  return linear;
+}
 
 // answer Bluetooth with CRC
 void Comm::cmdAnswer(String s){  
@@ -254,6 +287,7 @@ void Comm::cmdMotor(){
     maps.freePointsIdx = 0;
     setOperation(OP_IDLE);
   }
+  linear = applyManualSlowDown(linear);
   motor.setLinearAngularSpeed(linear, angular, false);
   String s = F("M");
   cmdAnswer(s);
@@ -826,31 +860,20 @@ static uint8_t hexCharToByte(char c) {
   return 0;
 }
 
-static void hexStringToBytes(const String& hex, uint8_t* out, size_t maxOutLen, size_t& outLen) {
+static void hexStringToBytes(const String& hex, uint8_t* out, size_t maxOutLen,
+size_t& outLen) {
   outLen = 0;
   size_t len = hex.length();
   for (size_t i = 0; i + 1 < len && outLen < maxOutLen; i += 2) {
-    out[outLen++] = (hexCharToByte(hex[i]) << 4) | hexCharToByte(hex[i+1]);
+    out[outLen++] = (hexCharToByte(hex[i]) << 4) | hexCharToByte(hex[i + 1]);
   }
-}
-
-static String bytesToHexString(const uint8_t* data, size_t len) {
-  String hex;
-  hex.reserve(len * 2);
-  for (size_t i = 0; i < len; i++) {
-    char buf[3];
-    sprintf(buf, "%02X", data[i]);
-    hex += buf;
-  }
-  return hex;
 }
 
 // UBX Proxy: send hex bytes to GPS, receive response, return as hex
 void Comm::cmdUbxProxy(){
-  String hexPayload = cmd.substring(5); // skip "AT+U,"
+  String hexPayload = cmd.substring(7); // skip "AT+UBX,"
 
-  // Basic hex validation: even length and only hex characters.
-  // Also accept a trailing CRC (",0xHH") that the sender may append.
+  // Accept a trailing command CRC, which is separated by a comma.
   int commaIdx = hexPayload.indexOf(',');
   if (commaIdx >= 0) hexPayload = hexPayload.substring(0, commaIdx);
   hexPayload.trim();
@@ -860,7 +883,8 @@ void Comm::cmdUbxProxy(){
   }
   for (size_t i = 0; i < hexPayload.length(); i++) {
     char c = hexPayload.charAt(i);
-    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) {
+    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') ||
+          (c >= 'a' && c <= 'f'))) {
       cmdAnswer(String(F("U,ERR_INVALID_HEX")));
       return;
     }
@@ -870,36 +894,25 @@ void Comm::cmdUbxProxy(){
   size_t txLen = 0;
   hexStringToBytes(hexPayload, txBuf, sizeof(txBuf), txLen);
 
-  // NOTE: We intentionally do NOT drain the GPS UART buffer here.
-  // Draining would discard bytes of a UBX frame that the UBLOX parser
-  // is currently receiving, causing checksum errors until it resyncs.
-  // Any spontaneous NAV frames collected while waiting for the answer
-  // are filtered out by the requester on the other side.
-
-  // Send to GPS
+  // Do not drain the GPS UART: the UBX parser may be receiving this frame.
   for (size_t i = 0; i < txLen; i++) {
     GPS.write(txBuf[i]);
   }
 
-  // Collect ALL bytes from the GPS for up to 500ms.
-  // The larger buffer handles long responses such as NAV-SAT with many SVs.
+  // Collect long responses while allowing short gaps between UART chunks.
   uint32_t deadline = millis() + 500;
   uint8_t rxBuf[2048];
   size_t rxLen = 0;
-
   while ((int32_t)(millis() - deadline) < 0 && rxLen < sizeof(rxBuf)) {
     bool receivedThisRound = false;
     while (GPS.available() && rxLen < sizeof(rxBuf)) {
       rxBuf[rxLen++] = GPS.read();
       receivedThisRound = true;
     }
-    // Once data starts or continues arriving, allow 50ms for the next bytes.
     if (receivedThisRound) deadline = millis() + 50;
     delay(1);
   }
 
-  // Build "U,<hex>" response like every other AT command does via cmdAnswer.
-  // This guarantees a consistent format including the command prefix and CRC.
   String answer = F("U,");
   answer.reserve(2 + rxLen * 2);
   char buf[3];
@@ -1219,6 +1232,14 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if (cmd[4] == '3') cmdWiFiStatus();     
   }
   // Camera control handled above inside 'C' group
+  if (cmd[3] == 'U'){ 
+    if ((cmd.length() > 4) && (cmd[4] == '1')) cmdFirmwareUpdate();
+    else if (cmd.length() >= 5){
+      if ((cmd[4] == 'B') && (cmd[5] == 'X')) {
+        cmdUbxProxy();
+      }
+    }
+  }
   if (cmd[3] == 'G') cmdToggleGPSSolution();   // for developers
   if (cmd[3] == 'R') cmdRoute();   // navigate to point
   if (cmd[3] == 'K') cmdKidnap();   // for developers

@@ -1285,6 +1285,7 @@ sfe_ublox_status_e SFE_UBLOX_GPS::sendCommand(ubxPacket *outgoingUBX, uint16_t m
 
   if (commType == COMM_TYPE_I2C)
   {
+    if (_i2cPort == NULL) return SFE_UBLOX_STATUS_INVALID_OPERATION;
     retVal = sendI2cCommand(outgoingUBX, maxWait);
     if (retVal != SFE_UBLOX_STATUS_SUCCESS)
     {
@@ -1297,6 +1298,7 @@ sfe_ublox_status_e SFE_UBLOX_GPS::sendCommand(ubxPacket *outgoingUBX, uint16_t m
   }
   else if (commType == COMM_TYPE_SERIAL)
   {
+    if (_serialPort == NULL) return SFE_UBLOX_STATUS_INVALID_OPERATION;
     sendSerialCommand(outgoingUBX);
   }
 
@@ -3996,17 +3998,22 @@ bool SFE_UBLOX_GPS::getProtocolVersion(uint16_t maxWait)
 
   //Payload should now contain ~220 characters (depends on module type)
 
-  // if (_printDebug == true)
-  // {
-  //   _debugSerial->print(F("MON VER Payload:"));
-  //   for (int location = 0; location < packetCfg.len; location++)
-  //   {
-  //     if (location % 30 == 0)
-  //       _debugSerial->println();
-  //     _debugSerial->write(payloadCfg[location]);
-  //   }
-  //   _debugSerial->println();
-  // }
+   //if (_printDebug == true)
+   if (true)
+   {
+     //_debugSerial->print(F("MON VER Payload:"));
+     extendedSoftwareInfo = "";
+     for (int location = 0; location < packetCfg.len; location++)
+     {
+      if (location % 30 == 0){
+        //_debugSerial->println();
+        extendedSoftwareInfo += "\n";
+      }
+      extendedSoftwareInfo += char(payloadCfg[location]); 
+      //_debugSerial->write(payloadCfg[location]);
+     }
+     //_debugSerial->println();
+  }
 
   //We will step through the payload looking at each extension field of 30 bytes
   for (uint8_t extensionNumber = 0; extensionNumber < 10; extensionNumber++)

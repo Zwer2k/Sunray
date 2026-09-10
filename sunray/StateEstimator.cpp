@@ -321,6 +321,94 @@ void StateEstimator::computeRobotState(){
     }
   #endif
 
+  // ------- GPS shadow near docking station --------------------------
+  // Metal docking enclosures can make an RTK fix jump or disappear. Once the
+  // mower reaches the configured distance on the final docking segment, keep
+  // navigating with IMU + wheel odometry until the docking operation ends.
+  // Latching the mode prevents a bad GPS position from enabling GPS again.
+  #ifdef DOCK_IGNORE_GPS_DISTANCE
+    if (!maps.isDocking()) {
+      if (dockGpsIgnored) CONSOLE.println("dock: GPS position fusion enabled");
+      dockGpsIgnored = false;
+    } else if ((!dockGpsIgnored) && (maps.isTargetingLastDockPoint())) {
+      float dockX;
+      float dockY;
+      float dockDelta;
+      if (maps.getDockingPos(dockX, dockY, dockDelta)) {
+        float dockDistance = distance(dockX, dockY, stateX, stateY);
+        if (dockDistance <= DOCK_IGNORE_GPS_DISTANCE) {
+          dockGpsIgnored = true;
+          Logger.event(EVT_DOCK_IGNORING_GPS);
+          CONSOLE.print("dock: ignoring GPS position/heading at distance=");
+          CONSOLE.println(dockDistance);
+        }
+      }
+    }
+    if (dockGpsIgnored) {
+      stateLocalizationMode = LOC_IMU_ODO_ONLY;
+      useGPSposition = false;
+      useGPSdelta = false;
+      useImuAbsoluteYaw = false;
+    }
+  #endif
+
+  // ------- native camera LED-strip docking --------------------------
+  // GPS is used up to the configured hand-off distance. From there the
+  // camera controller owns steering while odometry keeps the travelled
+  // distance. Undocking starts on camera guidance and latches back to GPS
+  // after the same distance so a noisy position cannot toggle modes.
+  #ifdef DOCK_LED_STRIP
+    const bool ledDocking = maps.isDocking();
+    const bool ledUndocking = maps.isUndocking();
+    float ledDockDistance = 1e6f;
+    float ledDockX = 0.0f;
+    float ledDockY = 0.0f;
+    float ledDockDelta = 0.0f;
+    if ((ledDocking || ledUndocking) &&
+        maps.getDockingPos(ledDockX, ledDockY, ledDockDelta)) {
+      ledDockDistance = distance(ledDockX, ledDockY, stateX, stateY);
+    }
+
+    if (!ledDocking && !ledUndocking) {
+      dockLedStripActive = false;
+      dockLedStripUndockCompleted = false;
+    } else if (ledDocking) {
+      dockLedStripUndockCompleted = false;
+      if (!dockLedStripActive && maps.isTargetingLastDockPoint() &&
+          ledDockDistance <= DOCK_LED_STRIP_SWITCH_DISTANCE) {
+        dockLedStripActive = true;
+        CONSOLE.print("dock LED: camera guidance enabled at distance=");
+        CONSOLE.println(ledDockDistance);
+      }
+    } else {
+      if (!dockLedStripUndockCompleted && !dockLedStripActive) {
+        dockLedStripActive = true;
+        dockLedStripStartLeftTicks = motor.motorLeftTicks;
+        dockLedStripStartRightTicks = motor.motorRightTicks;
+        CONSOLE.println("undock LED: camera guidance enabled");
+      }
+      const float ledTicksPerCm = motor.ticksPerCm > 0.001f ? motor.ticksPerCm : 0.001f;
+      const float ledUndockLeft = fabs((float)(motor.motorLeftTicks - dockLedStripStartLeftTicks)) /
+                                   ledTicksPerCm / 100.0f;
+      const float ledUndockRight = fabs((float)(motor.motorRightTicks - dockLedStripStartRightTicks)) /
+                                    ledTicksPerCm / 100.0f;
+      const float ledUndockTravel = (ledUndockLeft + ledUndockRight) * 0.5f;
+      if (dockLedStripActive && ledUndockTravel >= DOCK_LED_STRIP_SWITCH_DISTANCE) {
+        dockLedStripActive = false;
+        dockLedStripUndockCompleted = true;
+        CONSOLE.print("undock LED: GPS guidance enabled after travel=");
+        CONSOLE.println(ledUndockTravel);
+      }
+    }
+
+    if (dockLedStripActive) {
+      stateLocalizationMode = LOC_LED_STRIP;
+      useGPSposition = false;
+      useGPSdelta = false;
+      useImuAbsoluteYaw = false;
+    }
+  #endif
+
   // ---------- odometry ticks ---------------------------
   long leftDelta = motor.motorLeftTicks-stateLeftTicks;
   long rightDelta = motor.motorRightTicks-stateRightTicks;  

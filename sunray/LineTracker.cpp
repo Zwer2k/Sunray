@@ -12,6 +12,13 @@
 #include "Stats.h"
 #include "events.h"
 
+#ifdef DOCK_LED_STRIP
+extern "C" bool cameraLedStripFound();
+extern "C" float cameraLedStripHorizontalError();
+extern "C" float cameraLedStripConfidence();
+extern "C" int cameraLedStripLedCount();
+extern "C" unsigned long cameraLedStripAgeMs();
+#endif
 
 //PID pidLine(0.2, 0.01, 0); // not used
 //PID pidAngle(2, 0.1, 0);  // not used
@@ -130,6 +137,13 @@ void LineTracker::trackLine(bool runControl){
         //CONSOLE.println("SLOW: float");
       } else
         linear = stateEstimator.setSpeed;         // desired speed
+      #ifdef DRV_CAN_ROBOT
+        CanRobotDriver::UltrasonicMotionDirection ultrasonicDirection = CanRobotDriver::ultrasonic_motion_any;
+        if (fabs(linear) > 0.001) {
+          ultrasonicDirection = maps.trackReverse ? CanRobotDriver::ultrasonic_motion_reverse : CanRobotDriver::ultrasonic_motion_forward;
+        }
+        robotDriver.setUltrasonicMotionDirectionHint(ultrasonicDirection);
+      #endif
       if (bumperDriver.nearObstacle()){
         linear = 0.1;  // slow down near obstacles 
         //CONSOLE.println("SLOW: BUMPER");      
@@ -236,6 +250,45 @@ void LineTracker::trackLine(bool runControl){
       if (!buzzer.isPlaying()) buzzer.sound(SND_WARNING, true);
       angular = 0;
   }
+  #ifdef DOCK_LED_STRIP
+  if (stateEstimator.stateLocalizationMode == LOC_LED_STRIP){
+    mow = false;
+    const bool ledFound = cameraLedStripFound();
+    const float imageError = cameraLedStripHorizontalError();
+    const float confidence = cameraLedStripConfidence();
+    if (!ledFound) {
+      // Never continue on stale pixels. The detector applies the configured
+      // timeout, so a short camera hiccup causes a controlled stop.
+      linear = 0;
+      angular = 0;
+    } else {
+      if (!buzzer.isPlaying()) buzzer.sound(SND_WARNING, true);
+      angular = -DOCK_LED_STRIP_ANGULAR_P * imageError;
+      angular = max(-DOCK_LED_STRIP_MAX_ANGULAR,
+                    min(DOCK_LED_STRIP_MAX_ANGULAR, angular));
+      const float absError = fabs(imageError);
+      if (absError > DOCK_LED_STRIP_MAX_ERROR_FOR_DRIVE) {
+        linear = 0; // rotate until the strip is safely in the field of view
+      } else {
+        const float speedScale = max(0.35f, 1.0f - absError);
+        linear = abs(DOCK_LINEAR_SPEED) * speedScale;
+        if (maps.trackReverse) linear *= -1;
+      }
+    }
+
+    static unsigned long nextLedStatusTime = 0;
+    if (millis() >= nextLedStatusTime) {
+      nextLedStatusTime = millis() + 1000;
+      CONSOLE.print("dock LED: found="); CONSOLE.print(ledFound);
+      CONSOLE.print(" leds="); CONSOLE.print(cameraLedStripLedCount());
+      CONSOLE.print(" confidence="); CONSOLE.print(confidence);
+      CONSOLE.print(" error="); CONSOLE.print(imageError);
+      CONSOLE.print(" age="); CONSOLE.print(cameraLedStripAgeMs());
+      CONSOLE.print(" lin="); CONSOLE.print(linear);
+      CONSOLE.print(" ang="); CONSOLE.println(angular);
+    }
+  }
+  #endif
 
   // gps-jump/false fix check
   if (KIDNAP_DETECT){
@@ -339,7 +392,8 @@ void LineTracker::trackLine(bool runControl){
   }
 
   //if (!maps.isTargetingLastDockPoint()){
-  if (stateEstimator.stateLocalizationMode != LOC_REFLECTOR_TAG){
+  if ((stateEstimator.stateLocalizationMode != LOC_REFLECTOR_TAG) &&
+      !((stateEstimator.stateLocalizationMode == LOC_LED_STRIP) && maps.isDocking())){
     if (targetReached){
       rotateLeft = false;
       rotateRight = false;

@@ -170,10 +170,16 @@ bool WebSocketClient::pollText(String& out) {
       char c = masked ? ((uint8_t)b) ^ maskKey[i % 4] : (char)b;
       payload += c;
     }
-    // Send pong
+    // Send a masked pong. RFC 6455 requires every client-to-server frame,
+    // including control frames, to be masked.
+    uint8_t pongMask[4];
+    for (int i = 0; i < 4; i++) pongMask[i] = (uint8_t)random(0, 256);
     _client.write((uint8_t)0x8A); // FIN + pong
-    _client.write((uint8_t)payload.length());
-    for (size_t i = 0; i < payload.length(); i++) _client.write((uint8_t)payload[i]);
+    _client.write((uint8_t)(0x80 | payload.length()));
+    _client.write(pongMask, sizeof(pongMask));
+    for (size_t i = 0; i < payload.length(); i++) {
+      _client.write((uint8_t)(payload[i] ^ pongMask[i % sizeof(pongMask)]));
+    }
     return false;
   } else if (opcode == 0xA) { // pong
     for (uint64_t i = 0; i < len; i++) { int b = _client.read(); (void)b; }

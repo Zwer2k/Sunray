@@ -20,12 +20,17 @@ class LinuxSerial : public HardwareSerial{
     int            _stream = 0;
     struct termios _termios;
     String         devPath;
+    uint32_t       configuredBaudrate = 0;
+    unsigned long  lastOpenAttempt = 0;
+    bool           baudrateConfigured = false;
     FiFo<byte, LINUX_SERIAL_FIFO_SIZE_TX> fifoRx;
     FiFo<byte, LINUX_SERIAL_FIFO_SIZE_RX> fifoTx;
     pthread_t thread_rx_id = 0;
     pthread_t thread_tx_id = 0; 
     bool open(const char *devicePath);
     bool setBaudrate(uint32_t baudrate);
+    bool ensureOpen();
+    void handleDisconnect(const char *operation);
     unsigned long frameCounterRx;
     unsigned long frameCounterTx;    
   public:
