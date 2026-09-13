@@ -60,11 +60,13 @@ void EscapeReverseOp::run(){
             CONSOLE.println("continue operation with virtual obstacle");
             #if SONAR_OFFSET_OBSTACLE_ENABLED
             if (avoidSide != 0){
-                // offset the virtual obstacle sideways so pathfinder routes around on the free side
+                // place the virtual obstacle on the side where it was detected (avoidSide -1 = left, +1 = right),
+                // so the pathfinder routes around it on the free side.
+                // perpAngle points to the LEFT of the heading, hence the negated avoidSide.
                 float heading = stateEstimator.stateDelta;  // current heading in radians
                 float perpAngle = heading + PI/2.0f;        // perpendicular direction
-                float offsetX = stateEstimator.stateX + avoidSide * SONAR_OFFSET_OBSTACLE_DIST * cos(perpAngle);
-                float offsetY = stateEstimator.stateY + avoidSide * SONAR_OFFSET_OBSTACLE_DIST * sin(perpAngle);
+                float offsetX = stateEstimator.stateX - avoidSide * SONAR_OFFSET_OBSTACLE_DIST * cos(perpAngle);
+                float offsetY = stateEstimator.stateY - avoidSide * SONAR_OFFSET_OBSTACLE_DIST * sin(perpAngle);
                 maps.addObstacle(offsetX, offsetY);
             } else {
                 maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);
