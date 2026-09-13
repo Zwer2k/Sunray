@@ -243,7 +243,7 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035.forwardDirLevel = HIGH;    // logic level for forward (LOW or HIGH)
   MOW800_MC33035.reversePwmInvert = true; // invert PWM signal for reverse? (false or true)
   MOW800_MC33035.reverseDirLevel = LOW;   // logic level for reverse (LOW or HIGH)
-  MOW800_MC33035.usePwmRamp = true;       // use a ramp to get to PWM value?    
+  MOW800_MC33035.usePwmRamp = false;      // no driver-level ramp: it adds lag inside the wheel speed PID loop (overshoot)
   MOW800_MC33035.faultActive = LOW;        // fault active level (LOW or HIGH)
   MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
   MOW800_MC33035.enableActive = LOW;       // enable active level (LOW or HIGH)

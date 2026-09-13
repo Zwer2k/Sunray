@@ -191,14 +191,23 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define USE_LINEAR_SPEED_RAMP  true      // use a speed ramp for the linear speed
 #define USE_LINEAR_SPEED_RAMP  false      // do not use a speed ramp 
 
+// angular (steering) speed ramp: smooths the angular setpoint coming from the line tracker
+// so that heading/lateral error jumps (GPS/IMU updates, waypoint switch) do not hit the wheels as a step.
+// ANGULAR_SPEED_RAMP_ALPHA is the weight of the new setpoint per control cycle (20 ms):
+// 1.0 = no smoothing, 0.15 = ~130 ms time constant, 0.1 = ~200 ms time constant
+#define USE_ANGULAR_SPEED_RAMP  true
+#define ANGULAR_SPEED_RAMP_ALPHA 0.15
+
 // motor speed control (PID coefficients) - these values are tuned for Ardumower motors
 // general information about PID controllers: https://wiki.ardumower.de/index.php?title=PID_control
-#define MOTOR_PID_LP     0.0    // encoder low-pass filter (use for low encoder tickcount - use zero to disable)
+#define MOTOR_PID_LP     0.1    // encoder low-pass filter time constant (s) - MOW800 has only 192 ticks/rev, i.e. ~1 tick per 50ms cycle at 29 deg/s rotation, so filter the quantized rpm (use zero to disable)
 #define MOTOR_PID_KP     1.0    // do not change 2.0 (for non-Ardumower motors or if the motor speed control is too fast you may try: KP=1.0, KI=0, KD=0)
 #define MOTOR_PID_KI     0.00   // do not change 0.03
 #define MOTOR_PID_KD     0.00   // do not change 0.03
-#define MOTOR_PID_LIMIT  90    // output limit - do not change 255
-#define MOTOR_PID_RAMP   120    // output derivative limit (PWM/s) - limits motor acceleration
+#define MOTOR_PID_RAMP   0      // output derivative limit - do not change 0 (the PID output is a PWM increment, a ramp here delays the sign change and causes overshoot)
+#define MOTOR_PWM_ACCEL  200    // max. PWM change per second (acceleration limit of the wheel speed controller, 0 = unlimited)
+                                // replaces the removed driver-level PWM ramp: limits how fast the wheels may speed up/slow down
+                                // without delaying the sign change of the controller output (no overshoot)
 #define MOTOR_USE_MAGNITUDE_CLAMP    // use magnitude-only PWM clamp for smoother direction reversal
 
 //#define MOTOR_LEFT_SWAP_DIRECTION 1  // uncomment to swap left motor direction
@@ -354,8 +363,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // Approach A: When an obstacle is detected on one side only, the escape-reverse
 // maneuver adds a slight turn away from the detected side while driving backwards.
 #define SONAR_SIDE_AVOIDANCE_ENABLED   true   // enable side-specific avoidance turn
-#define SONAR_SIDE_AVOID_CM            20     // distance in cm for side detection (larger than SONAR_*_OBSTACLE_CM)
-#define SONAR_SIDE_AVOID_STRENGTH      0.3    // avoidance strength in m/s (0.1 = weak, 0.5 = strong)
+#define SONAR_SIDE_AVOID_STRENGTH      0.3    // avoidance turn rate in rad/s while reversing (0.1 = weak, 0.5 = strong)
 
 // --- Sonar offset obstacle ---
 // Approach B: The virtual obstacle is placed with a lateral offset during
@@ -532,6 +540,10 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 #define STANLEY_CONTROL_P_SLOW    3.0   // 3.0 for path tracking control (angular gain) when docking tracking
 #define STANLEY_CONTROL_K_SLOW    0.1   // 0.1 for path tracking control (lateral gain) when docking tracking
+
+// max. angular speed (rad/s) the stanley controller may request while line tracking
+// (limits steering aggressiveness after rotations and on large lateral errors; 1.0 rad/s = 57 deg/s)
+#define STANLEY_MAX_ANGULAR_SPEED 1.0
 
 
 // ----- other options --------------------------------------------

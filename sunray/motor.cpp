@@ -91,7 +91,11 @@ void Motor::begin() {
   motorsSenseLP = 0;
 
   activateLinearSpeedRamp = USE_LINEAR_SPEED_RAMP;
-  activateAngularSpeedRamp = false;
+  #ifdef USE_ANGULAR_SPEED_RAMP
+    activateAngularSpeedRamp = USE_ANGULAR_SPEED_RAMP;
+  #else
+    activateAngularSpeedRamp = false;
+  #endif
   linearSpeedSet = 0;
   angularSpeedSet = 0;
   motorLeftRpmSet = 0;
@@ -188,7 +192,16 @@ void Motor::setLinearAngularSpeed(float linear, float angular, bool useLinearRam
     } else {
       linearSpeedSet = linear;
     }
-    angularSpeedSet = angular;
+    if (activateAngularSpeedRamp) {
+      #ifndef ANGULAR_SPEED_RAMP_ALPHA
+        #define ANGULAR_SPEED_RAMP_ALPHA 0.15
+      #endif
+      // first-order ramp on the steering setpoint; snap to zero to keep a stop a real stop
+      if (fabs(angular) < 0.001) angularSpeedSet = 0;
+        else angularSpeedSet = (1.0 - ANGULAR_SPEED_RAMP_ALPHA) * angularSpeedSet + ANGULAR_SPEED_RAMP_ALPHA * angular;
+    } else {
+      angularSpeedSet = angular;
+    }
    float rspeed = linearSpeedSet + angularSpeedSet * (wheelBaseCm /100.0 /2);          
    float lspeed = linearSpeedSet - angularSpeedSet * (wheelBaseCm /100.0 /2);          
    // RPM = V / (2*PI*r) * 60
@@ -548,14 +561,21 @@ void Motor::sense(){
 
 
 void Motor::control(){  
+
+  // acceleration limit: the PID output is a PWM increment per control cycle (50 ms),
+  // so clamping its magnitude limits how fast the PWM (and thus the wheel speed) may change
+  float pwmStepMax = pwmMax;
+  #ifdef MOTOR_PWM_ACCEL
+    if (MOTOR_PWM_ACCEL > 0) pwmStepMax = min((float)pwmMax, (float)MOTOR_PWM_ACCEL * 0.05f);
+  #endif
     
   //########################  Calculate PWM for left driving motor ############################
 
   motorLeftPID.TaMax = 0.1;
   motorLeftPID.x = motorLeftLpf(motorLeftRpmCurr);  
   motorLeftPID.w  = motorLeftRpmSet;
-  motorLeftPID.y_min = -pwmMax;
-  motorLeftPID.y_max = pwmMax;
+  motorLeftPID.y_min = -pwmStepMax;
+  motorLeftPID.y_max = pwmStepMax;
   motorLeftPID.max_output = pwmMax;
   motorLeftPID.output_ramp = MOTOR_PID_RAMP;
   //CONSOLE.print(motorLeftPID.x);
@@ -576,8 +596,8 @@ void Motor::control(){
   motorRightPID.TaMax = 0.1;
   motorRightPID.x = motorRightLpf(motorRightRpmCurr);
   motorRightPID.w = motorRightRpmSet;
-  motorRightPID.y_min = -pwmMax;
-  motorRightPID.y_max = pwmMax;
+  motorRightPID.y_min = -pwmStepMax;
+  motorRightPID.y_max = pwmStepMax;
   motorRightPID.max_output = pwmMax;
   motorRightPID.output_ramp = MOTOR_PID_RAMP;
   motorRightPID.compute();

@@ -178,6 +178,9 @@ void LineTracker::trackLine(bool runControl){
       p = stanleyTrackingSlowP; //STANLEY_CONTROL_P_SLOW;          
     }
     angular =  p * trackerDiffDelta + atan2(k * stateEstimator.lateralError, (0.001 + fabs(motor.linearSpeedSet)));       // correct for path errors           
+    #ifdef STANLEY_MAX_ANGULAR_SPEED
+      angular = max((float)-STANLEY_MAX_ANGULAR_SPEED, min((float)STANLEY_MAX_ANGULAR_SPEED, angular));  // limit steering rate
+    #endif
     /*pidLine.w = 0;              
     pidLine.x = stateEstimator.lateralError;
     pidLine.max_output = PI;
