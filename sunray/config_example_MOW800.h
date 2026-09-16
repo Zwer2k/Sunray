@@ -675,7 +675,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   //#define pinMotorRightFault 27      // M2_SF  right motor fault
                                       
   #define pinMotorMowBrakeDisable PC12
-  //#define pinMotorMowPWM 2           // M1_IN1 mower motor PWM pin (if using MOSFET, use this pin)
+  #define pinMotorMowPWM PB8           // mower motor PWM pin (J2-5 'CK-RF', TIM4_CH3) - Eigenbelegung/Draht-Mod
   //#define pinMotorMowDir 29          // M1_IN2 mower motor Dir pin (if using MOSFET, keep unconnected)
   #define pinMotorMowSense PA7        // M1_FB  mower motor current sense  
   //#define pinMotorMowFault 26        // M1_SF  mower motor fault   (if using MOSFET/L298N, keep unconnected)

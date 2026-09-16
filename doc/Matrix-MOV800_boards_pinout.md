@@ -42,7 +42,7 @@ BUZZER
 | 4  (+3,3V)  |   |   |
 | 5  (ON/OFF) | Data-Stecker-1 1kOhm | Power on |
 | 6  (+3,3V)  |   |   |
-| 7  (CHECK)  | CPU-65 (PE12) |	Diode D31     |
+| 7  (CHECK)  | CPU-65 (PE12) |	Diode D31 (Power on Indikator?)    |
 | 8	 (+5V)    |   |   |
 | 9	 (CK_W)   | CPU-45 (PC5)  |	Regensensor |
 | 10 (+5V)    |   |   |
@@ -73,7 +73,7 @@ BUZZER
 | 2	 (-)	        | CPU-73 (PB12) | (Motor L+R Bremse aus ?) |
 | 3	 (IR RECIVE)    | Infrearet-Stecker-3 |
 | 4	 (-)		    | CPU-74 (PB13) | (Motor L+R ON/OFF) |
-| 5	 (CK-RF)        | CPU-139 (PB8) | Regensensor (Eigenbelegung) |
+| 5	 (CK-RF)        | CPU-139 (PB8) | Mähmotor speed (Eigenbelegung) |
 | 6	 (-)		    | CPU-75 (PB14) | (Perimeter Schlefen Soensor select ?) |
 | 7	 (C_ADY)	    | CPU-18 (PF6) | (Perimeter Schlefen Soensor analog signal ?) |
 | 8	 (-)		    | CPU-76 (PB15) | (Perimeter Schlefen Soensor select ?) |

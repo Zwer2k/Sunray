@@ -424,6 +424,10 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorMowSense, INPUT);
 #ifdef __MOW800__
   pinMode(pinMotorMowRpm, INPUT);
+  #ifdef pinMotorMowPWM
+    pinMode(pinMotorMowPWM, OUTPUT);
+    pinMan.analogWrite(pinMotorMowPWM, mowDriverChip.forwardPwmInvert ? 255 : 0, mowDriverChip.pwmFreq);
+  #endif
 #else
   pinMode(pinMotorMowDir, OUTPUT);
   pinMode(pinMotorMowPWM, OUTPUT);
@@ -512,7 +516,7 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // reverse
-    digitalWrite(pinDir, chip.reverseDirLevel) ;
+    if (pinDir >= 0) digitalWrite(pinDir, chip.reverseDirLevel) ;
     if (chip.reversePwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
     else 
@@ -526,7 +530,7 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // forward
-    digitalWrite(pinDir, chip.forwardDirLevel) ;
+    if (pinDir >= 0) digitalWrite(pinDir, chip.forwardDirLevel) ;
 
     if (chip.forwardPwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
@@ -565,6 +569,9 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm, bool rele
   setMotorDriver(pinMotorRightDir, pinMotorRightPWM, rightPwm, gearsDriverChip, rightSpeedSign);
 #ifdef pinMotorMowDir
   setMotorDriver(pinMotorMowDir, pinMotorMowPWM, mowPwm, mowDriverChip, mowSpeedSign);
+#elif defined(pinMotorMowPWM)
+  // mow motor has a speed input but no direction line (MOW800): pass -1 to skip the dir pin
+  setMotorDriver(-1, pinMotorMowPWM, mowPwm, mowDriverChip, mowSpeedSign);
 #endif
 
   // disable driver at zero speed (brake function)    
