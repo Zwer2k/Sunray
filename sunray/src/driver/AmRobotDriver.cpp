@@ -571,7 +571,18 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm, bool rele
   setMotorDriver(pinMotorMowDir, pinMotorMowPWM, mowPwm, mowDriverChip, mowSpeedSign);
 #elif defined(pinMotorMowPWM)
   // mow motor has a speed input but no direction line (MOW800): pass -1 to skip the dir pin
-  setMotorDriver(-1, pinMotorMowPWM, mowPwm, mowDriverChip, mowSpeedSign);
+  int mowPwmOut = mowPwm;
+  #if defined(MOW800_MOW_PWM_MIN) && defined(MOW800_MOW_PWM_MAX)
+    // the speed line drives an analog node that only reacts in a narrow window near full PWM:
+    // map 1..255 onto that window so the full Sunray range stays usable (0 = off, via enable pin)
+    if (mowPwmOut != 0){
+      int mag = abs(mowPwmOut);
+      if (mag > 255) mag = 255;
+      mag = MOW800_MOW_PWM_MIN + ((mag - 1) * (MOW800_MOW_PWM_MAX - MOW800_MOW_PWM_MIN)) / 254;
+      mowPwmOut = (mowPwmOut < 0) ? -mag : mag;
+    }
+  #endif
+  setMotorDriver(-1, pinMotorMowPWM, mowPwmOut, mowDriverChip, mowSpeedSign);
 #endif
 
   // disable driver at zero speed (brake function)    

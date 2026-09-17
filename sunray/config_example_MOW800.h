@@ -654,6 +654,13 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
                                       
   #define pinMotorMowBrakeDisable PC12
   #define pinMotorMowPWM PB8           // mower motor PWM pin (J2-5 'CK-RF', TIM4_CH3) - Eigenbelegung/Draht-Mod
+  // The mow motor speed line drives an analog node that only reacts below ~0.45V, i.e. the
+  // top end of the inverted PWM range: the motor starts around 220 and is at full speed at 255.
+  // Sunray's mow PWM 1..255 is mapped linearly onto that window so the whole range stays usable.
+  // 0 stays 'off' and is enforced via pinMotorMowEnable (disableAtPwmZeroSpeed), not via PWM.
+  // Trim after a bench test - raise MIN if the motor stalls in thick grass.
+  #define MOW800_MOW_PWM_MIN 220       // lowest value the motor still runs reliably at
+  #define MOW800_MOW_PWM_MAX 255       // value at which full speed is reached
   //#define pinMotorMowDir 29          // M1_IN2 mower motor Dir pin (if using MOSFET, keep unconnected)
   #define pinMotorMowSense PA7        // M1_FB  mower motor current sense  
   //#define pinMotorMowFault 26        // M1_SF  mower motor fault   (if using MOSFET/L298N, keep unconnected)

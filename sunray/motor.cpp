@@ -135,6 +135,12 @@ void Motor::begin() {
 }
 
 void Motor::setMowMaxPwm( int val ){
+  if (val < 0) val = 0;
+  if (val > 255) val = 255;
+  #ifdef MAX_MOW_PWM
+    // MAX_MOW_PWM is a hard ceiling: no client may raise the mow power above the configured limit
+    if (val > MAX_MOW_PWM) val = MAX_MOW_PWM;
+  #endif
   CONSOLE.print("Motor::setMowMaxPwm ");
   CONSOLE.println(val);
   pwmMaxMow = val;
