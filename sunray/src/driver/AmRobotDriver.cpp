@@ -895,13 +895,10 @@ bool AmStopButtonDriver::triggered(){
 // ------------------------------------------------------------------------------------
 
 
-// Which level means rain, and whether the input needs the internal pull-up. Both default to
-// the previous fixed behaviour, so an existing configuration keeps reporting exactly as before.
+// Which level means rain. Defaults to the previously fixed LOW, so an existing configuration
+// keeps reporting exactly as before.
 #ifndef pinRainTriggerdLevel
   #define pinRainTriggerdLevel LOW
-#endif
-#ifndef pinRainDisablePullUp
-  #define pinRainDisablePullUp true
 #endif
 
 void AmRainSensorDriver::begin(){
