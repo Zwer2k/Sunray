@@ -58,6 +58,12 @@ Summary and Obstacles
     - `<tt_day>,<tt_hour>`: Next timetable stop/start: if mowing → autostop day,hour; if charging → autostart day,hour; else `-1,0`.
 - `AT+S2` → Obstacles.
   - Response: `S2,<poly_cnt>,[0.5,0.5,1,<n>,x1,y1,...]...,0xHH` (polygons with RGB=(0.5,0.5,1) and their vertices).
+- `AT+S5` → Motor telemetry.
+  - Response: `S5,<rpm_left>,<rpm_right>,<rpm_mow>,<pwm_mow>,<amps_left>,<amps_right>,<amps_mow>,0xHH`
+    - `<rpm_left>`, `<rpm_right>`, `<rpm_mow>`: Measured motor speeds (rpm, one decimal, low-pass filtered).
+    - `<pwm_mow>`: Mow motor PWM actually sent to the driver (0..255) — the setpoint behind `<rpm_mow>`.
+    - `<amps_left>`, `<amps_right>`, `<amps_mow>`: Measured motor currents (amps, two decimals, low-pass filtered).
+    - Mow rpm requires a mowing motor with an rpm output; it reads 0 otherwise.
 
 Control and Tuning
 - `AT+M,<linear>,<angular>` → Set linear (m/s) and angular (rad/s) speed.
