@@ -65,6 +65,12 @@ Summary and Obstacles
   - Response: `S4,<num_sv>,<num_sv_dgps>,<solution>,<h_accuracy>,<v_accuracy>,<dgps_age>,<satellite_count>,[<gnss_id>,<sv_id>,<sig_id>,<cno>,<quality_ind>,<pr_used>,<cr_corr_used>,<pr_res>,<elevation>,<azimuth>]...,0xHH`
   - One satellite record is returned for each `<satellite_count>` entry.
   - `<pr_used>` and `<cr_corr_used>` are `0` or `1`. The remaining satellite fields are the values reported by the u-Blox receiver.
+- `AT+S5` → Motor telemetry.
+  - Response: `S5,<rpm_left>,<rpm_right>,<rpm_mow>,<pwm_mow>,<amps_left>,<amps_right>,<amps_mow>,0xHH`
+    - `<rpm_left>`, `<rpm_right>`, `<rpm_mow>`: Measured motor speeds (rpm, one decimal, low-pass filtered).
+    - `<pwm_mow>`: Mow motor PWM actually sent to the driver (0..255) — the setpoint behind `<rpm_mow>`.
+    - `<amps_left>`, `<amps_right>`, `<amps_mow>`: Measured motor currents (amps, two decimals, low-pass filtered).
+    - Mow rpm requires a mowing motor with an rpm output; it reads 0 otherwise.
 
 Control and Tuning
 - `AT+M,<linear>,<angular>` → Set linear (m/s) and angular (rad/s) speed.
