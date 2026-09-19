@@ -707,6 +707,12 @@ bool AmStopButtonDriver::triggered(){
 // ------------------------------------------------------------------------------------
 
 
+// Which level means rain. Defaults to the previously fixed LOW, so an existing configuration
+// keeps reporting exactly as before.
+#ifndef pinRainTriggerdLevel
+  #define pinRainTriggerdLevel LOW
+#endif
+
 void AmRainSensorDriver::begin(){
   nextControlTime = 0;
   isRaining = false;  
@@ -717,7 +723,7 @@ void AmRainSensorDriver::run(){
   unsigned long t = millis();
   if (t < nextControlTime) return;
   nextControlTime = t + 100;                                       // save CPU resources by running at 10 Hz
-  isRaining = (digitalRead(pinRain)== LOW);
+  isRaining = (digitalRead(pinRain)== pinRainTriggerdLevel);
 }
 
 bool AmRainSensorDriver::triggered(){
