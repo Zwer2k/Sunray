@@ -895,17 +895,30 @@ bool AmStopButtonDriver::triggered(){
 // ------------------------------------------------------------------------------------
 
 
+// Which level means rain, and whether the input needs the internal pull-up. Both default to
+// the previous fixed behaviour, so an existing configuration keeps reporting exactly as before.
+#ifndef pinRainTriggerdLevel
+  #define pinRainTriggerdLevel LOW
+#endif
+#ifndef pinRainDisablePullUp
+  #define pinRainDisablePullUp true
+#endif
+
 void AmRainSensorDriver::begin(){
   nextControlTime = 0;
   isRaining = false;  
+#if pinRainDisablePullUp == true
   pinMode(pinRain, INPUT);
+#else
+  pinMode(pinRain, INPUT_PULLUP);
+#endif
 }
 
 void AmRainSensorDriver::run(){
   unsigned long t = millis();
   if (t < nextControlTime) return;
   nextControlTime = t + 100;                                       // save CPU resources by running at 10 Hz
-  isRaining = (digitalRead(pinRain)== LOW);
+  isRaining = (digitalRead(pinRain)== pinRainTriggerdLevel);
 }
 
 bool AmRainSensorDriver::triggered(){

@@ -731,6 +731,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   // #define pinUserSwitch2 47          // user-defined switch 2
   // #define pinUserSwitch3 48          // user-defined switch 3
   #define pinRain PC5                 // rain sensor
+  #define pinRainTriggerdLevel HIGH   // level that means rain (default LOW)
   // #define pinReservedP14 A7          // reserved
   // #define pinReservedP22 A6          // reserved
   // #define pinReservedP26 A10         // reserved
