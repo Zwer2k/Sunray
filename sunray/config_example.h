@@ -655,6 +655,11 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   #define pinUserSwitch2 47          // user-defined switch 2
   #define pinUserSwitch3 48          // user-defined switch 3
   #define pinRain 44                 // rain sensor
+  //#define pinRainTriggerdLevel LOW   // level that means rain (default LOW)
+  //#define pinRainDisablePullUp true  // disable pull up for rain pin (default: disabled, as before)
+                                       // NOTE: without a pull-up an unconnected rain input floats and
+                                       // may report rain permanently, which docks the mower if
+                                       // RAIN_ENABLE is set
   #define pinReservedP14 A7          // reserved
   #define pinReservedP22 A6          // reserved
   #define pinReservedP26 A10         // reserved
