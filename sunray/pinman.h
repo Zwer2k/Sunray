@@ -15,6 +15,10 @@
 
 #define PWM_FREQ_3900    0
 #define PWM_FREQ_29300   1
+// For a driver whose speed input is a PWM-to-analog node (MOW800: 1k + cap feeding the
+// MC33035 error amp): the residual ripple scales with 1/f, and a frequency far away from
+// the driver's own oscillator keeps the difference product out of the audible band.
+#define PWM_FREQ_150000  2
 
 
 class PinManager {

@@ -158,6 +158,9 @@ void PinManager::analogWrite(uint32_t ulPin, uint32_t ulValue, byte pwmFreq) {
     case PWM_FREQ_29300:
       pwmFrequency = 29300;
       break;    
+    case PWM_FREQ_150000:
+      pwmFrequency = 150000;
+      break;    
   }
 #endif
 

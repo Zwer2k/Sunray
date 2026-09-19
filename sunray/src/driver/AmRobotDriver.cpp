@@ -270,7 +270,12 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035_MOW.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
   MOW800_MC33035_MOW.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035_MOW.maxPwmSpeed = 255;            
-  MOW800_MC33035_MOW.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
+  // 150 kHz, not 29300: the mow speed line feeds an RC into the MC33035 error amp input, and at
+  // 29.3 kHz ~1 V of ripple survives there - about 38% duty modulation against the 1.5..4.1 V ramp,
+  // and its difference to the 25 kHz oscillator (measured at pin 10) lands in the audible band.
+  // Raising the frequency cuts the ripple proportionally; TIM4 at 72 MHz still gives 480 steps,
+  // so the full 8 bit resolution is kept.
+  MOW800_MC33035_MOW.pwmFreq = PWM_FREQ_150000;
   MOW800_MC33035_MOW.adcVoltToAmpOfs = -0.045;      // ADC voltage to amps (offset)
   MOW800_MC33035_MOW.adcVoltToAmpScale = 3.8; // ADC voltage to amps (scale)
   MOW800_MC33035_MOW.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
