@@ -95,7 +95,7 @@ BUZZER
 
 ### HMC5883L Stecker
 | Pin | Verbindung auf dem CPU-Board | neue Verwendung |
-|---|---| |
+|---|---|---|
 | 1 | GND | GND Sonar |
 | 2 | CPU-116 (PD2) | Sonar center Trigger (Eigenbelegung) |
 | 3 | CPU-117 (PD3) | Sonar center Echo (Eigenbelegung) |

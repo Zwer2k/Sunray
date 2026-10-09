@@ -26,6 +26,8 @@ void EscapeReverseOp::begin(){
 void EscapeReverseOp::end(){
     // reset avoidSide so next escape is neutral by default
     avoidSide = 0;
+    // the obstacle location belongs to this escape only
+    lastObstacleLocation.valid = false;
 }
 
 
@@ -58,22 +60,30 @@ void EscapeReverseOp::run(){
             changeOp(*nextOp, false);    // continue current operation
         } else {
             CONSOLE.println("continue operation with virtual obstacle");
-            #if SONAR_OFFSET_OBSTACLE_ENABLED
-            if (avoidSide != 0){
-                // place the virtual obstacle on the side where it was detected (avoidSide -1 = left, +1 = right),
-                // so the pathfinder routes around it on the free side.
-                // perpAngle points to the LEFT of the heading, hence the negated avoidSide.
-                float heading = stateEstimator.stateDelta;  // current heading in radians
-                float perpAngle = heading + PI/2.0f;        // perpendicular direction
-                float offsetX = stateEstimator.stateX - avoidSide * SONAR_OFFSET_OBSTACLE_DIST * cos(perpAngle);
-                float offsetY = stateEstimator.stateY - avoidSide * SONAR_OFFSET_OBSTACLE_DIST * sin(perpAngle);
-                maps.addObstacle(offsetX, offsetY);
+            if (lastObstacleLocation.valid){
+                // the detecting sensor knew where the obstacle really is - put it there.
+                // guessing it from the current pose would miss it by the sensor mounting offset
+                // plus the distance we just reversed.
+                maps.addObstacleAt(lastObstacleLocation.x, lastObstacleLocation.y);
             } else {
+                #if SONAR_OFFSET_OBSTACLE_ENABLED
+                if (avoidSide != 0){
+                    // place the virtual obstacle on the side where it was detected (avoidSide -1 = left, +1 = right),
+                    // so the pathfinder routes around it on the free side.
+                    // perpAngle points to the LEFT of the heading, hence the negated avoidSide.
+                    float heading = stateEstimator.stateDelta;  // current heading in radians
+                    float perpAngle = heading + PI/2.0f;        // perpendicular direction
+                    float offsetX = stateEstimator.stateX - avoidSide * SONAR_OFFSET_OBSTACLE_DIST * cos(perpAngle);
+                    float offsetY = stateEstimator.stateY - avoidSide * SONAR_OFFSET_OBSTACLE_DIST * sin(perpAngle);
+                    maps.addObstacle(offsetX, offsetY);
+                } else {
+                    maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);
+                }
+                #else
                 maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);
+                #endif
             }
-            #else
-            maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);
-            #endif
+            lastObstacleLocation.valid = false;
             maps.requestTangentialPerimeterRecovery();
             changeOp(*nextOp, false);    // continue current operation
         }

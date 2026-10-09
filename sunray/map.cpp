@@ -1106,15 +1106,21 @@ void Map::clearObstacles(){
 }
 
 // add dynamic octagon obstacle in front of robot on line going from robot to target point
+// NOTE: this only guesses the obstacle position - prefer addObstacleAt() whenever the detecting
+// sensor can tell where the obstacle really is
 bool Map::addObstacle(float stateX, float stateY){     
-  float d1 = OBSTACLE_DIAMETER / 6.0;   // distance from center to nearest octagon edges
   float d2 = OBSTACLE_DIAMETER / 2.0;  // distance from center to farest octagon edges
   
   float angleCurr = pointsAngle(stateX, stateY, targetPoint.x(), targetPoint.y());
   float r = d2 + 0.05;
-  float x = stateX + cos(angleCurr) * r;
-  float y = stateY + sin(angleCurr) * r;
-  
+  return addObstacleAt(stateX + cos(angleCurr) * r, stateY + sin(angleCurr) * r);
+}
+
+// add dynamic octagon obstacle centered at the given map position
+bool Map::addObstacleAt(float x, float y){
+  float d1 = OBSTACLE_DIAMETER / 6.0;   // distance from center to nearest octagon edges
+  float d2 = OBSTACLE_DIAMETER / 2.0;  // distance from center to farest octagon edges
+
   CONSOLE.print("addObstacle ");
   CONSOLE.print(x);
   CONSOLE.print(",");
@@ -1143,6 +1149,58 @@ void Map::requestTangentialPerimeterRecovery(){
   tangentialPerimeterRecoveryPendingTime = millis();
 }
 
+// distance (m) from a point to the nearest edge of a polygon (zero-length edges are skipped);
+// optionally returns the unit tangent of the nearest edge
+static float distanceToPolygonEdge(Polygon &poly, Point &pt, float *tangentX, float *tangentY){
+  float nearestDistance = 9999;
+  if (poly.numPoints < 2) return nearestDistance;
+  for (int i = 0; i < poly.numPoints; i++){
+    Point &edgeStart = poly.points[i];
+    Point &edgeEnd = poly.points[(i + 1) % poly.numPoints];
+    float edgeX = edgeEnd.x() - edgeStart.x();
+    float edgeY = edgeEnd.y() - edgeStart.y();
+    float edgeLength2 = edgeX * edgeX + edgeY * edgeY;
+    if (edgeLength2 < 0.0001) continue;
+    float candidateDistance = distanceLine(pt.x(), pt.y(),
+                                           edgeStart.x(), edgeStart.y(), edgeEnd.x(), edgeEnd.y());
+    if (candidateDistance < nearestDistance){
+      nearestDistance = candidateDistance;
+      if (tangentX != NULL){
+        float edgeLength = sqrt(edgeLength2);
+        *tangentX = edgeX / edgeLength;
+        *tangentY = edgeY / edgeLength;
+      }
+    }
+  }
+  return nearestDistance;
+}
+
+// distance (m) to the nearest perimeter edge, optionally returning that edge's unit tangent
+float Map::distanceToPerimeter(Point &pt, float *tangentX, float *tangentY){
+  if (perimeterPoints.numPoints < 3) return 9999;
+  return distanceToPolygonEdge(perimeterPoints, pt, tangentX, tangentY);
+}
+
+// distance (m) to the nearest mapped boundary (perimeter or exclusion edge)
+float Map::distanceToMapBoundary(Point &pt){
+  float nearestDistance = distanceToPerimeter(pt);
+  for (int i = 0; i < exclusions.numPolygons; i++){
+    float candidateDistance = distanceToPolygonEdge(exclusions.polygons[i], pt, NULL, NULL);
+    if (candidateDistance < nearestDistance) nearestDistance = candidateDistance;
+  }
+  return nearestDistance;
+}
+
+// is the given point outside the perimeter or inside an exclusion (i.e. no mowable area)?
+bool Map::isOutsideMowableArea(Point &pt){
+  if (perimeterPoints.numPoints < 3) return false;
+  if (!pointIsInsidePolygon(perimeterPoints, pt)) return true;
+  for (int i = 0; i < exclusions.numPolygons; i++){
+    if (pointIsInsidePolygon(exclusions.polygons[i], pt)) return true;
+  }
+  return false;
+}
+
 // Add a final, boundary-parallel segment to the interrupted mowing target.
 // The side is selected relative to lastTargetPoint, which is the previously
 // completed mowing point when obstacle recovery starts.
@@ -1150,35 +1208,9 @@ bool Map::findTangentialPerimeterRecoveryPath(Point &src, Point &dst){
 #if !PERIMETER_TANGENTIAL_RECOVERY
   return false;
 #else
-  if (perimeterPoints.numPoints < 3) return false;
-
-  Point projection;
-  float nearestDistance = 9999;
   float tangentX = 0;
   float tangentY = 0;
-  for (int i = 0; i < perimeterPoints.numPoints; i++) {
-    Point edgeStart;
-    Point edgeEnd;
-    edgeStart.assign(perimeterPoints.points[i]);
-    edgeEnd.assign(perimeterPoints.points[(i + 1) % perimeterPoints.numPoints]);
-    float edgeX = edgeEnd.x() - edgeStart.x();
-    float edgeY = edgeEnd.y() - edgeStart.y();
-    float edgeLength2 = edgeX * edgeX + edgeY * edgeY;
-    if (edgeLength2 < 0.0001) continue;
-    float factor = ((dst.x() - edgeStart.x()) * edgeX +
-                    (dst.y() - edgeStart.y()) * edgeY) / edgeLength2;
-    factor = constrain(factor, 0.0f, 1.0f);
-    Point candidate;
-    candidate.setXY(edgeStart.x() + factor * edgeX, edgeStart.y() + factor * edgeY);
-    float candidateDistance = distance(candidate, dst);
-    if (candidateDistance < nearestDistance) {
-      nearestDistance = candidateDistance;
-      projection.assign(candidate);
-      float edgeLength = sqrt(edgeLength2);
-      tangentX = edgeX / edgeLength;
-      tangentY = edgeY / edgeLength;
-    }
-  }
+  float nearestDistance = distanceToPerimeter(dst, &tangentX, &tangentY);
 
   if (nearestDistance > PERIMETER_TANGENTIAL_RECOVERY_DISTANCE) return false;
 

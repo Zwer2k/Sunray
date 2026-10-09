@@ -130,6 +130,7 @@ BLEComm ble;
 Buzzer buzzer;
 LidarBumperDriver lidarBumper;
 Sonar sonar;
+ObstacleLocation lastObstacleLocation = { false, 0, 0 };
 Bumper bumper;
 VL53L0X tof(VL53L0X_ADDRESS_DEFAULT);
 Map maps;
@@ -768,12 +769,23 @@ bool robotShouldBeInMotion(){
 
 // drive reverse if robot cannot move forward
 void triggerObstacle(){
+  lastObstacleLocation.valid = false;
   activeOp->onObstacle();
 }
 
 // drive reverse if robot cannot move forward, with side info for directional avoidance
 // side: 0 = no side info, -1 = obstacle left (avoid right), +1 = obstacle right (avoid left)
 void triggerObstacle(int side){
+  lastObstacleLocation.valid = false;
+  activeOp->onObstacle(side);
+}
+
+// same, for an obstacle whose map position is known: the escape operation will place the virtual
+// obstacle right there instead of guessing it from the pose after reversing
+void triggerObstacleAt(int side, float x, float y){
+  lastObstacleLocation.valid = true;
+  lastObstacleLocation.x = x;
+  lastObstacleLocation.y = y;
   activeOp->onObstacle(side);
 }
 
@@ -818,6 +830,99 @@ bool detectLift(){
   #endif 
   return false;
 }
+
+// ------ sonar echo localization ------------------------------------------------------------
+// The sonar sensors sit on a bar in front of the robot reference position (= GPS antenna), the
+// outer ones offset sideways and rotated outwards, all of them tilted downwards. Knowing that
+// geometry, a measured distance can be converted into a map position - which tells us both where
+// to place the virtual obstacle and whether the echo is just the mapped perimeter.
+
+#ifndef SONAR_ECHO_LOCATION
+  #define SONAR_ECHO_LOCATION false
+#endif
+#ifndef SONAR_MOUNT_FORWARD_CM
+  #define SONAR_MOUNT_FORWARD_CM 0
+#endif
+#ifndef SONAR_MOUNT_LATERAL_CM
+  #define SONAR_MOUNT_LATERAL_CM 0
+#endif
+#ifndef SONAR_SIDE_ANGLE_DEG
+  #define SONAR_SIDE_ANGLE_DEG 0
+#endif
+#ifndef SONAR_TILT_DOWN_DEG
+  #define SONAR_TILT_DOWN_DEG 0
+#endif
+#ifndef SONAR_PERIMETER_GATE
+  #define SONAR_PERIMETER_GATE false
+#endif
+#ifndef SONAR_PERIMETER_GATE_TOLERANCE
+  #define SONAR_PERIMETER_GATE_TOLERANCE 0.25
+#endif
+
+static unsigned long nextSonarGateInfoTime = 0;
+static unsigned long sonarGatedCounter = 0;
+
+// map position of an echo measured by one sensor
+// lateralCm: sensor offset to the left of the longitudinal axis, azimuthDeg: outwards to the left
+static void sonarEchoPoint(float lateralCm, float azimuthDeg, unsigned int distanceCm,
+                           float &x, float &y){
+  float heading = stateEstimator.stateDelta;
+  // the sensors look downwards, so the measured slant range is longer than the ground distance
+  float range = distanceCm / 100.0 * cos(((float)SONAR_TILT_DOWN_DEG) / 180.0 * PI);
+  float forward = ((float)SONAR_MOUNT_FORWARD_CM) / 100.0;
+  float lateral = lateralCm / 100.0;
+  // sensor position: forward along the heading plus lateral to its left
+  float sensorX = stateEstimator.stateX + forward * cos(heading) - lateral * sin(heading);
+  float sensorY = stateEstimator.stateY + forward * sin(heading) + lateral * cos(heading);
+  float azimuth = heading + azimuthDeg / 180.0 * PI;
+  x = sensorX + range * cos(azimuth);
+  y = sensorY + range * sin(azimuth);
+}
+
+// map position of the nearest triggered sonar echo - that is the obstacle we would hit first
+// returns false if the echo cannot be located (feature off, or robot position not trustworthy)
+static bool sonarEchoLocation(bool leftTriggered, bool centerTriggered, bool rightTriggered,
+                              float &x, float &y){
+  if (!SONAR_ECHO_LOCATION) return false;
+  // without a fix the map and the real world are too far apart to place anything into the map
+  if (stateEstimator.stateLocalizationMode != LOC_GPS) return false;
+  if (gps.solution != SOL_FIXED) return false;
+
+  unsigned int nearest = 0;
+  float lateralCm = 0;
+  float azimuthDeg = 0;
+  if (leftTriggered){
+    nearest = sonar.distanceLeft;
+    lateralCm = SONAR_MOUNT_LATERAL_CM;
+    azimuthDeg = SONAR_SIDE_ANGLE_DEG;
+  }
+  if (centerTriggered && ((nearest == 0) || (sonar.distanceCenter < nearest))){
+    nearest = sonar.distanceCenter;
+    lateralCm = 0;
+    azimuthDeg = 0;
+  }
+  if (rightTriggered && ((nearest == 0) || (sonar.distanceRight < nearest))){
+    nearest = sonar.distanceRight;
+    lateralCm = -((float)SONAR_MOUNT_LATERAL_CM);
+    azimuthDeg = -((float)SONAR_SIDE_ANGLE_DEG);
+  }
+  if (nearest == 0) return false;
+
+  sonarEchoPoint(lateralCm, azimuthDeg, nearest, x, y);
+  return true;
+}
+
+// is the echo where the map has a boundary anyway? (perimeter wall, exclusion edge)
+// those are known and must not trigger obstacle avoidance - otherwise the robot escapes from its
+// own perimeter and litters the map with virtual obstacles along every hard edge
+static bool sonarEchoIsMapBoundary(float x, float y){
+  if (!SONAR_PERIMETER_GATE) return false;
+  Point echo;
+  echo.setXY(x, y);
+  if (maps.isOutsideMowableArea(echo)) return true;
+  return (maps.distanceToMapBoundary(echo) < SONAR_PERIMETER_GATE_TOLERANCE);
+}
+
 
 // detect obstacle (bumper, sonar, ToF)
 // returns true, if obstacle detected, otherwise false
@@ -914,24 +1019,41 @@ bool detectObstacle(){
 
   if (sonar.obstacle() && (maps.wayMode != WAY_DOCK)){
     if (SONAR_TRIGGER_OBSTACLES){
+      bool leftTriggered  = (sonar.distanceLeft  < sonar.triggerLeftBelow);
+      bool rightTriggered = (sonar.distanceRight < sonar.triggerRightBelow);
+      bool centerTriggered = (sonar.distanceCenter < sonar.triggerCenterBelow);
+      int side = 0;
       #if SONAR_SIDE_AVOIDANCE_ENABLED
         // Determine which side triggered for directional avoidance
-        int side = 0;
-        bool leftTriggered  = (sonar.distanceLeft  < sonar.triggerLeftBelow);
-        bool rightTriggered = (sonar.distanceRight < sonar.triggerRightBelow);
-        bool centerTriggered = (sonar.distanceCenter < sonar.triggerCenterBelow);
         if (leftTriggered && !rightTriggered && !centerTriggered) side = -1;  // obstacle left -> avoid right
         else if (rightTriggered && !leftTriggered && !centerTriggered) side = +1; // obstacle right -> avoid left
+      #endif
+      // where is that echo on the map? (the nearest triggered sensor is the one we will hit first)
+      float obstacleX = 0;
+      float obstacleY = 0;
+      bool obstacleLocated = sonarEchoLocation(leftTriggered, centerTriggered, rightTriggered,
+                                               obstacleX, obstacleY);
+      if (obstacleLocated && sonarEchoIsMapBoundary(obstacleX, obstacleY)){
+        // the echo sits where the map has a wall anyway - keep mowing the lane instead of
+        // escaping from our own perimeter (LineTracker still slows down via sonar.nearObstacle())
+        sonarGatedCounter++;
+        if (millis() > nextSonarGateInfoTime){
+          nextSonarGateInfoTime = millis() + 5000;
+          CONSOLE.print("sonar echo at map boundary - not an obstacle (");
+          CONSOLE.print(obstacleX);
+          CONSOLE.print(",");
+          CONSOLE.print(obstacleY);
+          CONSOLE.print(") gated=");
+          CONSOLE.println(sonarGatedCounter);
+        }
+      } else {
         CONSOLE.print("sonar obstacle! side=");
         CONSOLE.println(side);
         stats.statMowSonarCounter++;
-        triggerObstacle(side);
-      #else
-        CONSOLE.println("sonar obstacle!");
-        stats.statMowSonarCounter++;
-        triggerObstacle();
-      #endif
-      return true;
+        if (obstacleLocated) triggerObstacleAt(side, obstacleX, obstacleY);
+          else triggerObstacle(side);
+        return true;
+      }
     }
   }
   // check if GPS motion (obstacle detection)  
@@ -961,6 +1083,8 @@ bool detectObstacle(){
 
 // stuck rotate avoidance (drive forward if robot cannot rotate)
 void triggerObstacleRotation(){
+  // a rotation stuck has no known obstacle location
+  lastObstacleLocation.valid = false;
   activeOp->onObstacleRotation();
 }
 

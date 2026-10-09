@@ -147,12 +147,24 @@ extern TimeTable timetable;
   extern UBLOX gps;
 #endif
 
+// map position of the obstacle that triggered the last avoidance - only valid if the detecting
+// sensor could tell where the obstacle actually is (sonar with known mounting geometry and a
+// trustworthy robot position), otherwise the escape operation has to guess the position
+struct ObstacleLocation {
+  bool valid;
+  float x;
+  float y;
+};
+extern ObstacleLocation lastObstacleLocation;
+
 int freeMemory();
 void start();
 void run();
 void setOperation(OperationType op, bool allowRepeat = false);
 void triggerObstacle();
 void triggerObstacle(int side);
+// trigger avoidance for an obstacle whose map position is known
+void triggerObstacleAt(int side, float x, float y);
 void sensorTest();
 void updateStateOpText();
 void detectSensorMalfunction();

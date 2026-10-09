@@ -349,6 +349,23 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define SONAR_OFFSET_OBSTACLE_ENABLED  true  // enable offset obstacle placement
 #define SONAR_OFFSET_OBSTACLE_DIST     0.3    // lateral offset in meters (0.2 - 0.5 reasonable)
 
+// --- Sonar mounting geometry ---
+// Needed to compute where an echo actually is. Measured from the robot reference position
+// (= the GPS antenna, that is what stateX/stateY refer to):
+#define SONAR_ECHO_LOCATION      true   // locate sonar echoes on the map (needs the geometry below)
+#define SONAR_MOUNT_FORWARD_CM   38     // sonar bar ahead of the GPS antenna (cm)
+#define SONAR_MOUNT_LATERAL_CM   10     // outer sensors beside the longitudinal axis (cm)
+#define SONAR_SIDE_ANGLE_DEG     30     // outward angle of the outer sensors (degrees)
+#define SONAR_TILT_DOWN_DEG      25     // downward tilt of all sensors (degrees)
+
+// --- Sonar perimeter gate ---
+// An echo that sits where the map has a boundary anyway (perimeter wall, exclusion edge) is not
+// an obstacle - it is the edge we are supposed to mow along. Without this the mower escapes from
+// its own perimeter at every hard edge and fills the map with virtual obstacles.
+// Only active with a GPS fix, so a drifting float solution cannot suppress real obstacles.
+#define SONAR_PERIMETER_GATE           true
+#define SONAR_PERIMETER_GATE_TOLERANCE 0.25   // echo counts as boundary within this distance (m)
+
 // ------ rain sensor ----------------------------------------------------------
 //#define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers
 #define RAIN_ENABLE false

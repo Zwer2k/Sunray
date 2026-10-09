@@ -226,6 +226,9 @@ class Map
     
     // -----virtual obstacles----------------------------------
     bool addObstacle(float stateX, float stateY);    
+    // add a virtual obstacle centered at the given map position (use this if the detecting
+    // sensor knows where the obstacle actually is)
+    bool addObstacleAt(float x, float y);
     void clearObstacles();
     void requestTangentialPerimeterRecovery();
     
@@ -236,6 +239,12 @@ class Map
     void generateRandomMap();    
     // check if given point is inside perimeter (and outside exclusions) of current map 
     bool isInsidePerimeterOutsideExclusions(Point &pt);
+    // distance (m) to the nearest perimeter edge, optionally returning that edge's unit tangent
+    float distanceToPerimeter(Point &pt, float *tangentX = NULL, float *tangentY = NULL);
+    // distance (m) to the nearest mapped boundary (perimeter or exclusion edge)
+    float distanceToMapBoundary(Point &pt);
+    // is the given point outside the perimeter or inside an exclusion (i.e. no mowable area)?
+    bool isOutsideMowableArea(Point &pt);
   private:
     void finishedUploadingMap();
     void checkMemoryErrors();
