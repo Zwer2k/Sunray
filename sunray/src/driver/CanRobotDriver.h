@@ -337,7 +337,6 @@ class CanRobotDriver: public RobotDriver {
     #ifdef __linux__
       LinuxCAN can;
       Process cpuTempProcess;
-      Process wifiStatusProcess;
       Process wifiSignalProcess;
       Process ipAddressToStringProcess;
     #else  
