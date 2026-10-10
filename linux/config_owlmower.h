@@ -60,6 +60,19 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define ENABLE_PASS   1        // comment out to disable password authentication
 #define PASS          123456   // choose password for WiFi/BLE communication (NOTE: has to match the connection password in the App!)
 
+#define ENABLE_SERVER false
+#define ENABLE_WS_CLIENT true
+#define WS_USE_TLS 1
+#define WS_HOST "sunray.owlrobotics.app"
+#define WS_PORT 443
+#define WS_ROBOT_CONNECT_KEY "0a3c8b7c35610c6f9a6207bed6ab8359"
+#define WS_TLS_ROOT_CA_PATH "SYSTEM"
+#define WS_TLS_CLIENT_CERT_PATH ""
+#define WS_TLS_CLIENT_KEY_PATH ""
+#define WS_TLS_SERVER_NAME WS_HOST
+// In your robot firmware config, set: PASS 123456
+
+
 // -------- IMU sensor  ----------------------------------------------
 // choose one MPU IMU (make sure to connect AD0 on the MPU board to 3.3v)
 // verify in CONSOLE that your IMU was found (you will hear 8 buzzer beeps for automatic calibration at start)
@@ -149,9 +162,9 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define MOTOR_DRIVER_BRUSHLESS_GEARS_DRV8308  1   // uncomment for brushless DRV8308 driver and gear/traction motors 
 //#define MOTOR_DRIVER_BRUSHLESS_GEARS_A4931  1   // uncomment for brushless A4931 driver and gear/traction motors
 
-#define MOTOR_FAULT_CURRENT 3.0    // gear motors fault current (amps)
+#define MOTOR_FAULT_CURRENT 8.0    // gear motors fault current (amps)
 #define MOTOR_TOO_LOW_CURRENT 0.00   // gear motor too low current (amps), set to zero (0) to disable
-#define MOTOR_OVERLOAD_CURRENT 1.5    // gear motors overload current (amps)
+#define MOTOR_OVERLOAD_CURRENT 7.5    // gear motors overload current (amps)
 
 #define MOTOR_OVERLOAD_SPEED  0.3    // speed (m/s) to use at motor overload
 
@@ -310,7 +323,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define BUMPER_MAX_TRIGGER_TIME 30	// if bumpersensor stays permanent triggered mower will stop with bumper error (time in seconds; 0 = disabled)																																				  
 
 // ------ LiDAR bumper ------------------------------------------
-#define LIDAR_BUMPER_ENABLE true
+#define LIDAR_BUMPER_ENABLE false
 #define LIDAR_BUMPER_DEADTIME          1000   // linear motion dead-time (ms) after bumper is allowed to trigger
 
 // ----- battery charging current measurement (INA169) --------------
@@ -420,7 +433,7 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 #define UNDOCK_IGNORE_GPS_DISTANCE 2 // set distance (m) from dock to ignore gps while undocking
 
-#define DOCK_FRONT_SIDE false    // dock with mower front side (true) or back side (false)? 
+#define DOCK_FRONT_SIDE true    // dock with mower front side (true) or back side (false)? 
 //#define DOCK_FRONT_SIDE true    // dock with mower front side (true) or back side (false)? 
 
 //#define DOCK_RELEASE_BRAKES true   // robot will release electrical brakes in dock
@@ -451,11 +464,11 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 // ----- other options --------------------------------------------
 
 // button control (turns on additional features via the POWER-ON button)
-#define BUTTON_STOP    false      // use the stop/emergency button? (also required for additional button features)
+#define BUTTON_STOP    true      // use the stop/emergency button? (also required for additional button features)
 #define BUTTON_CONTROL true      // additional features activated (press-and-hold button for specific beep count: 
                                  //  1 beep=stop, 6 beeps=start, 5 beeps=dock, 3 beeps=R/C mode ON/OFF)
 //#define BUTTON_CONTROL false   // additional features deactivated
-#define BUTTON_INVERT false    // invert button sensor?
+#define BUTTON_INVERT true    // invert button sensor?
 
 //#define USE_TEMP_SENSOR true  // only activate if temp sensor (htu21d) connected
 #define USE_TEMP_SENSOR false  

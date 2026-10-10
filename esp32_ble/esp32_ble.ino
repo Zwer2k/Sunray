@@ -2,6 +2,11 @@
      1. BLE UART bridge (GATT server UART)
      2. WiFi UART bridge (HTTP server UART)
 
+     Reference build target:
+       Arduino IDE 1.8.19
+       Espressif Arduino-ESP32 3.3.11
+       Board: ESP32 Dev Module, Flash Mode: DIO, Partition Scheme: Minimal SPIFFS
+
 
   serial protocol:
 
@@ -67,13 +72,13 @@ String pass = WIFI_STA_PSK;
 #ifdef USE_CLOUD
   void cloud_setup();
   void cloud_loop();
+  void cloud_uart_rx(char ch);
 #endif
 
 String cmd;
 unsigned long nextInfoTime = 0;
 unsigned long nextPingTime = 0;
 unsigned long nextLEDTime = 0;
-unsigned long nextWatchDogResetTime = 0;
 unsigned long nextWifiConnectTime = 0;
 bool ledStateNew = false;
 bool ledStateCurr = false;
@@ -609,15 +614,32 @@ void setup() {
       esp_task_wdt_config_t twdt_cfg = {};
       twdt_cfg.timeout_ms = (uint32_t)(WDT_TIMEOUT * 1000);
       twdt_cfg.trigger_panic = true;
-      twdt_cfg.idle_core_mask = (1 << portNUM_PROCESSORS) - 1; // feed WDT on both cores
-      esp_task_wdt_init(&twdt_cfg);
+      // Watch this sketch's loop task only. WiFi/BLE activity may legitimately
+      // keep an idle task from running for a while.
+      twdt_cfg.idle_core_mask = 0;
+      esp_err_t wdtResult;
+      if (esp_task_wdt_status(NULL) == ESP_ERR_INVALID_STATE) {
+        wdtResult = esp_task_wdt_init(&twdt_cfg);
+      } else {
+        // Arduino-ESP32 v3 initializes TWDT before setup(). Reconfigure it
+        // instead of calling init() again (which returns INVALID_STATE).
+        wdtResult = esp_task_wdt_reconfigure(&twdt_cfg);
+      }
+      if (wdtResult != ESP_OK) {
+        CONSOLE.printf("WDT configuration failed: %s\n", esp_err_to_name(wdtResult));
+      }
     #else
       esp_task_wdt_init(WDT_TIMEOUT, true); // enable panic so ESP32 restarts
     #endif
   #else
     esp_task_wdt_init(WDT_TIMEOUT, true); // legacy API
   #endif
-  esp_task_wdt_add(NULL); //add current thread to WDT watch
+  if (esp_task_wdt_status(NULL) == ESP_ERR_NOT_FOUND) {
+    esp_err_t wdtResult = esp_task_wdt_add(NULL); // add loopTask to WDT watch
+    if (wdtResult != ESP_OK) {
+      CONSOLE.printf("WDT task registration failed: %s\n", esp_err_to_name(wdtResult));
+    }
+  }
 
 #ifdef USE_BLE
   startBLE();
@@ -634,6 +656,9 @@ void setup() {
 
 
 void loop() {
+  // Feed on every completed loop. Long blocking operations still trigger the
+  // watchdog, but normal scheduling no longer depends on a second timer gate.
+  esp_task_wdt_reset();
 #ifdef USE_MQTT
   mower.loop(millis());
 #endif
@@ -667,16 +692,22 @@ void loop() {
     char ch = UART.read();
     #ifdef USE_MQTT
       mower.rx(ch);
-    #endif    
-    if (bleConnected) {
-      // BLE client connected
-      bleAnswerTimeout = millis() + 100;
-      bleAnswer = bleAnswer + ch;
-    } else {
-      // no BLE client connected
-      bleAnswer = "";
-      cmd = cmd + ch;
-    }
+    #endif
+    #ifdef USE_CLOUD
+      // In cloud mode UART belongs to the asynchronous cloud bridge. Do not
+      // let the generic command parser consume delayed mower responses.
+      cloud_uart_rx(ch);
+    #else
+      if (bleConnected) {
+        // BLE client connected
+        bleAnswerTimeout = millis() + 100;
+        bleAnswer = bleAnswer + ch;
+      } else {
+        // no BLE client connected
+        bleAnswer = "";
+        cmd = cmd + ch;
+      }
+    #endif
   }
 
   // LED
@@ -766,8 +797,4 @@ void loop() {
     cloud_loop();
   #endif
   relay_loop();
-  if (millis() > nextWatchDogResetTime) {
-    nextWatchDogResetTime = millis() + 1000;
-    esp_task_wdt_reset(); // watch dog reset
-  }
 }

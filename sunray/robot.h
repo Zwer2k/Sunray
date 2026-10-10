@@ -48,7 +48,7 @@
 #include "timetable.h"
 
 
-#define VER "Sunray,1.0.331"
+#define VER "Sunray,1.0.332"
 
 // common types
 #include "types.h"
@@ -152,6 +152,7 @@ void start();
 void run();
 void setOperation(OperationType op, bool allowRepeat = false);
 void triggerObstacle();
+void triggerObstacle(int side);
 void sensorTest();
 void updateStateOpText();
 void detectSensorMalfunction();

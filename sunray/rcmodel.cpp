@@ -10,6 +10,40 @@ volatile unsigned long PPM_start_lin = 0;
 volatile unsigned long PPM_end_lin = 0;                
 volatile unsigned long PPM_start_ang = 0;
 volatile unsigned long PPM_end_ang = 0 ;        
+
+#ifndef SONAR_MANUAL_OBSTACLE_CONTROL
+#define SONAR_MANUAL_OBSTACLE_CONTROL false
+#endif
+
+#ifndef SONAR_OBSTACLE_WARNING_LEVEL
+#define SONAR_OBSTACLE_WARNING_LEVEL 5
+#endif
+
+#ifndef SONAR_SLOW_DOWN_WARNING_LEVEL
+#define SONAR_SLOW_DOWN_WARNING_LEVEL 3
+#endif
+
+static float applyManualSlowDown(float linear){
+  if (!SONAR_MANUAL_OBSTACLE_CONTROL) return linear;
+
+  #ifdef DRV_CAN_ROBOT
+    CanRobotDriver::UltrasonicMotionDirection direction = CanRobotDriver::ultrasonic_motion_any;
+    if (linear > 0.001f) direction = CanRobotDriver::ultrasonic_motion_forward;
+    else if (linear < -0.001f) direction = CanRobotDriver::ultrasonic_motion_reverse;
+    robotDriver.setUltrasonicMotionDirectionHint(direction);
+
+    if (robotDriver.configuredUltrasonicWarningAtOrAbove(SONAR_OBSTACLE_WARNING_LEVEL, direction)) return 0.0f;
+    if (robotDriver.configuredUltrasonicWarningAtOrAbove(SONAR_SLOW_DOWN_WARNING_LEVEL, direction)) {
+      if (linear > 0.10f) return 0.10f;
+      if (linear < -0.10f) return -0.10f;
+    }
+  #endif
+
+  if (!bumperDriver.nearObstacle()) return linear;
+  if (linear > 0.10f) return 0.10f;
+  if (linear < -0.10f) return -0.10f;
+  return linear;
+}
       
 #ifdef RCMODEL_ENABLE      
 
@@ -100,8 +134,7 @@ void RCModel::run(){
       CONSOLE.println(angularPPM);
     }
 #endif
-    motor.setLinearAngularSpeed(linearPPM, angularPPM, false);                     // R/C Signale an Motor leiten
+    motor.setLinearAngularSpeed(applyManualSlowDown(linearPPM), angularPPM, false);                     // R/C Signale an Motor leiten
   }
 #endif
 }
-

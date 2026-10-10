@@ -56,9 +56,10 @@ void MowOp::begin(){
         return;
     }
 
-    // Resuming existing free points (GoTo/pathfinder) after interruption (e.g. GPS loss)
-    if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0) {
-        CONSOLE.println("OP_MOW (resume free path)");
+    // Resuming existing GoTo free points after interruption (e.g. GPS loss)
+    // (WAY_FREE is also used by the mowing pathfinder, so only resume here if this is a GoTo path)
+    if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0 && !maps.shouldMow) {
+        CONSOLE.println("OP_MOW (resume goto path)");
         gotoNearTargetSince = 0;
         gotoDone = false;
         motor.enableTractionMotors(true);
@@ -122,6 +123,7 @@ void MowOp::begin(){
             changeOp(errorOp);      
         } else {    
             Logger.event(EVT_ERROR_NO_MAP_ROUTE);
+            gpsRebootRecoveryOp.rebootGpsOnBegin = false;
             changeOp(gpsRebootRecoveryOp, true);
         }
     } else {
@@ -144,8 +146,9 @@ void MowOp::run(){
     battery.resetIdle();
 
     // GoTo waypoint advance / target detection
+    // (WAY_FREE is also used by the mowing pathfinder; only apply GoTo fallback logic for real GoTo paths)
     // GPS imprecision may prevent TARGET_REACHED_TOLERANCE (0.1m) from firing
-    if (maps.wayMode == WAY_FREE) {
+    if (maps.wayMode == WAY_FREE && !maps.shouldMow) {
         float dist = maps.distanceToTargetPoint(stateEstimator.stateX, stateEstimator.stateY);
         if (dist >= 0.5) {
             gotoNearTargetSince = 0;
@@ -226,27 +229,32 @@ void MowOp::onTimetableStartMowing(){
 }
 
 void MowOp::onObstacle(){
+    onObstacle(0);
+}
+
+void MowOp::onObstacle(int side){
     if ((!DOCK_DETECT_OBSTACLE_IN_DOCK) && (maps.isBetweenLastAndNextToLastDockPoint())) {
-      //CONSOLE.println("triggerObstacle: ignoring, because in dock");      
+      //CONSOLE.println("triggerObstacle: ignoring, because in dock");
       return;
     }
-    CONSOLE.println("triggerObstacle");      
-    stats.statMowObstacles++;      
-    if (maps.isDocking()) {    
+    CONSOLE.println("triggerObstacle");
+    stats.statMowObstacles++;
+    if (maps.isDocking()) {
         if (maps.retryDocking(stateEstimator.stateX, stateEstimator.stateY)) {
-            changeOp(escapeReverseOp, true);                      
+            changeOp(escapeReverseOp, true);
             return;
         }
-    } 
-    if ((OBSTACLE_AVOIDANCE) && (maps.wayMode != WAY_DOCK)){    
-        changeOp(escapeReverseOp, true);      
-    } else {     
+    }
+    if ((OBSTACLE_AVOIDANCE) && (maps.wayMode != WAY_DOCK)){
+        escapeReverseOp.avoidSide = side;
+        changeOp(escapeReverseOp, true);
+    } else {
         stateEstimator.stateSensor = SENS_OBSTACLE;
-        CONSOLE.println("error: obstacle!");            
-        changeOp(errorOp);                
+        CONSOLE.println("error: obstacle!");
+        changeOp(errorOp);
     }
 }
-    
+
 void MowOp::onObstacleRotation(){
     CONSOLE.println("triggerObstacleRotation");    
     stats.statMowObstacles++;   
@@ -324,13 +332,18 @@ void MowOp::onTargetReached(){
         stateEstimator.motorErrorCounter = 0; // reset motor error counter if target reached
         stateEstimator.stateSensor = SENS_NONE; // clear last triggered sensor
     } else if (maps.wayMode == WAY_FREE) {
-        // Only stop on final waypoint; intermediate perimeter waypoints just pass through
-        if (maps.freePointsIdx + 1 >= maps.freePoints.numPoints) {
-            CONSOLE.println("goto: target reached");
-            gotoDone = true;
-            changeOp(idleOp);
+        if (maps.shouldMow) {
+            // mowing pathfinder path - do not treat as GoTo; onNoFurtherWaypoints/nextPoint will advance the route
+            CONSOLE.println("mowing path: waypoint reached");
         } else {
-            CONSOLE.println("goto: waypoint reached");
+            // Only stop on final waypoint; intermediate perimeter waypoints just pass through
+            if (maps.freePointsIdx + 1 >= maps.freePoints.numPoints) {
+                CONSOLE.println("goto: target reached");
+                gotoDone = true;
+                changeOp(idleOp);
+            } else {
+                CONSOLE.println("goto: waypoint reached");
+            }
         }
     }
 }
@@ -339,7 +352,9 @@ void MowOp::onTargetReached(){
 void MowOp::onGpsFixTimeout(){
     // no gps solution
     if (REQUIRE_VALID_GPS){
-#ifdef UNDOCK_IGNORE_GPS_DISTANCE
+#ifdef DOCK_LED_STRIP
+        if (!maps.isUndocking() || stateEstimator.dockLedStripUndockCompleted){
+#elif defined(UNDOCK_IGNORE_GPS_DISTANCE)
         if (!maps.isUndocking() || getDockDistance() > UNDOCK_IGNORE_GPS_DISTANCE){
 #else
         if (!maps.isUndocking()){
@@ -352,7 +367,9 @@ void MowOp::onGpsFixTimeout(){
 
 void MowOp::onGpsNoSignal(){
     if (REQUIRE_VALID_GPS){
-#ifdef UNDOCK_IGNORE_GPS_DISTANCE
+#ifdef DOCK_LED_STRIP
+        if (!maps.isUndocking() || stateEstimator.dockLedStripUndockCompleted){
+#elif defined(UNDOCK_IGNORE_GPS_DISTANCE)
         if (!maps.isUndocking() || getDockDistance() > UNDOCK_IGNORE_GPS_DISTANCE){
 #else
         if (!maps.isUndocking()){

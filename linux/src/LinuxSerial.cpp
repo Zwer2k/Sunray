@@ -13,6 +13,8 @@
 
 //#define LINUX_SERIAL_FIFO  1
 
+static const unsigned long LINUX_SERIAL_RECONNECT_INTERVAL_MS = 1000;
+
 
 
 void *linuxSerialRxThreadFun(void *user_data)
@@ -44,12 +46,20 @@ void LinuxSerial::begin(const char *devicePath){
 }
 
 void LinuxSerial::begin(const char *devicePath, uint32_t baudrate){      
+  configuredBaudrate = baudrate;
+  baudrateConfigured = true;
   if (!open(devicePath)) return;
   setBaudrate(baudrate); 
 }
 
 void LinuxSerial::begin(uint32_t baudrate){
-  setBaudrate(baudrate);
+  configuredBaudrate = baudrate;
+  baudrateConfigured = true;
+  if (_stream > 0) {
+    setBaudrate(baudrate);
+  } else if (devPath.length() != 0 && open(devPath.c_str())) {
+    setBaudrate(baudrate);
+  }
 } 
 
   
@@ -90,14 +100,18 @@ bool LinuxSerial::setBaudrate(uint32_t baudrate){
 
 bool LinuxSerial::open(const char *devicePath){    
   //return false;
-  struct termios newtermios;
   devPath = devicePath;
+  lastOpenAttempt = millis();
   ::printf("opening serial port %s...\n", devicePath);
-  if ((_stream = ::open(devicePath, O_RDWR | O_NOCTTY | O_NONBLOCK)) <= 0)
+  int stream = ::open(devicePath, O_RDWR | O_NOCTTY | O_NONBLOCK);
+  if (stream <= 0)
   { 
     ::printf("could not open serial port %s\n", devicePath);
+    if (stream == 0) ::close(stream);
+    _stream = 0;
     return false;
   }
+  _stream = stream;
   #ifdef LINUX_SERIAL_FIFO
     if (thread_rx_id == 0){    
       //::printf("LINUX_SERIAL_FIFO: starting serial threads...");
@@ -106,6 +120,33 @@ bool LinuxSerial::open(const char *devicePath){
     }
   #endif
   return true;
+}
+
+
+bool LinuxSerial::ensureOpen(){
+  if (_stream > 0) return true;
+  if (devPath.length() == 0) return false;
+
+  unsigned long now = millis();
+  if ((unsigned long)(now - lastOpenAttempt) < LINUX_SERIAL_RECONNECT_INTERVAL_MS) return false;
+
+  if (!open(devPath.c_str())) return false;
+  if (baudrateConfigured && !setBaudrate(configuredBaudrate)) {
+    handleDisconnect("configuring");
+    return false;
+  }
+  ::printf("reopened serial port %s\n", devPath.c_str());
+  return true;
+}
+
+
+void LinuxSerial::handleDisconnect(const char *operation){
+  if (_stream <= 0) return;
+  ::fprintf(stderr, "LINUX SERIAL: port %s disconnected while %s; retrying\n",
+            devPath.c_str(), operation);
+  ::close(_stream);
+  _stream = 0;
+  lastOpenAttempt = millis();
 }
 
 
@@ -133,13 +174,16 @@ void LinuxSerial::flush(){
 
 // RX FIFO  
 bool LinuxSerial::runRx(){
-	if(!_stream) return false;  
+	if(!ensureOpen()) return false;
   //if (fifoTx.available() != 0) return true; // give TX FIFO highest priority for USB communication 
 
   // ----------- read from serial into RX FIFO ---------------
 	while (true){    
     int bytes_avail = 0;
-    ioctl(_stream, FIONREAD, &bytes_avail);
+    if (ioctl(_stream, FIONREAD, &bytes_avail) < 0) {
+      if (errno != EAGAIN && errno != EINTR) handleDisconnect("checking input");
+      return false;
+    }
     if (bytes_avail == 0) break;
 
     if (bytes_avail > 4095) bytes_avail = 4095;
@@ -151,6 +195,7 @@ bool LinuxSerial::runRx(){
     //     break;
     if (j != bytes_avail){
 			fprintf(stderr, "LINUX SERIAL: error reading\n");      
+      if (j <= 0 && errno != EAGAIN && errno != EINTR) handleDisconnect("reading");
       break;
     }    
 		for (int i=0; i < bytes_avail; i++){
@@ -168,7 +213,7 @@ bool LinuxSerial::runRx(){
 
 // TX FIFO 
 bool LinuxSerial::runTx(){
-	if(!_stream) return false;    
+	if(!ensureOpen()) return false;
   if (fifoTx.available() == 0) return true;
 
   // ---------- write to serial from TX FIFO ---------------
@@ -189,10 +234,12 @@ bool LinuxSerial::runTx(){
   
   //fprintf(stderr, "LINUX SERIAL: sending %d\n", count);
   int j = ::write(_stream, buffer, count);    
-  if(j < 0)
+	if(j < 0)
   {
       if(errno == EAGAIN) {
         perror("LINUX SERIAL: ERROR writing LinuxSerial");
+      } else if (errno != EINTR) {
+        handleDisconnect("writing");
       }
       //delayMicroseconds(500);    
 	}
@@ -206,7 +253,7 @@ bool LinuxSerial::runTx(){
 
 
 int LinuxSerial::available(){
-  if(!_stream) return 0;  
+  if(!ensureOpen()) return 0;
   return (fifoRx.available()); 
 }
 
@@ -219,7 +266,7 @@ int LinuxSerial::read(){
 
 
 size_t LinuxSerial::write(uint8_t c){
-  if(!_stream) return 0;      
+  if(!ensureOpen()) return 0;
 	
     if (!fifoTx.write(c)){
 		// fifoTx overflow
@@ -232,7 +279,7 @@ size_t LinuxSerial::write(uint8_t c){
 
     
 size_t LinuxSerial::write(const uint8_t *buffer, size_t size){
-  if(!_stream) return 0;      
+  if(!ensureOpen()) return 0;
   while (fifoTx.available() != 0); // wait until last packet was sent  
 
   int count = 0;
@@ -251,13 +298,18 @@ size_t LinuxSerial::write(const uint8_t *buffer, size_t size){
 #else  // ---------------------------------------- no LINUX_SERIAL_FIFO ---------------------------------------
 
 int LinuxSerial::available(){
+  if (!ensureOpen()) return 0;
   int bytes_avail = 0;
-  ioctl(_stream, FIONREAD, &bytes_avail);
+  if (ioctl(_stream, FIONREAD, &bytes_avail) < 0) {
+    if (errno != EAGAIN && errno != EINTR) handleDisconnect("checking input");
+    return 0;
+  }
   return bytes_avail;
 }
 
 
 int LinuxSerial::read(){
+  if (!ensureOpen()) return 0;
   char buffer = 0;
   size_t size = 1;
   int j = ::read(_stream, &buffer, size);
@@ -265,14 +317,17 @@ int LinuxSerial::read(){
   {
     if(errno == EAGAIN)
       return 0;
-    else
+    else {
+      if (errno != EINTR) handleDisconnect("reading");
       return buffer;
+    }
   }
   return buffer;
 }
 
 
 size_t LinuxSerial::write(uint8_t c){
+  if (!ensureOpen()) return 0;
   size_t size = 1;
   char *buffer = (char*)&c;
   int j = ::write(_stream, buffer, size);    
@@ -280,26 +335,29 @@ size_t LinuxSerial::write(uint8_t c){
   {
       if(errno == EAGAIN)
         return 0;
-      else
-        return j;
+      else {
+        if (errno != EINTR) handleDisconnect("writing");
+        return 0;
+      }
   }
   return j;
 }
 
   
 size_t LinuxSerial::write(const uint8_t *buffer, size_t size){
+  if (!ensureOpen()) return 0;
   int j = ::write(_stream, buffer, size);    
   if(j < 0)
   {
       if(errno == EAGAIN)
         return 0;
-      else
-        return j;
+      else {
+        if (errno != EINTR) handleDisconnect("writing");
+        return 0;
+      }
   }
   return j;
 }
 
 
 #endif // --------------------------------------------------------------------------------
-
-

@@ -197,6 +197,9 @@ void EventLogger::event(EventCode evt, const String &additionalData) {
             case EVT_DOCK_RECOVERY_GIVEUP:
                 evtText = TXT_DOCK_RECOVERY_GIVEUP;
                 break; 
+            case EVT_DOCK_IGNORING_GPS:
+                evtText = TXT_DOCK_IGNORING_GPS;
+                break;
             case EVT_LIDAR_RELOCALIZATION:
                 evtText = TXT_LIDAR_RELOCALIZATION;
                 break; 
@@ -262,6 +265,5 @@ void EventLogger::playMP3(String &filename) {
     #endif
 
 }
-
 
 

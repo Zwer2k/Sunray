@@ -58,6 +58,19 @@ Summary and Obstacles
     - `<tt_day>,<tt_hour>`: Next timetable stop/start: if mowing → autostop day,hour; if charging → autostart day,hour; else `-1,0`.
 - `AT+S2` → Obstacles.
   - Response: `S2,<poly_cnt>,[0.5,0.5,1,<n>,x1,y1,...]...,0xHH` (polygons with RGB=(0.5,0.5,1) and their vertices).
+- `AT+S3` → Sensor summary.
+  - Response: `S3,<sonar_left>,<sonar_center>,<sonar_right>,<sonar_obstacle>,<sonar_near_obstacle>,<bumper_left_test>,<bumper_right_test>,<bumper_obstacle>,<bumper_near_obstacle>,<lidar_obstacle>,<lidar_near_obstacle>,<lift_triggered>,<rain_triggered>,0xHH`
+  - The distance fields use the sensor values reported by the three ultrasonic sensors. The remaining fields are boolean or numeric sensor states as provided by the corresponding drivers.
+- `AT+S4` → GNSS and satellite details.
+  - Response: `S4,<num_sv>,<num_sv_dgps>,<solution>,<h_accuracy>,<v_accuracy>,<dgps_age>,<satellite_count>,[<gnss_id>,<sv_id>,<sig_id>,<cno>,<quality_ind>,<pr_used>,<cr_corr_used>,<pr_res>,<elevation>,<azimuth>]...,0xHH`
+  - One satellite record is returned for each `<satellite_count>` entry.
+  - `<pr_used>` and `<cr_corr_used>` are `0` or `1`. The remaining satellite fields are the values reported by the u-Blox receiver.
+- `AT+S5` → Motor telemetry.
+  - Response: `S5,<rpm_left>,<rpm_right>,<rpm_mow>,<pwm_mow>,<amps_left>,<amps_right>,<amps_mow>,0xHH`
+    - `<rpm_left>`, `<rpm_right>`, `<rpm_mow>`: Measured motor speeds (rpm, one decimal, low-pass filtered).
+    - `<pwm_mow>`: Mow motor PWM actually sent to the driver (0..255) — the setpoint behind `<rpm_mow>`.
+    - `<amps_left>`, `<amps_right>`, `<amps_mow>`: Measured motor currents (amps, two decimals, low-pass filtered).
+    - Mow rpm requires a mowing motor with an rpm output; it reads 0 otherwise.
 
 Control and Tuning
 - `AT+M,<linear>,<angular>` → Set linear (m/s) and angular (rad/s) speed.
@@ -99,6 +112,11 @@ Map Upload
 Position Source
 - `AT+P,<enable>,<lon>,<lat>` → Configure external absolute position source (e.g. app provides GNSS lat/lon).
   - Ack: `P,0xHH`
+- `AT+R,<x>,<y>` → Navigate to the target position in meters.
+  - The firmware uses a direct route when it is safe. If the route crosses the perimeter, it creates a perimeter-aware route using free waypoints.
+  - The current cutter motor state is preserved while navigating. The robot returns to `IDLE` after reaching the final waypoint.
+  - An active route can be cancelled with `AT+M,<linear>,<angular>`.
+  - Ack: `R,0xHH`
 
 Statistics
 - `AT+T` → Read statistics.
@@ -112,6 +130,14 @@ WiFi (Linux targets)
 
 Firmware Update (Linux targets)
 - `AT+U1,<url>` → Trigger firmware update via installer script. Ack: `U1,0xHH`
+
+UBX Proxy
+- `AT+UBX,<hex>` → Forward raw UBX bytes to the u-Blox receiver and return the received bytes as hexadecimal text.
+  - `<hex>`: Even-length hexadecimal string, two characters per byte. Up to 256 request bytes are accepted.
+  - The command CRC is appended after the payload as usual: `AT+UBX,<hex>,0xHH`.
+  - Response: `U,<response_hex>,0xHH`
+  - `<response_hex>`: All bytes received from the u-Blox receiver, in uppercase hexadecimal notation. The proxy waits up to 500 ms and extends the wait by 50 ms whenever another byte block arrives; responses up to 2048 bytes are collected.
+  - Invalid or empty hexadecimal payloads return `U,ERR_INVALID_HEX,0xHH`.
 
 Camera (Linux targets)
 - `AT+CAM,<enable>,<index>,<width>,<height>,<fps>[,<quality>]`

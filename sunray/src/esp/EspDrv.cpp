@@ -22,7 +22,9 @@ along with The Arduino WiFiEsp library.  If not, see
 #include "EspDrv.h"
 #include "debug.h"
 
+#ifndef vsnprintf_P
 #define vsnprintf_P vsnprintf
+#endif
 
 #define NUMESPTAGS 5
 

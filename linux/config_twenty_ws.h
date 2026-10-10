@@ -309,18 +309,21 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define MQTT_USER "user"
 #define MQTT_PASS "pass"
 
-// ------ ultrasonic sensor -----------------------------
-// see Wiki on how to install the ultrasonic sensors: 
-// https://wiki.ardumower.de/index.php?title=Ardumower_Sunray#Ultrasonic_sensor
+// ------ ultrasonic sensors -----------------------------
+// Ultrasonic sensors are disabled by default. Enable installed sensor positions here.
 
-//#define SONAR_INSTALLED 1              // uncomment if ultrasonic sensors are installed
-//#define SONAR_ENABLE true              // should ultrasonic sensor be used?
 #define SONAR_ENABLE false
-#define SONAR_TRIGGER_OBSTACLES true     // should sonar be used to trigger obstacles? if not, mower will only slow down
-#define CAN_SONAR_TRIGGER_OBSTACLES 1    // enable owlController CAN ultrasonic obstacle trigger
-#define SONAR_LEFT_OBSTACLE_CM   10      // stop mowing operation below this distance (cm) 
-#define SONAR_CENTER_OBSTACLE_CM 10      // stop mowing operation below this distance (cm) 
-#define SONAR_RIGHT_OBSTACLE_CM  10      // stop mowing operation below this distance (cm) 
+#define SONAR_TRIGGER_OBSTACLES true
+#define SONAR_OBSTACLE_WARNING_LEVEL 5
+#define SONAR_SLOW_DOWN_WARNING_LEVEL 3
+#define SONAR_MANUAL_OBSTACLE_CONTROL false
+#define ULTRASONIC_FRONT_CENTER_USED false
+#define ULTRASONIC_FRONT_LEFT_USED false
+#define ULTRASONIC_FRONT_RIGHT_USED false
+#define ULTRASONIC_REAR_CENTER_USED false
+#define ULTRASONIC_REAR_LEFT_USED false
+#define ULTRASONIC_REAR_RIGHT_USED false
+#define SONAR_POLL_INTERVAL_MS 200
 
 // ------ rain sensor ----------------------------------------------------------
 #define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers
@@ -464,6 +467,20 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define DOCK_APRIL_TAG 1         // use visual (april-tag) docking/undocking?
 //#define DOCK_GUIDANCE_SHEET  1   // use guidance sheet for docking/undocking?
 //#define DOCK_REFLECTOR_TAG  1   // use reflector tag for docking/undocking?
+#define DOCK_LED_STRIP 1         // native V4L2 camera LED-strip docking/undocking (no ROS)
+#define DOCK_LED_STRIP_SWITCH_DISTANCE 1.5
+#define DOCK_LED_STRIP_CAMERA_INDEX 0
+#define DOCK_LED_STRIP_DETECTION_FPS 10
+#define DOCK_LED_STRIP_MIN_BRIGHTNESS 220
+#define DOCK_LED_STRIP_MAX_COLOR_SPREAD 60
+#define DOCK_LED_STRIP_MIN_LEDS 5
+#define DOCK_LED_STRIP_MIN_VERTICAL_SPAN 0.18
+#define DOCK_LED_STRIP_MAX_SLOPE 0.12
+#define DOCK_LED_STRIP_ACQUIRE_FRAMES 3
+#define DOCK_LED_STRIP_LOST_TIMEOUT_MS 500
+#define DOCK_LED_STRIP_ANGULAR_P 0.7
+#define DOCK_LED_STRIP_MAX_ANGULAR 0.35
+#define DOCK_LED_STRIP_MAX_ERROR_FOR_DRIVE 0.65
 #define DOCK_LINEAR_SPEED 0.08   // linear speed for docking
 
 #define DOCK_DETECT_OBSTACLE_IN_DOCK true   // enable obstacle detection in dock?

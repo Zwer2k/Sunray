@@ -762,6 +762,7 @@ public:
 	uint16_t magAcc;
 	uint8_t versionLow;		 //Loaded from getProtocolVersion().
 	uint8_t versionHigh;
+	String extendedSoftwareInfo;
 
 	uint32_t timeOfWeek;		 // ms
 	int32_t highResLatitude;	 // Degrees * 10^-7
@@ -961,10 +962,10 @@ private:
 	void addToChecksum(uint8_t incoming);																		 //Given an incoming byte, adjust rollingChecksumA/B
 
 	//Variables
-	TwoWire *_i2cPort;				//The generic connection to user's chosen I2C hardware
-	Stream *_serialPort;			//The generic connection to user's chosen Serial hardware
+	TwoWire *_i2cPort = NULL;		//The generic connection to user's chosen I2C hardware
+	Stream *_serialPort = NULL;		//The generic connection to user's chosen Serial hardware
 	Stream *_nmeaOutputPort = NULL; //The user can assign an output port to print NMEA sentences if they wish
-	Stream *_debugSerial;			//The stream to send debug messages to if enabled
+	Stream *_debugSerial = NULL;		//The stream to send debug messages to if enabled
 
 	uint8_t _gpsI2Caddress = 0x42; //Default 7-bit unshifted address of the ublox 6/7/8/M8/F9 series
 	//This can be changed using the ublox configuration software

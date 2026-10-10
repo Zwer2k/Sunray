@@ -191,31 +191,27 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define USE_LINEAR_SPEED_RAMP  true      // use a speed ramp for the linear speed
 #define USE_LINEAR_SPEED_RAMP  false      // do not use a speed ramp 
 
+// angular (steering) speed ramp: smooths the angular setpoint coming from the line tracker
+// so that heading/lateral error jumps (GPS/IMU updates, waypoint switch) do not hit the wheels as a step.
+// ANGULAR_SPEED_RAMP_ALPHA is the weight of the new setpoint per control cycle (20 ms):
+// 1.0 = no smoothing, 0.15 = ~130 ms time constant, 0.1 = ~200 ms time constant
+#define USE_ANGULAR_SPEED_RAMP  true
+#define ANGULAR_SPEED_RAMP_ALPHA 0.15
+
 // motor speed control (PID coefficients) - these values are tuned for Ardumower motors
 // general information about PID controllers: https://wiki.ardumower.de/index.php?title=PID_control
-#define MOTOR_PID_LP     0.0    // encoder low-pass filter (use for low encoder tickcount - use zero to disable)
-#define MOTOR_PID_KP     2.0    // do not change 2.0 (for non-Ardumower motors or if the motor speed control is too fast you may try: KP=1.0, KI=0, KD=0)
-#define MOTOR_PID_KI     0.03   // do not change 0.03
-#define MOTOR_PID_KD     0.03   // do not change 0.03
-#define MOTOR_PID_LIMIT  255    // output limit - do not change 255
-#define MOTOR_PID_RAMP   0      // output derivative limit - do not change 0
+#define MOTOR_PID_LP     0.1    // encoder low-pass filter time constant (s) - MOW800 has only 192 ticks/rev, i.e. ~1 tick per 50ms cycle at 29 deg/s rotation, so filter the quantized rpm (use zero to disable)
+#define MOTOR_PID_KP     1.0    // do not change 2.0 (for non-Ardumower motors or if the motor speed control is too fast you may try: KP=1.0, KI=0, KD=0)
+#define MOTOR_PID_KI     0.00   // do not change 0.03
+#define MOTOR_PID_KD     0.00   // do not change 0.03
+#define MOTOR_PID_RAMP   0      // output derivative limit - do not change 0 (the PID output is a PWM increment, a ramp here delays the sign change and causes overshoot)
+#define MOTOR_PWM_ACCEL  200    // max. PWM change per second (acceleration limit of the wheel speed controller, 0 = unlimited)
+                                // replaces the removed driver-level PWM ramp: limits how fast the wheels may speed up/slow down
+                                // without delaying the sign change of the controller output (no overshoot)
+#define MOTOR_USE_MAGNITUDE_CLAMP    // use magnitude-only PWM clamp for smoother direction reversal
 
 //#define MOTOR_LEFT_SWAP_DIRECTION 1  // uncomment to swap left motor direction
 //#define MOTOR_RIGHT_SWAP_DIRECTION 1  // uncomment to swap right motor direction
-
-// ------------ dynamic gear motors speed ----------------
-// speed will be adjusted by the mowing motor current. If USE_MOWMOTOR_CURRENT_AVERAGE is set to false, the Speed 
-// will be changed if the mow Current is lower or higher than MOWMOTOR_CURRENT_FACTOR * MOW_OVERLOAD_CURRENT.
-// If USE_MOWMOTOR_CURRENT_AVERAGE is set to true the algorithm will detect the current at the middle PWM of the mowMotor.
-// The mowing average will be calculate over 10000 loops and start at MOWMOTOR_CURRENT_FACTOR.
-#define ENABLE_DYNAMIC_MOWER_SPEED false
-#define SPEED_ACCELERATION 0.005 // Speed factor will be changed with every programm loop 
-
-#define SPEED_FACTOR_MAX 1.2
-#define SPEED_FACTOR_MIN 0.5
-#define USE_MOWMOTOR_CURRENT_AVERAGE true
-#define MOWMOTOR_CURRENT_FACTOR 0.25
-
 
 // ----- mowing motor -------------------------------------------------
 // NOTE: motor drivers will indicate 'fault' signal if motor current (e.g. due to a stall on a molehole) or temperature is too high for a 
@@ -256,14 +252,6 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define ENABLE_MOW_MOTOR true // Default is true, set false for testing purpose to switch off mow motor permanently
 
 //#define MOTOR_MOW_SWAP_DIRECTION 1  // uncomment to swap mow motor direction
-
-// ----------- dynamic mowingm motor RPM --------------
-// RPM of the mow motor will be adjust over the actual current of the mow motor. If the motor needs more current the PWM will be higher.
-// it can be used 3 different functions for the calculation of the PWM depended´nt on the mowMotor current. The root-Function is recommended
-#define ENABLE_DYNAMIC_MOWMOTOR false // set true to activate, set false to deactivate
-#define DYNAMIC_MOWMOTOR_ALGORITHM 2 // 1 - linear; 2 - root-Function; 3 - square-Function
-#define MIN_MOW_RPM 170   //minimum value of mow RPM
-#define MAX_MOW_RPM 255   // maximum value is 255
 
 // set maximum gear motors RPM
 #define MAX_GEAR_PWM 180 // maximum value is 255
@@ -349,6 +337,18 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 #define SONAR_MEDIAN_SAMPLES 5           // median filter buffer size (3/5/7/9)
 #define SONAR_PARALLEL_TRIGGER         // trigger all 3 sensors simultaneously (instead of sequential)
 
+// --- Sonar side avoidance ---
+// Approach A: When an obstacle is detected on one side only, the escape-reverse
+// maneuver adds a slight turn away from the detected side while driving backwards.
+#define SONAR_SIDE_AVOIDANCE_ENABLED   true   // enable side-specific avoidance turn
+#define SONAR_SIDE_AVOID_STRENGTH      0.3    // avoidance turn rate in rad/s while reversing (0.1 = weak, 0.5 = strong)
+
+// --- Sonar offset obstacle ---
+// Approach B: The virtual obstacle is placed with a lateral offset during
+// escape-reverse, so the pathfinder automatically routes around on the free side.
+#define SONAR_OFFSET_OBSTACLE_ENABLED  true  // enable offset obstacle placement
+#define SONAR_OFFSET_OBSTACLE_DIST     0.3    // lateral offset in meters (0.2 - 0.5 reasonable)
+
 // ------ rain sensor ----------------------------------------------------------
 //#define RAIN_ENABLE true                 // if activated, mower will dock when rain sensor triggers
 #define RAIN_ENABLE false
@@ -414,8 +414,8 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define GPS_SKYTRAQ  1               // comment out for ublox gps, uncomment for skytraq gps/NMEA
 // #define GPS_LIDAR 1                    // decomment for LiDAR
 
-#define REQUIRE_VALID_GPS  true       // mower will pause if no float and no fix GPS solution during mowing (recommended)
-//#define REQUIRE_VALID_GPS  false    // mower will continue to mow if no float or no fix solution (not recommended)
+//#define REQUIRE_VALID_GPS  true       // mower will pause if no float and no fix GPS solution during mowing (recommended)
+#define REQUIRE_VALID_GPS  false    // mower will continue to mow if no float or no fix solution (not recommended)
 
 //#define GPS_SPEED_DETECTION true  // will detect obstacles via GPS feedback (no speed)  - recommended
 #define GPS_SPEED_DETECTION false
@@ -463,6 +463,12 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 //#define OBSTACLE_AVOIDANCE false  // stop robot on obstacle
 #define OBSTACLE_DIAMETER 0.4   // choose diameter of obstacles placed in front of robot (m) for obstacle avoidance
 #define DISABLE_MOW_MOTOR_AT_OBSTACLE false // switch off mow motor while escape at detected obstacle; set false if mow motor shall not be stopped at detected obstacles
+
+// After an obstacle near the perimeter, return to the interrupted mowing point
+// along the perimeter instead of aiming at it head-on again.
+#define PERIMETER_TANGENTIAL_RECOVERY true
+#define PERIMETER_TANGENTIAL_RECOVERY_DISTANCE 0.45 // only apply to targets this close to the perimeter (m)
+#define PERIMETER_TANGENTIAL_APPROACH_LENGTH 0.50  // maximum parallel recovery maneuver before the target (m)
 
 // detect robot being kidnapped? robot will try GPS recovery if distance to tracked path is greater than a certain value
 // (false GPS fix recovery), and if that fails go into error 
@@ -512,6 +518,10 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
 
 #define STANLEY_CONTROL_P_SLOW    3.0   // 3.0 for path tracking control (angular gain) when docking tracking
 #define STANLEY_CONTROL_K_SLOW    0.1   // 0.1 for path tracking control (lateral gain) when docking tracking
+
+// max. angular speed (rad/s) the stanley controller may request while line tracking
+// (limits steering aggressiveness after rotations and on large lateral errors; 1.0 rad/s = 57 deg/s)
+#define STANLEY_MAX_ANGULAR_SPEED 1.0
 
 
 // ----- other options --------------------------------------------
@@ -643,7 +653,14 @@ Also, you may choose the serial port below for serial monitor output (CONSOLE).
   //#define pinMotorRightFault 27      // M2_SF  right motor fault
                                       
   #define pinMotorMowBrakeDisable PC12
-  //#define pinMotorMowPWM 2           // M1_IN1 mower motor PWM pin (if using MOSFET, use this pin)
+  #define pinMotorMowPWM PB8           // mower motor PWM pin (J2-5 'CK-RF', TIM4_CH3) - Eigenbelegung/Draht-Mod
+  // The mow motor speed line drives an analog node that only reacts below ~0.45V, i.e. the
+  // top end of the inverted PWM range: the motor starts around 220 and is at full speed at 255.
+  // Sunray's mow PWM 1..255 is mapped linearly onto that window so the whole range stays usable.
+  // 0 stays 'off' and is enforced via pinMotorMowEnable (disableAtPwmZeroSpeed), not via PWM.
+  // Trim after a bench test - raise MIN if the motor stalls in thick grass.
+  #define MOW800_MOW_PWM_MIN 220       // lowest value the motor still runs reliably at
+  #define MOW800_MOW_PWM_MAX 255       // value at which full speed is reached
   //#define pinMotorMowDir 29          // M1_IN2 mower motor Dir pin (if using MOSFET, keep unconnected)
   #define pinMotorMowSense PA7        // M1_FB  mower motor current sense  
   //#define pinMotorMowFault 26        // M1_SF  mower motor fault   (if using MOSFET/L298N, keep unconnected)

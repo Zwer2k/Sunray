@@ -62,7 +62,7 @@ class UBLOX : public GpsDriver {
     int chka;
     int chkb;
     int count;
-    char payload[2000];                                          
+    char payload[4096];
     bool debug;
     bool verbose;
     String unparsedMessage;

@@ -21,6 +21,41 @@ static unsigned long wsNextConnectTime = 0;
 static WiFiClientSecure cloudTls;
 static WebSocketClient* ws = nullptr;
 
+// UART responses are collected by the main loop and forwarded asynchronously.
+// This prevents delayed mower responses from being consumed by the generic AT
+// parser after the former synchronous one-second wait expired.
+static char cloudUartBuffer[1024];
+static size_t cloudUartLength = 0;
+static unsigned long cloudUartLastByteTime = 0;
+static bool cloudCommandPending = false;
+static unsigned long cloudCommandTime = 0;
+
+static void cloud_flush_uart() {
+  if (cloudUartLength == 0) return;
+
+  cloudUartBuffer[cloudUartLength] = 0;
+  CONSOLE.print("UART rx:");
+  CONSOLE.write((const uint8_t*)cloudUartBuffer, cloudUartLength);
+  if (cloudUartBuffer[cloudUartLength - 1] != '\n') CONSOLE.println();
+
+  if (cloudConnected && ws && ws->connected()) {
+    ws->sendText(String(cloudUartBuffer, cloudUartLength));
+  }
+  cloudUartLength = 0;
+  cloudCommandPending = false;
+}
+
+void cloud_uart_rx(char ch) {
+  if (!cloudConnected) return;
+
+  if (cloudUartLength >= sizeof(cloudUartBuffer) - 1) {
+    cloud_flush_uart();
+  }
+  cloudUartBuffer[cloudUartLength++] = ch;
+  cloudUartLastByteTime = millis();
+  if (ch == '\n') cloud_flush_uart();
+}
+
 bool cloud_is_connected() {
   return cloudConnected;
 }
@@ -121,6 +156,8 @@ static bool cloud_loopConnection() {
     cloudConnected = true;
     cloudBackoff.reset();
     wsLastRxTime = millis();
+    cloudUartLength = 0;
+    cloudCommandPending = false;
   } else {
     CONSOLE.print("WS: connect failed (WiFiStatus=");
     CONSOLE.print((int)WiFi.status());
@@ -137,41 +174,44 @@ void cloud_loop() {
   if (cloudConnected && (!ws || !ws->connected())) {
     CONSOLE.println("WS: transport closed, scheduling reconnect");
     cloudConnected = false;
+    cloudUartLength = 0;
+    cloudCommandPending = false;
     wsNextConnectTime = millis() + 2000;
     if (ws) { ws->close(); delete ws; ws = nullptr; }
   }
 
   if (!cloud_loopConnection()) return;
 
-  // Poll for incoming frames and process AT commands
+  // Some UART responses do not end in a newline. Flush a partial response
+  // after a short quiet period instead of losing it.
+  if (cloudUartLength > 0 && (millis() - cloudUartLastByteTime >= 100)) {
+    cloud_flush_uart();
+  }
+
+  // Do not queue another command while the mower is still answering. Release
+  // the slot after a generous timeout so one lost response cannot deadlock the
+  // WebSocket receive path.
+  if (cloudCommandPending) {
+    if (millis() - cloudCommandTime < 3000) return;
+    CONSOLE.println("UART response timeout");
+    cloudCommandPending = false;
+  }
+
+  // Poll one incoming command per loop. The response is picked up at the top
+  // of the next main-loop iterations by cloud_uart_rx().
   if (ws && ws->connected()) {
     String msg;
-    while (ws->pollText(msg)) {
+    if (ws->pollText(msg)) {
       wsLastRxTime = millis();
-      if (msg.length() == 0) break;
+      if (msg.length() == 0) return;
       while (msg.endsWith("\r") || msg.endsWith("\n")) msg.remove(msg.length()-1);
       CONSOLE.print("cloud rx:");
       CONSOLE.println(msg);
+      CONSOLE.print("UART tx:");
+      CONSOLE.println(msg);
       UART.println(msg);
-
-      char buffer[1024];
-      size_t len = 0;
-      const uint32_t timeout = millis() + 1000;
-      while (millis() < timeout) {
-        if (!UART.available()) { delay(1); continue; }
-        int ch = UART.read();
-        if (ch < 0) { delay(1); continue; }
-        buffer[len++] = (char)ch;
-        if ((char)ch == '\n') break;
-        if ((len + 1) >= sizeof(buffer)) break;
-      }
-      buffer[len] = 0;
-      String out = String(buffer);
-      if (out.length()) {
-        CONSOLE.print("UART tx:");
-        CONSOLE.print(out);
-        ws->sendText(out);
-      }
+      cloudCommandPending = true;
+      cloudCommandTime = millis();
     }
 
   }

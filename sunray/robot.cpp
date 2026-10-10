@@ -46,6 +46,10 @@
 #include "mqtt.h"
 #include "events.h"
 
+#ifdef DOCK_LED_STRIP
+extern "C" void cameraLedStripEnable(int index, int fps);
+#endif
+
 // #define I2C_SPEED  10000
 #ifndef _BV
   #define _BV(x) (1 << (x))
@@ -222,6 +226,7 @@ void sensorTest(){
   CONSOLE.println("testing sensors for 60 seconds...");
   unsigned long stopTime = millis() + 60000;  
   unsigned long nextMeasureTime = 0;
+  unsigned long nextCanUltrasonicDebugTime = 0;
   while (millis() < stopTime){
     sonar.run();
     bumper.run();
@@ -281,6 +286,12 @@ void sensorTest(){
         CONSOLE.print( ((int)rainDriver.triggered()) );                                                                                        
       } 
       CONSOLE.println();  
+      #ifdef DRV_CAN_ROBOT
+        if (SONAR_ENABLE && millis() > nextCanUltrasonicDebugTime){
+          nextCanUltrasonicDebugTime = millis() + 5000;
+          robotDriver.debugUltrasonicStatus();
+        }
+      #endif
       watchdogReset();
     }
   }
@@ -548,6 +559,21 @@ void outputConfig(){
   CONSOLE.println(DOCKING_STATION);
   CONSOLE.print("DOCK_IGNORE_GPS: ");
   CONSOLE.println(DOCK_IGNORE_GPS);
+  #ifdef DOCK_IGNORE_GPS_DISTANCE
+    CONSOLE.print("DOCK_IGNORE_GPS_DISTANCE: ");
+    CONSOLE.println(DOCK_IGNORE_GPS_DISTANCE);
+  #endif
+  #ifdef DOCK_CONTACT_ADVANCE_DISTANCE
+    CONSOLE.print("DOCK_CONTACT_ADVANCE_DISTANCE: ");
+    CONSOLE.println(DOCK_CONTACT_ADVANCE_DISTANCE);
+  #endif
+  #ifdef DOCK_LED_STRIP
+    CONSOLE.println("DOCK_LED_STRIP: native V4L2 (no ROS)");
+    CONSOLE.print("DOCK_LED_STRIP_SWITCH_DISTANCE: ");
+    CONSOLE.println(DOCK_LED_STRIP_SWITCH_DISTANCE);
+    CONSOLE.print("DOCK_LED_STRIP_CAMERA_INDEX: ");
+    CONSOLE.println(DOCK_LED_STRIP_CAMERA_INDEX);
+  #endif
   CONSOLE.print("DOCK_AUTO_START: ");
   CONSOLE.println(DOCK_AUTO_START);
   CONSOLE.print("TARGET_REACHED_TOLERANCE: ");
@@ -649,6 +675,10 @@ void start(){
 
   outputConfig();
 
+  #ifdef DOCK_LED_STRIP
+    cameraLedStripEnable(DOCK_LED_STRIP_CAMERA_INDEX, DOCK_LED_STRIP_DETECTION_FPS);
+  #endif
+
   if (TOF_ENABLE){
     tof.setTimeout(500);
     if (!tof.init())
@@ -739,6 +769,12 @@ bool robotShouldBeInMotion(){
 // drive reverse if robot cannot move forward
 void triggerObstacle(){
   activeOp->onObstacle();
+}
+
+// drive reverse if robot cannot move forward, with side info for directional avoidance
+// side: 0 = no side info, -1 = obstacle left (avoid right), +1 = obstacle right (avoid left)
+void triggerObstacle(int side){
+  activeOp->onObstacle(side);
 }
 
 
@@ -840,20 +876,32 @@ bool detectObstacle(){
     return true;
   }
   
-  #ifndef CAN_SONAR_TRIGGER_OBSTACLES
-  #define CAN_SONAR_TRIGGER_OBSTACLES 0
+  #ifndef SONAR_OBSTACLE_WARNING_LEVEL
+  #define SONAR_OBSTACLE_WARNING_LEVEL 5
+  #endif
+
+  #ifndef SONAR_LEFT_OBSTACLE_CM
+  #define SONAR_LEFT_OBSTACLE_CM 0
+  #endif
+
+  #ifndef SONAR_RIGHT_OBSTACLE_CM
+  #define SONAR_RIGHT_OBSTACLE_CM 0
   #endif
 
   #ifdef DRV_CAN_ROBOT
-  if (CAN_SONAR_TRIGGER_OBSTACLES && (maps.wayMode != WAY_DOCK)) {
+  if (SONAR_TRIGGER_OBSTACLES && (maps.wayMode != WAY_DOCK)) {
     bool canSonarTriggered = false;
-    if (robotDriver.ultrasonicLeftValid &&
-        robotDriver.ultrasonicLeftDistance <= (SONAR_LEFT_OBSTACLE_CM * 10)) {
-      canSonarTriggered = true;
-    }
-    if (robotDriver.ultrasonicRightValid &&
-        robotDriver.ultrasonicRightDistance <= (SONAR_RIGHT_OBSTACLE_CM * 10)) {
-      canSonarTriggered = true;
+    if (robotDriver.ultrasonicWarningLevelValid) {
+      canSonarTriggered = robotDriver.configuredUltrasonicWarningAtOrAbove(SONAR_OBSTACLE_WARNING_LEVEL);
+    } else {
+      if (robotDriver.ultrasonicLeftValid &&
+          robotDriver.ultrasonicLeftDistance <= (SONAR_LEFT_OBSTACLE_CM * 10)) {
+        canSonarTriggered = true;
+      }
+      if (robotDriver.ultrasonicRightValid &&
+          robotDriver.ultrasonicRightDistance <= (SONAR_RIGHT_OBSTACLE_CM * 10)) {
+        canSonarTriggered = true;
+      }
     }
     if (canSonarTriggered) {
       CONSOLE.println("can sonar obstacle!");
@@ -866,12 +914,26 @@ bool detectObstacle(){
 
   if (sonar.obstacle() && (maps.wayMode != WAY_DOCK)){
     if (SONAR_TRIGGER_OBSTACLES){
-      CONSOLE.println("sonar obstacle!");            
-      stats.statMowSonarCounter++;
-      triggerObstacle();
+      #if SONAR_SIDE_AVOIDANCE_ENABLED
+        // Determine which side triggered for directional avoidance
+        int side = 0;
+        bool leftTriggered  = (sonar.distanceLeft  < sonar.triggerLeftBelow);
+        bool rightTriggered = (sonar.distanceRight < sonar.triggerRightBelow);
+        bool centerTriggered = (sonar.distanceCenter < sonar.triggerCenterBelow);
+        if (leftTriggered && !rightTriggered && !centerTriggered) side = -1;  // obstacle left -> avoid right
+        else if (rightTriggered && !leftTriggered && !centerTriggered) side = +1; // obstacle right -> avoid left
+        CONSOLE.print("sonar obstacle! side=");
+        CONSOLE.println(side);
+        stats.statMowSonarCounter++;
+        triggerObstacle(side);
+      #else
+        CONSOLE.println("sonar obstacle!");
+        stats.statMowSonarCounter++;
+        triggerObstacle();
+      #endif
       return true;
-    }        
-  }  
+    }
+  }
   // check if GPS motion (obstacle detection)  
   if ((millis() > nextGPSMotionCheckTime) || (millis() > overallMotionTimeout)) {        
     updateGPSMotionCheckTime();

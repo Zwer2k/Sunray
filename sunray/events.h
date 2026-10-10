@@ -70,6 +70,7 @@
 #define TXT_CHARGER_CONNECTED               F("charger_connected")
 #define TXT_DOCK_RECOVERY                   F("dock_recovery")
 #define TXT_DOCK_RECOVERY_GIVEUP            F("dock_recovery_giveup")
+#define TXT_DOCK_IGNORING_GPS               F("dock_ignoring_gps")
 #define TXT_LIDAR_RELOCALIZATION            F("lidar_relocalization")
 #define TXT_LIDAR_MAPPING_COMPLETED         F("lidar_mapping_completed")
 #define TXT_AUDIO_TEST                      F("testing_audio")
@@ -146,6 +147,7 @@ enum EventCode {
     EVT_AUDIO_BELL,
     EVT_AUDIO_BEEP,
     EVT_AUDIO_TADA,
+    EVT_DOCK_IGNORING_GPS,
 };
 
 

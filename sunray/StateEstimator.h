@@ -18,6 +18,7 @@ enum LocalizationMode {
       LOC_APRIL_TAG,    // vision (camera) localization (april-tag)       
       LOC_GUIDANCE_SHEET, // sideways guidance sheets localization (one dimension)
       LOC_REFLECTOR_TAG,    // LiDAR localization (reflector-tag)       
+      LOC_LED_STRIP,     // native camera LED-strip docking guidance
 };    
 
 class StateEstimator {
@@ -57,6 +58,11 @@ public:
   float diffIMUWheelYawSpeedLP = 0;
 
   bool gpsJump = false;
+  bool dockGpsIgnored = false; // latched IMU/odometry-only mode near final dock point
+  bool dockLedStripActive = false;
+  bool dockLedStripUndockCompleted = false;
+  long dockLedStripStartLeftTicks = 0;
+  long dockLedStripStartRightTicks = 0;
 
   bool imuIsCalibrating = false;
   float lastIMUYaw = 0;

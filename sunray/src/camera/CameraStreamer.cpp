@@ -2,7 +2,7 @@
 #include "CameraStreamer.h"
 #include "MediaStream.h"
 #include "CameraRegistry.h"
-#include "CameraRegistry.h"
+#include "LedStripDetector.h"
 #include "Console.h"
 // Access motor speed setpoints via C-accessors (to avoid Arduino header conflicts)
 extern "C" float cameraGetLinearSet();
@@ -63,7 +63,12 @@ static const unsigned char kTinyJpeg[] = {
 
 CameraStreamer& CameraStreamer::instance() { static CameraStreamer inst; return inst; }
 CameraStreamer::CameraStreamer() {}
-CameraStreamer::~CameraStreamer() { stop(); }
+CameraStreamer::~CameraStreamer() {
+  streamingRequested_.store(false);
+  ledDetectionRequested_.store(false);
+  running_.store(false);
+  try { if (worker_.joinable()) worker_.join(); } catch (...) {}
+}
 
 void CameraStreamer::setSender(Sender s) { std::lock_guard<std::mutex> lk(mtx_); sender_ = std::move(s); }
 
@@ -74,19 +79,46 @@ void CameraStreamer::start(int index, int width, int height, int fps, int qualit
   reqFps_.store((fps <= 0) ? 5 : fps);
   if (quality < 10) quality = 10; if (quality > 95) quality = 95;
   reqQ_.store(quality);
-  if (running_.load()) return;
-  running_.store(true);
+  streamingRequested_.store(true);
   CONSOLE.print("CAM start idx="); CONSOLE.print(index);
   CONSOLE.print(" req="); CONSOLE.print(width); CONSOLE.print("x"); CONSOLE.print(height);
   CONSOLE.print(" @"); CONSOLE.println((int)fps);
-  worker_ = std::thread([this]() { runLoop(); });
+  ensureWorkerRunning();
 }
 
 void CameraStreamer::stop() {
-  if (!running_.load()) return;
+  streamingRequested_.store(false);
+  CONSOLE.println("CAM stream stop");
+  stopWorkerIfUnused();
+}
+
+void CameraStreamer::enableLedStripDetection(int index, int fps) {
+  ledCamIndex_.store(index);
+  ledFps_.store((fps <= 0) ? 10 : fps);
+  ledDetectionRequested_.store(true);
+  CONSOLE.print("CAM LED detector start idx="); CONSOLE.print(index);
+  CONSOLE.print(" @"); CONSOLE.println((fps <= 0) ? 10 : fps);
+  ensureWorkerRunning();
+}
+
+void CameraStreamer::disableLedStripDetection() {
+  ledDetectionRequested_.store(false);
+  LedStripDetector::instance().clear();
+  CONSOLE.println("CAM LED detector stop");
+  stopWorkerIfUnused();
+}
+
+void CameraStreamer::ensureWorkerRunning() {
+  if (running_.exchange(true)) return;
+  try { if (worker_.joinable()) worker_.join(); } catch (...) {}
+  worker_ = std::thread([this]() { runLoop(); });
+}
+
+void CameraStreamer::stopWorkerIfUnused() {
+  if (streamingRequested_.load() || ledDetectionRequested_.load()) return;
   running_.store(false);
   try { if (worker_.joinable()) worker_.join(); } catch (...) {}
-  CONSOLE.println("CAM stop");
+  CONSOLE.println("CAM capture stop");
 }
 
 struct MMapBuffer { void* start{nullptr}; size_t length{0}; };
@@ -160,6 +192,12 @@ static void drawChar5x7(uint8_t* img, int w, int h, int x, int y, char c, int sc
 // rest of the firmware can link without pulling in Linux-only camera code.
 extern "C" void cameraStreamerStart(int, int, int, int, int) {}
 extern "C" void cameraStreamerStop() {}
+extern "C" void cameraLedStripEnable(int, int) {}
+extern "C" bool cameraLedStripFound() { return false; }
+extern "C" float cameraLedStripHorizontalError() { return 0.0f; }
+extern "C" float cameraLedStripConfidence() { return 0.0f; }
+extern "C" int cameraLedStripLedCount() { return 0; }
+extern "C" unsigned long cameraLedStripAgeMs() { return (unsigned long)-1; }
 
 #endif // __linux__
 
@@ -269,7 +307,8 @@ static bool jpegEncodeRGB(const uint8_t* rgb, int w, int h, int quality, std::ve
 void CameraStreamer::runLoop() {
   using namespace std::chrono;
   // Open V4L2 device
-  int index = camIndex_.load(); int outW = reqW_.load(); int outH = reqH_.load(); int fps = reqFps_.load();
+  int index = ledDetectionRequested_.load() ? ledCamIndex_.load() : camIndex_.load();
+  int outW = reqW_.load(); int outH = reqH_.load(); int fps = reqFps_.load();
   CameraRegistry::refresh();
   std::string devPathStr = CameraRegistry::pathForIndex(index);
   char devPath[64];
@@ -279,8 +318,9 @@ void CameraStreamer::runLoop() {
     auto next = steady_clock::now();
     while (running_.load()) {
       // break if index changed to a valid device
-      if (camIndex_.load() != index) break;
-      buildAndSendFrame();
+      const int requestedIndex = ledDetectionRequested_.load() ? ledCamIndex_.load() : camIndex_.load();
+      if (requestedIndex != index) break;
+      if (streamingRequested_.load()) buildAndSendFrame();
       next += period;
       std::this_thread::sleep_until(next);
     }
@@ -294,8 +334,9 @@ void CameraStreamer::runLoop() {
     auto period = (fps > 0) ? milliseconds(1000 / fps) : milliseconds(200);
     auto next = steady_clock::now();
     while (running_.load()) {
-      if (camIndex_.load() != index) break;
-      buildAndSendFrame();
+      const int requestedIndex = ledDetectionRequested_.load() ? ledCamIndex_.load() : camIndex_.load();
+      if (requestedIndex != index) break;
+      if (streamingRequested_.load()) buildAndSendFrame();
       next += period;
       std::this_thread::sleep_until(next);
     }
@@ -317,8 +358,9 @@ void CameraStreamer::runLoop() {
     auto period = (fps > 0) ? milliseconds(1000 / fps) : milliseconds(200);
     auto next = steady_clock::now();
     while (running_.load()) {
-      if (camIndex_.load() != index) break;
-      buildAndSendFrame();
+      const int requestedIndex = ledDetectionRequested_.load() ? ledCamIndex_.load() : camIndex_.load();
+      if (requestedIndex != index) break;
+      if (streamingRequested_.load()) buildAndSendFrame();
       next += period;
       std::this_thread::sleep_until(next);
     }
@@ -353,36 +395,71 @@ void CameraStreamer::runLoop() {
   int type = req.type; ioctl(fd, VIDIOC_STREAMON, &type);
 
   auto lastSend = steady_clock::now() - milliseconds(1000);
+  auto lastDetection = steady_clock::now() - milliseconds(1000);
+  bool ledStatusInitialized = false;
+  bool lastLedFound = false;
   auto minPeriod = (fps > 0) ? milliseconds(1000 / fps) : milliseconds(200);
   CONSOLE.print("CAM out req="); CONSOLE.print(outW); CONSOLE.print("x"); CONSOLE.print(outH); CONSOLE.print(" @"); CONSOLE.println((int)fps);
 
   while (running_.load()) {
-    int nIndex = camIndex_.load(), nW = reqW_.load(), nH = reqH_.load(), nF = reqFps_.load();
+    int nIndex = ledDetectionRequested_.load() ? ledCamIndex_.load() : camIndex_.load();
+    int nW = reqW_.load(), nH = reqH_.load(), nF = reqFps_.load();
     if (nIndex != index) { CONSOLE.println("CAM index changed, reopening"); break; }
     outW = nW; outH = nH; if (nF != fps) { fps = nF; minPeriod = (fps > 0) ? milliseconds(1000 / fps) : milliseconds(200); }
 
     fd_set fds; FD_ZERO(&fds); FD_SET(fd, &fds); timeval tv; tv.tv_sec = 1; tv.tv_usec = 0; int r = select(fd + 1, &fds, NULL, NULL, &tv); if (r <= 0) continue;
     v4l2_buffer b; memset(&b, 0, sizeof(b)); b.type = req.type; b.memory = V4L2_MEMORY_MMAP; if (ioctl(fd, VIDIOC_DQBUF, &b) < 0) continue;
     const uint8_t* mjpeg = (const uint8_t*)bufs[b.index].start; size_t mjpegLen = b.bytesused;
-    auto now = steady_clock::now(); bool shouldSend = (now - lastSend) >= minPeriod;
-    if (shouldSend) {
+    auto now = steady_clock::now();
+    const bool shouldSend = streamingRequested_.load() && (now - lastSend) >= minPeriod;
+    const int detectorFps = std::max(1, ledFps_.load());
+    const auto detectorPeriod = milliseconds(1000 / detectorFps);
+    const bool shouldDetect = ledDetectionRequested_.load() && (now - lastDetection) >= detectorPeriod;
+    if (shouldSend || shouldDetect) {
       std::vector<uint8_t> rgb; int srcW = 0, srcH = 0;
       if (jpegDecodeToRGB(mjpeg, mjpegLen, rgb, srcW, srcH)) {
-        std::vector<uint8_t> outRGB((size_t)outW * (size_t)outH * 3);
-        resizeNearestRGB(rgb.data(), srcW, srcH, outRGB.data(), outW, outH);
-        // Overlay: time and joystick arrows
-        drawOverlay(outRGB.data(), outW, outH);
-        const int q = reqQ_.load();
-        std::vector<uint8_t> outJpeg; jpegEncodeRGB(outRGB.data(), outW, outH, (q > 0 ? q : 70), outJpeg);
-        Sender s; { std::lock_guard<std::mutex> lk(mtx_); s = sender_; }
-        if (s) {
-          uint8_t hdr[16]; uint32_t ts = (uint32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() & 0xFFFFFFFFu);
-          buildMediaHeader(hdr, 1, (uint16_t)outW, (uint16_t)outH, ts, 0);
-          std::vector<uint8_t> buf(sizeof(hdr) + outJpeg.size()); std::memcpy(buf.data(), hdr, sizeof(hdr)); std::memcpy(buf.data() + sizeof(hdr), outJpeg.data(), outJpeg.size());
-          s(buf.data(), buf.size());
+        const unsigned long timestampMs = (unsigned long)duration_cast<milliseconds>(now.time_since_epoch()).count();
+        if (shouldDetect) {
+          LedStripDetector::instance().processRgb(rgb.data(), srcW, srcH, timestampMs);
+          const LedStripObservation led = LedStripDetector::instance().observation(timestampMs);
+          if (!ledStatusInitialized || led.found != lastLedFound) {
+            ledStatusInitialized = true;
+            lastLedFound = led.found;
+            CONSOLE.print("CAM LED found="); CONSOLE.print(led.found);
+            CONSOLE.print(" leds="); CONSOLE.print(led.ledCount);
+            CONSOLE.print(" confidence="); CONSOLE.print(led.confidence);
+            CONSOLE.print(" error="); CONSOLE.println(led.horizontalError);
+          }
+          lastDetection = now;
+        }
+        if (shouldSend) {
+          std::vector<uint8_t> outRGB((size_t)outW * (size_t)outH * 3);
+          resizeNearestRGB(rgb.data(), srcW, srcH, outRGB.data(), outW, outH);
+          // Overlay: time and joystick arrows
+          drawOverlay(outRGB.data(), outW, outH);
+          if (ledDetectionRequested_.load()) {
+            const LedStripObservation led = LedStripDetector::instance().observation(timestampMs);
+            const int centreX = outW / 2;
+            fillRect(outRGB.data(), outW, outH, centreX - 1, 0, centreX + 1, outH - 1,
+                     0, 120, 255, 150);
+            if (led.found) {
+              const int ledX = (int)((led.horizontalError * 0.5f + 0.5f) * outW);
+              fillRect(outRGB.data(), outW, outH, ledX - 2, 0, ledX + 2, outH - 1,
+                       0, 255, 0, 190);
+            }
+          }
+          const int q = reqQ_.load();
+          std::vector<uint8_t> outJpeg; jpegEncodeRGB(outRGB.data(), outW, outH, (q > 0 ? q : 70), outJpeg);
+          Sender s; { std::lock_guard<std::mutex> lk(mtx_); s = sender_; }
+          if (s) {
+            uint8_t hdr[16]; uint32_t ts = (uint32_t)(timestampMs & 0xFFFFFFFFu);
+            buildMediaHeader(hdr, 1, (uint16_t)outW, (uint16_t)outH, ts, 0);
+            std::vector<uint8_t> buf(sizeof(hdr) + outJpeg.size()); std::memcpy(buf.data(), hdr, sizeof(hdr)); std::memcpy(buf.data() + sizeof(hdr), outJpeg.data(), outJpeg.size());
+            s(buf.data(), buf.size());
+          }
+          lastSend = now;
         }
       }
-      lastSend = now;
     }
     ioctl(fd, VIDIOC_QBUF, &b);
   }
@@ -394,6 +471,22 @@ void CameraStreamer::runLoop() {
 
 extern "C" void cameraStreamerStart(int index, int width, int height, int fps, int quality) { CameraStreamer::instance().start(index, width, height, fps, quality); }
 extern "C" void cameraStreamerStop() { CameraStreamer::instance().stop(); }
+extern "C" void cameraLedStripEnable(int index, int fps) { CameraStreamer::instance().enableLedStripDetection(index, fps); }
+extern "C" bool cameraLedStripFound() {
+  return LedStripDetector::instance().observation((unsigned long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()).found;
+}
+extern "C" float cameraLedStripHorizontalError() {
+  return LedStripDetector::instance().observation((unsigned long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()).horizontalError;
+}
+extern "C" float cameraLedStripConfidence() {
+  return LedStripDetector::instance().observation((unsigned long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()).confidence;
+}
+extern "C" int cameraLedStripLedCount() {
+  return LedStripDetector::instance().observation((unsigned long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()).ledCount;
+}
+extern "C" unsigned long cameraLedStripAgeMs() {
+  return LedStripDetector::instance().observation((unsigned long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()).ageMs;
+}
 
 void CameraStreamer::buildAndSendFrame() {
   Sender s; int w = reqW_.load(), h = reqH_.load(); { std::lock_guard<std::mutex> lk(mtx_); s = sender_; }

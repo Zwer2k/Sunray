@@ -22,6 +22,7 @@ class Motor {
     int ticksPerRevolution; // ticks per revolution
     float ticksPerCm;  // ticks per cm
     bool activateLinearSpeedRamp;  // activate ramp to accelerate/slow down linear speed?
+    bool activateAngularSpeedRamp; // activate ramp to accelerate/slow down angular speed?
     bool toggleMowDir; // toggle mowing motor direction each mow motor start?    
     bool motorLeftSwapDir;
     bool motorRightSwapDir;
@@ -76,6 +77,11 @@ class Motor {
     void setMowMaxPwm( int val );
     void setMowHeightMillimeter( int val );
     void stopImmediately(bool includeMowerMotor);
+    // measured mow motor speed (low-pass filtered); the rpm signal is counted anyway but was
+    // never reported, so the only way to judge the speed curve was by ear
+    float getMowRpm(){ return motorMowRpmCurrLP; }
+    float getLeftRpm(){ return motorLeftRpmCurrLP; }
+    float getRightRpm(){ return motorRightRpmCurrLP; }
   protected: 
     float motorLeftRpmSet; // set speed
     float motorRightRpmSet;   

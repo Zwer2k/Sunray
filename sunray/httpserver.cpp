@@ -64,6 +64,12 @@ HttpServer::HttpServer()
              })())
 {}
 
+HttpServer::~HttpServer(){
+#ifdef __linux__
+  if (wsConnectThread.joinable()) wsConnectThread.join();
+#endif
+}
+
 void HttpServer::begin(){
   //server.listenOnLocalhost(); // optional
   server.begin();
@@ -245,6 +251,26 @@ void HttpServer::processWifiWSClient() {
   if (!stateEstimator.wifiFound) return;
   if (!ENABLE_WS_CLIENT) return;
 
+#ifdef __linux__
+  // Do not touch wsClient while its connect method owns the WebSocket mutex in
+  // the worker. DNS, TCP and TLS setup may otherwise block the control loop.
+  if (wsConnectInProgress.load(std::memory_order_acquire)) return;
+
+  // A joinable, non-running worker has completed. Joining is immediate and
+  // makes its result safe to consume in the control thread.
+  if (wsConnectThread.joinable()) {
+    wsConnectThread.join();
+    if (!wsConnectSucceeded.load(std::memory_order_acquire)) {
+      CONSOLE.println("WS: connect failed");
+      wsNextConnectTime = millis() + 10000;
+      return;
+    }
+    CONSOLE.println("WS: connected");
+    wsLastRxTime = millis();
+    CameraStreamer::instance().setSender([this](const uint8_t* data, size_t len){ wsClient.sendBinaryRaw(data, len); });
+  }
+#endif
+
   // Maintain connection
   if (!wsClient.connected()) {
     if (millis() < wsNextConnectTime) return;
@@ -271,6 +297,19 @@ void HttpServer::processWifiWSClient() {
       CONSOLE.print(path);
     }
     CONSOLE.println(" ...");
+#ifdef __linux__
+    // Ensure the camera cannot enter wsClient while the connection worker is
+    // active. Only one worker can exist at a time.
+    CameraStreamer::instance().setSender(nullptr);
+    wsConnectSucceeded.store(false, std::memory_order_relaxed);
+    wsConnectInProgress.store(true, std::memory_order_release);
+    wsConnectThread = std::thread([this]() {
+      bool succeeded = wsClient.connect();
+      wsConnectSucceeded.store(succeeded, std::memory_order_release);
+      wsConnectInProgress.store(false, std::memory_order_release);
+    });
+    return;
+#else
     if (!wsClient.connect()) {
       CONSOLE.println("WS: connect failed");
       wsNextConnectTime = millis() + 10000;
@@ -278,9 +317,6 @@ void HttpServer::processWifiWSClient() {
     }
     CONSOLE.println("WS: connected");
     wsLastRxTime = millis();
-#ifdef __linux__
-    // Provide sender callback for camera streamer
-    CameraStreamer::instance().setSender([this](const uint8_t* data, size_t len){ wsClient.sendBinaryRaw(data, len); });
 #endif
   }
 

@@ -222,6 +222,11 @@ void Op::onMotorError(){
 void Op::onObstacle(){
 }
 
+void Op::onObstacle(int side){
+  // default: ignore side info, call regular handler
+  onObstacle();
+}
+
 void Op::onObstacleRotation(){
 }
 

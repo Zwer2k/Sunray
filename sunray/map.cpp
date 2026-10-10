@@ -115,6 +115,7 @@ Polygon::~Polygon(){
 }
 
 bool Polygon::alloc(short aNumPoints){
+  if (points == CHECK_POINT) { points = NULL; numPoints = 0; }  // reset sentinel state before real allocation
   if (aNumPoints == numPoints) return true;
   if ((aNumPoints < 0) || (aNumPoints > 10000)) {
     CONSOLE.println("ERROR Polygon::alloc invalid number");    
@@ -140,7 +141,8 @@ bool Polygon::alloc(short aNumPoints){
 }
 
 void Polygon::dealloc(){
-  if (points == NULL) return;  
+  if (points == NULL) return;
+  if (points == CHECK_POINT) { points = NULL; numPoints = 0; return; }  // sentinel, not a real allocation
   if (points[numPoints].px != CHECK_ID) memoryCorruptions++;
   if (points[numPoints].py != CHECK_ID) memoryCorruptions++;
   delete[] points;  
@@ -248,7 +250,13 @@ bool PolygonList::alloc(short aNumPolygons){
   if (polygons != NULL){
     short copyCount = min(numPolygons, aNumPolygons);
     for (int i=0; i < copyCount; i++){
-      newPolygons[i].alloc(polygons[i].numPoints);
+      if (!newPolygons[i].alloc(polygons[i].numPoints)){
+        for (int j=0; j < i; j++) newPolygons[j].dealloc();
+        delete[] newPolygons;
+        CONSOLE.println("ERROR PolygonList::alloc out of memory");
+        memoryAllocErrors++;
+        return false;
+      }
       memcpy(newPolygons[i].points, polygons[i].points, sizeof(Point) * polygons[i].numPoints);
     }
     if (polygons[numPolygons].points != CHECK_POINT) memoryCorruptions++;
@@ -492,10 +500,12 @@ void Map::begin(){
   dockPointsIdx = 0;
   shouldDock = false; 
   shouldRetryDock = false; 
-  shouldMow = false;       
+  shouldMow = false;         
   gotoActive = false;
   savedMowMotorRunningBeforeGoto = false;
   restoreMowStateAfterGoto = false;
+  tangentialPerimeterRecoveryPending = false;
+  tangentialPerimeterRecoveryPendingTime = 0;
   mapCRC = 0;  
   CONSOLE.print("sizeof Point=");
   CONSOLE.println(sizeof(Point));  
@@ -693,13 +703,22 @@ bool Map::setPoint(int idx, float x, float y){
   //CONSOLE.print(x, 2);
   //CONSOLE.print(",");
   //CONSOLE.println(y, 2);
+  if (idx == 0){   
+    clearMap();
+    // A failed allocation (e.g. a map that did not fit) only means memory ran out; after
+    // clearMap() it is free again. Without this reset every later upload - even a much smaller
+    // map - was refused until the next reboot ("ERROR setPoint: memory errors").
+    // Corruptions are real damage and keep blocking.
+    if (memoryAllocErrors != 0){
+      CONSOLE.print("setPoint: new upload, resetting memoryAllocErrors=");
+      CONSOLE.println(memoryAllocErrors);
+      memoryAllocErrors = 0;
+    }
+  }    
   if ((memoryCorruptions != 0) || (memoryAllocErrors != 0)){
     CONSOLE.println("ERROR setPoint: memory errors");
     return false; 
   }  
-  if (idx == 0){   
-    clearMap();
-  }    
   if (idx % 100 == 0){
     if (freeMemory () < SETPOINT_MIN_FREE_MEMORY){
       CONSOLE.println("setPoint: OUT OF MEMORY");
@@ -1062,7 +1081,16 @@ bool Map::startMowing(float stateX, float stateY){
     if (findObstacleSafeMowPoint(dst)){
       //dst.assign(mowPoints.points[mowPointsIdx]);      
       //findPathFinderSafeStartPoint(src, dst);      
-      if (findPath(src, dst)){        
+      bool pathFound = false;
+      if (tangentialPerimeterRecoveryPending) {
+        tangentialPerimeterRecoveryPending = false;
+        // Timeout: verwerbe veraltete Requests nach 30 Sekunden
+        if (millis() - tangentialPerimeterRecoveryPendingTime < 30000) {
+          pathFound = findTangentialPerimeterRecoveryPath(src, dst);
+        }
+      }
+      if (!pathFound) pathFound = findPath(src, dst);
+      if (pathFound){        
         return true;
       } else {
         CONSOLE.println("ERROR: no path");
@@ -1117,6 +1145,95 @@ bool Map::addObstacle(float stateX, float stateY){
   obstacles.polygons[idx].points[6].setXY(x-d1, y+d2);
   obstacles.polygons[idx].points[7].setXY(x-d2, y+d1);         
   return true;
+}
+
+void Map::requestTangentialPerimeterRecovery(){
+  tangentialPerimeterRecoveryPending = true;
+  tangentialPerimeterRecoveryPendingTime = millis();
+}
+
+// Add a final, boundary-parallel segment to the interrupted mowing target.
+// The side is selected relative to lastTargetPoint, which is the previously
+// completed mowing point when obstacle recovery starts.
+bool Map::findTangentialPerimeterRecoveryPath(Point &src, Point &dst){
+#if !PERIMETER_TANGENTIAL_RECOVERY
+  return false;
+#else
+  if (perimeterPoints.numPoints < 3) return false;
+
+  Point projection;
+  float nearestDistance = 9999;
+  float tangentX = 0;
+  float tangentY = 0;
+  for (int i = 0; i < perimeterPoints.numPoints; i++) {
+    Point edgeStart;
+    Point edgeEnd;
+    edgeStart.assign(perimeterPoints.points[i]);
+    edgeEnd.assign(perimeterPoints.points[(i + 1) % perimeterPoints.numPoints]);
+    float edgeX = edgeEnd.x() - edgeStart.x();
+    float edgeY = edgeEnd.y() - edgeStart.y();
+    float edgeLength2 = edgeX * edgeX + edgeY * edgeY;
+    if (edgeLength2 < 0.0001) continue;
+    float factor = ((dst.x() - edgeStart.x()) * edgeX +
+                    (dst.y() - edgeStart.y()) * edgeY) / edgeLength2;
+    factor = constrain(factor, 0.0f, 1.0f);
+    Point candidate;
+    candidate.setXY(edgeStart.x() + factor * edgeX, edgeStart.y() + factor * edgeY);
+    float candidateDistance = distance(candidate, dst);
+    if (candidateDistance < nearestDistance) {
+      nearestDistance = candidateDistance;
+      projection.assign(candidate);
+      float edgeLength = sqrt(edgeLength2);
+      tangentX = edgeX / edgeLength;
+      tangentY = edgeY / edgeLength;
+    }
+  }
+
+  if (nearestDistance > PERIMETER_TANGENTIAL_RECOVERY_DISTANCE) return false;
+
+  Point approachA;
+  Point approachB;
+  approachA.setXY(dst.x() + tangentX * PERIMETER_TANGENTIAL_APPROACH_LENGTH,
+                  dst.y() + tangentY * PERIMETER_TANGENTIAL_APPROACH_LENGTH);
+  approachB.setXY(dst.x() - tangentX * PERIMETER_TANGENTIAL_APPROACH_LENGTH,
+                  dst.y() - tangentY * PERIMETER_TANGENTIAL_APPROACH_LENGTH);
+
+  Point *approach = &approachA;
+  bool approachAValid = pointIsInsidePolygon(perimeterPoints, approachA);
+  bool approachBValid = pointIsInsidePolygon(perimeterPoints, approachB);
+  for (int i = 0; i < exclusions.numPolygons; i++) {
+    if (pointIsInsidePolygon(exclusions.polygons[i], approachA)) approachAValid = false;
+    if (pointIsInsidePolygon(exclusions.polygons[i], approachB)) approachBValid = false;
+  }
+  for (int i = 0; i < obstacles.numPolygons; i++) {
+    if (pointIsInsidePolygon(obstacles.polygons[i], approachA)) approachAValid = false;
+    if (pointIsInsidePolygon(obstacles.polygons[i], approachB)) approachBValid = false;
+  }
+  if (!approachAValid && !approachBValid) return false;
+  // Wähle die Seite basierend auf der aktuellen Position (src) statt lastTargetPoint,
+  // da letztere nach einem Rückwärts-Ausweichmanöver eine ungünstige Wahl ergeben kann
+  if (!approachAValid ||
+      (approachBValid && distance(src, approachB) < distance(src, approachA))) {
+    approach = &approachB;
+  }
+
+  // The last part must be obstacle-free; otherwise retain the normal A* route.
+  for (int i = 0; i < exclusions.numPolygons; i++)
+    if (linePolygonIntersection(*approach, dst, exclusions.polygons[i])) return false;
+  for (int i = 0; i < obstacles.numPolygons; i++)
+    if (linePolygonIntersection(*approach, dst, obstacles.polygons[i])) return false;
+
+  if (!findPath(src, *approach)) return false;
+  if (freePoints.numPoints < 1) return false;
+  if (distance(freePoints.points[freePoints.numPoints - 1], dst) > 0.01) {
+    int originalCount = freePoints.numPoints;
+    if (!freePoints.alloc(originalCount + 1)) return false;
+    freePoints.points[originalCount].assign(dst);
+  }
+  freePointsIdx = 0;
+  CONSOLE.println("perimeter recovery: tangential approach");
+  return true;
+#endif
 }
 
 
@@ -1838,129 +1955,107 @@ int Map::findNextNeighbor(NodeList &nodes, PolygonList &obstacles, Node &node, i
 }  
 
 
-// astar path finder 
-// https://briangrinstead.com/blog/astar-search-algorithm-in-javascript/
-bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY) {
-    if (perimeterPoints.numPoints < 3) return false;
+bool Map::findGotoRoute(float startX, float startY, float targetX, float targetY){
+  if (perimeterPoints.numPoints < 3) return false;
 
-    Point startPt(startX, startY), targetPt(targetX, targetY);
+  Point startPt(startX, startY);
+  Point targetPt(targetX, targetY);
+  if (pointIsInsidePolygon(perimeterPoints, startPt) &&
+      pointIsInsidePolygon(perimeterPoints, targetPt) &&
+      !linePolygonIntersection(startPt, targetPt, perimeterPoints)) {
+    return false;
+  }
 
-    if (pointIsInsidePolygon(perimeterPoints, startPt) &&
-        pointIsInsidePolygon(perimeterPoints, targetPt) &&
-        !linePolygonIntersection(startPt, targetPt, perimeterPoints))
-        return false;
-
-    int startIdx = -1, targetIdx = -1;
-    float minStart = 1e9, minTarget = 1e9;
-    for (int i = 0; i < perimeterPoints.numPoints; i++) {
-        float d = distance(perimeterPoints.points[i], startPt);
-        if (d < minStart) { minStart = d; startIdx = i; }
-        d = distance(perimeterPoints.points[i], targetPt);
-        if (d < minTarget) { minTarget = d; targetIdx = i; }
+  int startIdx = -1;
+  int targetIdx = -1;
+  float minStartDist = 1e9;
+  float minTargetDist = 1e9;
+  for (int i = 0; i < perimeterPoints.numPoints; i++) {
+    float startDist = distance(perimeterPoints.points[i], startPt);
+    if (startDist < minStartDist) {
+      minStartDist = startDist;
+      startIdx = i;
     }
-    if (startIdx < 0 || targetIdx < 0) return false;
-
-    int N = perimeterPoints.numPoints;
-    int fwd = (targetIdx >= startIdx) ? targetIdx - startIdx : targetIdx + N - startIdx;
-    int rev = N - fwd;
-    bool fwdDir = (fwd <= rev);
-    int steps = fwdDir ? fwd : rev;
-    if (steps <= 1) return false;
-
-    float cx = 0, cy = 0;
-    for (int j = 0; j < N; j++) {
-        cx += perimeterPoints.points[j].x();
-        cy += perimeterPoints.points[j].y();
+    float targetDist = distance(perimeterPoints.points[i], targetPt);
+    if (targetDist < minTargetDist) {
+      minTargetDist = targetDist;
+      targetIdx = i;
     }
-    cx /= N; cy /= N;
+  }
+  if (startIdx < 0 || targetIdx < 0) return false;
 
-    auto offsetPt = [&](int pi) {
-        float x = perimeterPoints.points[pi].x(), y = perimeterPoints.points[pi].y();
-        float dx = cx - x, dy = cy - y;
-        float d = sqrt(dx*dx + dy*dy);
-        if (d > 0.01f) { dx /= d; dy /= d; }
-        return Point(x + dx * 0.2f, y + dy * 0.2f);
-    };
+  int numPoints = perimeterPoints.numPoints;
+  int forwardSteps = targetIdx >= startIdx
+      ? targetIdx - startIdx
+      : targetIdx + numPoints - startIdx;
+  int reverseSteps = numPoints - forwardSteps;
+  bool useForward = forwardSteps <= reverseSteps;
+  int steps = useForward ? forwardSteps : reverseSteps;
+  if (steps <= 1) return false;
 
-    auto angleAt = [&](Point &a, Point &b, Point &c) {
-        float ax = b.x()-a.x(), ay = b.y()-a.y();
-        float bx = c.x()-b.x(), by = c.y()-b.y();
-        float la = sqrt(ax*ax+ay*ay), lb = sqrt(bx*bx+by*by);
-        if (la < 0.01f || lb < 0.01f) return 180.0f;
-        float dot = (ax*bx + ay*by) / (la * lb);
-        if (dot > 1.0f) dot = 1.0f; if (dot < -1.0f) dot = -1.0f;
-        return acos(dot) * 180.0f / 3.14159265f;
-    };
-
-    // Phase 1: collect offset perimeter points between startIdx and targetIdx
-    Point buf[256];
-    int bufN = 0;
-    {
-        int pi = startIdx;
-        while (true) {
-            buf[bufN++] = offsetPt(pi);
-            if (pi == targetIdx) break;
-            pi = fwdDir ? (pi+1)%N : (pi-1+N)%N;
-        }
+  const int maxWaypoints = 25;
+  int interval = max(1, steps / maxWaypoints);
+  int pointIndex = startIdx;
+  int position = 0;
+  int waypointCount = 0;
+  while (true) {
+    if (position % interval == 0 || pointIndex == targetIdx) waypointCount++;
+    if (pointIndex == targetIdx) break;
+    position++;
+    if (useForward) {
+      pointIndex = (pointIndex + 1) % numPoints;
+    } else {
+      pointIndex = (pointIndex - 1 + numPoints) % numPoints;
     }
+  }
 
-    // Count final waypoints
-    const float CORNER_THRESH = 150.0f;
-    const float RADIUS = 0.4f;
-    const int ARC = 4;
-    int total = 1;
-    for (int j = 1; j < bufN - 1; j++) {
-        if (angleAt(buf[j-1], buf[j], buf[j+1]) < CORNER_THRESH) total += ARC;
-        else total += 1;
+  freePoints.dealloc();
+  if (!freePoints.alloc(waypointCount + 1)) return false;
+
+  float centerX = 0;
+  float centerY = 0;
+  for (int i = 0; i < numPoints; i++) {
+    centerX += perimeterPoints.points[i].x();
+    centerY += perimeterPoints.points[i].y();
+  }
+  centerX /= numPoints;
+  centerY /= numPoints;
+
+  int freePointIndex = 0;
+  pointIndex = startIdx;
+  position = 0;
+  while (true) {
+    if (position % interval == 0 || pointIndex == targetIdx) {
+      float pointX = perimeterPoints.points[pointIndex].x();
+      float pointY = perimeterPoints.points[pointIndex].y();
+      float offsetX = centerX - pointX;
+      float offsetY = centerY - pointY;
+      float offsetLength = sqrt(offsetX * offsetX + offsetY * offsetY);
+      if (offsetLength > 0.01f) {
+        offsetX /= offsetLength;
+        offsetY /= offsetLength;
+      }
+      freePoints.points[freePointIndex++].setXY(pointX + offsetX * 0.2f,
+                                                pointY + offsetY * 0.2f);
     }
-    total += 2; // last buf point + target
-
-    freePoints.dealloc();
-    if (!freePoints.alloc(total)) return false;
-
-    // Phase 2: build with corner rounding
-    int idx = 0;
-    freePoints.points[idx++].setXY(buf[0].x(), buf[0].y());
-
-    for (int j = 1; j < bufN - 1; j++) {
-        if (angleAt(buf[j-1], buf[j], buf[j+1]) < CORNER_THRESH) {
-            float dxIn = buf[j].x() - buf[j-1].x();
-            float dyIn = buf[j].y() - buf[j-1].y();
-            float li = sqrt(dxIn*dxIn + dyIn*dyIn);
-            if (li > 0.01f) { dxIn /= li; dyIn /= li; }
-
-            float dxOut = buf[j+1].x() - buf[j].x();
-            float dyOut = buf[j+1].y() - buf[j].y();
-            float lo = sqrt(dxOut*dxOut + dyOut*dyOut);
-            if (lo > 0.01f) { dxOut /= lo; dyOut /= lo; }
-
-            float sx = buf[j].x() - dxIn * RADIUS;
-            float sy = buf[j].y() - dyIn * RADIUS;
-            float ex = buf[j].x() + dxOut * RADIUS;
-            float ey = buf[j].y() + dyOut * RADIUS;
-
-            for (int k = 1; k <= ARC; k++) {
-                float t = (float)k / (float)(ARC + 1);
-                float qx = (1-t)*(1-t)*sx + 2*(1-t)*t*buf[j].x() + t*t*ex;
-                float qy = (1-t)*(1-t)*sy + 2*(1-t)*t*buf[j].y() + t*t*ey;
-                freePoints.points[idx++].setXY(qx, qy);
-            }
-        } else {
-            freePoints.points[idx++].setXY(buf[j].x(), buf[j].y());
-        }
+    if (pointIndex == targetIdx) break;
+    position++;
+    if (useForward) {
+      pointIndex = (pointIndex + 1) % numPoints;
+    } else {
+      pointIndex = (pointIndex - 1 + numPoints) % numPoints;
     }
-
-    freePoints.points[idx++].setXY(buf[bufN-1].x(), buf[bufN-1].y());
-    freePoints.points[idx++].setXY(targetX, targetY);
-    freePointsIdx = 0;
-
-    CONSOLE.print("findGotoRoute: ");
-    CONSOLE.print(idx);
-    CONSOLE.println(" waypoints");
-    return true;
+  }
+  freePoints.points[freePointIndex].setXY(targetX, targetY);
+  freePointsIdx = 0;
+  CONSOLE.print("findGotoRoute: ");
+  CONSOLE.print(freePointIndex);
+  CONSOLE.println(" waypoints");
+  return true;
 }
 
-
+// astar path finder 
+// https://briangrinstead.com/blog/astar-search-algorithm-in-javascript/
 bool Map::findPath(Point &src, Point &dst){
   if ((memoryCorruptions != 0) || (memoryAllocErrors != 0)){
     CONSOLE.println("ERROR findPath: memory errors");

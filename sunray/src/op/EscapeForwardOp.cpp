@@ -32,11 +32,8 @@ void EscapeForwardOp::run(){
         CONSOLE.println("driveForwardStopTime");
         motor.stopImmediately(false);  
         driveForwardStopTime = 0;
-        /*maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);
-        Point pt;
-        if (!maps.findObstacleSafeMowPoint(pt)){
-        setOperation(OP_DOCK, true); // dock if no more (valid) mowing points
-        } else*/ 
+        maps.addObstacle(stateEstimator.stateX, stateEstimator.stateY);
+        maps.requestTangentialPerimeterRecovery();
         changeOp(*nextOp);    // continue current operation              
     }
 }

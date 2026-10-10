@@ -34,6 +34,39 @@ extern "C" void cameraStreamerStop();
 
 // moved globals into Comm class (see comm.h)
 
+#ifndef SONAR_MANUAL_OBSTACLE_CONTROL
+#define SONAR_MANUAL_OBSTACLE_CONTROL false
+#endif
+
+#ifndef SONAR_OBSTACLE_WARNING_LEVEL
+#define SONAR_OBSTACLE_WARNING_LEVEL 5
+#endif
+
+#ifndef SONAR_SLOW_DOWN_WARNING_LEVEL
+#define SONAR_SLOW_DOWN_WARNING_LEVEL 3
+#endif
+
+static float applyManualSlowDown(float linear){
+  if (!SONAR_MANUAL_OBSTACLE_CONTROL) return linear;
+
+  #ifdef DRV_CAN_ROBOT
+    CanRobotDriver::UltrasonicMotionDirection direction = CanRobotDriver::ultrasonic_motion_any;
+    if (linear > 0.001f) direction = CanRobotDriver::ultrasonic_motion_forward;
+    else if (linear < -0.001f) direction = CanRobotDriver::ultrasonic_motion_reverse;
+    robotDriver.setUltrasonicMotionDirectionHint(direction);
+
+    if (robotDriver.configuredUltrasonicWarningAtOrAbove(SONAR_OBSTACLE_WARNING_LEVEL, direction)) return 0.0f;
+    if (robotDriver.configuredUltrasonicWarningAtOrAbove(SONAR_SLOW_DOWN_WARNING_LEVEL, direction)) {
+      if (linear > 0.10f) return 0.10f;
+      if (linear < -0.10f) return -0.10f;
+    }
+  #endif
+
+  if (!bumperDriver.nearObstacle()) return linear;
+  if (linear > 0.10f) return 0.10f;
+  if (linear < -0.10f) return -0.10f;
+  return linear;
+}
 
 // answer Bluetooth with CRC
 void Comm::cmdAnswer(String s){  
@@ -247,13 +280,13 @@ void Comm::cmdMotor(){
   CONSOLE.print(linear);
   CONSOLE.print(" angular=");
   CONSOLE.println(angular);*/
-  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0)){
-    // any AT+M while GoTo active → cancel GoTo (preserve mow via restoreMowStateAfterGoto)
+  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0) && maps.gotoActive){
     CONSOLE.println("AT+M: goto cancelled");
     maps.freePoints.dealloc();
     maps.freePointsIdx = 0;
     setOperation(OP_IDLE);
   }
+  linear = applyManualSlowDown(linear);
   motor.setLinearAngularSpeed(linear, angular, false);
   String s = F("M");
   cmdAnswer(s);
@@ -487,8 +520,7 @@ void Comm::cmdRoute(){
   CONSOLE.print(",");
   CONSOLE.println(y);
 
-  // Try perimeter-aware routing (stays within map, avoids crossing perimeter)
-  if (!maps.findGotoRoute(stateEstimator.stateX, stateEstimator.stateY, x, y)) {
+  if (!maps.findGotoRoute(stateEstimator.stateX, stateEstimator.stateY, x, y)){
     CONSOLE.println("AT+R: direct route");
     maps.freePoints.dealloc();
     if (!maps.freePoints.alloc(1)){
@@ -502,16 +534,12 @@ void Comm::cmdRoute(){
   maps.shouldMow = false;
   maps.shouldDock = false;
   maps.gotoActive = true;
-
-  // save mow motor state before idle clears it
   maps.savedMowMotorRunningBeforeGoto = (motor.motorMowPWMCurr > 0.01);
   maps.restoreMowStateAfterGoto = maps.savedMowMotorRunningBeforeGoto;
 
-  // switch to idle first, then mow
   setOperation(OP_IDLE);
   setOperation(OP_MOW);
-  String s = F("R");
-  cmdAnswer(s);
+  cmdAnswer(String(F("R")));
 }
 
 // request version
@@ -674,6 +702,28 @@ void Comm::cmdToggleGPSSolution(){
 
 
 // request obstacles
+// request motor speeds, currents and the mow PWM actually sent to the driver.
+// Kept separate from AT+S and AT+S2 so a client can poll motor telemetry at its own rate
+// without inflating the hot status message. Speed and current belong together: either alone
+// says little about what a motor is doing.
+void Comm::cmdMotorRpm(){
+  String s = F("S5,");
+  s += String(motor.getLeftRpm(), 1);
+  s += ",";
+  s += String(motor.getRightRpm(), 1);
+  s += ",";
+  s += String(motor.getMowRpm(), 1);
+  s += ",";
+  s += motor.pwmMowOut;
+  s += ",";
+  s += String(motor.motorLeftSenseLP, 2);
+  s += ",";
+  s += String(motor.motorRightSenseLP, 2);
+  s += ",";
+  s += String(motor.motorMowSenseLP, 2);
+  cmdAnswer(s);
+}
+
 void Comm::cmdObstacles(){
   String s = F("S2,");
   s += maps.obstacles.numPolygons;
@@ -750,7 +800,7 @@ void Comm::cmdSummary(){
 // request sensor summary
 void Comm::cmdSensorSummary(){
   String s = F("S3,");
-  s += sonar.distanceLeft;  
+  s += sonar.distanceLeft;
   s += ",";
   s += sonar.distanceCenter;
   s += ",";
@@ -768,14 +818,14 @@ void Comm::cmdSensorSummary(){
   s += ",";
   s += bumper.nearObstacle();
   s += ",";
-  s += lidarBumper.obstacle();  
+  s += lidarBumper.obstacle();
   s += ",";
   s += lidarBumper.nearObstacle();
   s += ",";
   s += liftDriver.triggered();
   s += ",";
   s += rainDriver.triggered();
-  cmdAnswer(s);  
+  cmdAnswer(s);
 }
 
 // request GPS satellite details
@@ -826,71 +876,67 @@ static uint8_t hexCharToByte(char c) {
   return 0;
 }
 
-static void hexStringToBytes(const String& hex, uint8_t* out, size_t& outLen) {
+static void hexStringToBytes(const String& hex, uint8_t* out, size_t maxOutLen,
+size_t& outLen) {
   outLen = 0;
   size_t len = hex.length();
-  for (size_t i = 0; i + 1 < len; i += 2) {
-    out[outLen++] = (hexCharToByte(hex[i]) << 4) | hexCharToByte(hex[i+1]);
+  for (size_t i = 0; i + 1 < len && outLen < maxOutLen; i += 2) {
+    out[outLen++] = (hexCharToByte(hex[i]) << 4) | hexCharToByte(hex[i + 1]);
   }
-}
-
-static String bytesToHexString(const uint8_t* data, size_t len) {
-  String hex;
-  hex.reserve(len * 2);
-  for (size_t i = 0; i < len; i++) {
-    char buf[3];
-    sprintf(buf, "%02X", data[i]);
-    hex += buf;
-  }
-  return hex;
 }
 
 // UBX Proxy: send hex bytes to GPS, receive response, return as hex
 void Comm::cmdUbxProxy(){
-  String hexPayload = cmd.substring(5); // skip "AT+U,"
+  String hexPayload = cmd.substring(7); // skip "AT+UBX,"
+
+  // Accept a trailing command CRC, which is separated by a comma.
+  int commaIdx = hexPayload.indexOf(',');
+  if (commaIdx >= 0) hexPayload = hexPayload.substring(0, commaIdx);
+  hexPayload.trim();
+  if (hexPayload.length() == 0 || hexPayload.length() % 2 != 0) {
+    cmdAnswer(String(F("U,ERR_INVALID_HEX")));
+    return;
+  }
+  for (size_t i = 0; i < hexPayload.length(); i++) {
+    char c = hexPayload.charAt(i);
+    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') ||
+          (c >= 'a' && c <= 'f'))) {
+      cmdAnswer(String(F("U,ERR_INVALID_HEX")));
+      return;
+    }
+  }
+
   uint8_t txBuf[256];
   size_t txLen = 0;
-  hexStringToBytes(hexPayload, txBuf, txLen);
+  hexStringToBytes(hexPayload, txBuf, sizeof(txBuf), txLen);
 
-  // Drain stale data from GPS buffer before sending
-  while (GPS.available()) GPS.read();
-
-  // Send to GPS
+  // Do not drain the GPS UART: the UBX parser may be receiving this frame.
   for (size_t i = 0; i < txLen; i++) {
     GPS.write(txBuf[i]);
   }
 
-  // Collect ALL bytes from the GPS for up to 300ms.
-  uint32_t start = millis();
-  uint8_t rxBuf[512];
+  // Collect long responses while allowing short gaps between UART chunks.
+  uint32_t deadline = millis() + 500;
+  uint8_t rxBuf[2048];
   size_t rxLen = 0;
-  const uint32_t maxWait = 300;
-
-  while (millis() - start < maxWait && rxLen < sizeof(rxBuf)) {
+  while ((int32_t)(millis() - deadline) < 0 && rxLen < sizeof(rxBuf)) {
+    bool receivedThisRound = false;
     while (GPS.available() && rxLen < sizeof(rxBuf)) {
       rxBuf[rxLen++] = GPS.read();
+      receivedThisRound = true;
     }
-    // Grace period: once data starts arriving, give 50ms for more
-    if (rxLen > 0) start = millis() - (maxWait - 50);
+    if (receivedThisRound) deadline = millis() + 50;
     delay(1);
   }
 
-  // Build "U,<hex>" response directly into cmdResponse without large intermediate Strings
-  cmdResponse = F("U,");
-  size_t hexReserve = 3 + rxLen * 2 + 7; // "U," + hex + ",0x" + "HH" + "\r\n"
-  cmdResponse.reserve(hexReserve);
+  String answer = F("U,");
+  answer.reserve(2 + rxLen * 2);
   char buf[3];
   for (size_t i = 0; i < rxLen; i++) {
     snprintf(buf, sizeof(buf), "%02X", rxBuf[i]);
-    cmdResponse += buf;
+    answer += buf;
   }
-  // Append CRC and terminator
-  byte crc = 0;
-  for (size_t i = 0; i < (size_t)cmdResponse.length(); i++) crc += (byte)cmdResponse[i];
-  cmdResponse += F(",0x");
-  if (crc <= 0xF) cmdResponse += '0';
-  cmdResponse += String(crc, HEX);
-  cmdResponse += F("\r\n");
+  cmdAnswer(answer);
 }
 
 // request statistics
@@ -1161,6 +1207,7 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
       if (cmd[4] == '2') cmdObstacles();
       if (cmd[4] == '3') cmdSensorSummary();
       if (cmd[4] == '4') cmdGpsDetails();
+      if (cmd[4] == '5') cmdMotorRpm();
     }
   }
   if (cmd[3] == 'M') cmdMotor();
@@ -1179,7 +1226,6 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
     if ((cmd.length() > 4) && (cmd[4] == 'T')) cmdTimetable();
     else cmdStats();
   }
-  if (cmd[3] == 'U') cmdUbxProxy();
   if (cmd[3] == 'L') cmdClearStats();
   if (cmd[3] == 'E') cmdMotorTest();  
   if (cmd[3] == 'Q') cmdMotorPlot();  
@@ -1200,6 +1246,11 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
   // Camera control handled above inside 'C' group
   if (cmd[3] == 'U'){ 
     if ((cmd.length() > 4) && (cmd[4] == '1')) cmdFirmwareUpdate();
+    else if (cmd.length() >= 5){
+      if ((cmd[4] == 'B') && (cmd[5] == 'X')) {
+        cmdUbxProxy();
+      }
+    }
   }
   if (cmd[3] == 'G') cmdToggleGPSSolution();   // for developers
   if (cmd[3] == 'R') cmdRoute();   // navigate to point
@@ -1354,6 +1405,8 @@ void Comm::outputConsole(){
     CONSOLE.print(battery.chargingVoltBatteryVoltDiff, 3);
     CONSOLE.print(" mow=");
     CONSOLE.print(motor.pwmMowOut);
+    CONSOLE.print("/");
+    CONSOLE.print(motor.getMowRpm(), 0);
     CONSOLE.print(" tg=");
     CONSOLE.print(maps.targetPoint.x());
     CONSOLE.print(",");

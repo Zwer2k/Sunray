@@ -243,7 +243,7 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035.forwardDirLevel = HIGH;    // logic level for forward (LOW or HIGH)
   MOW800_MC33035.reversePwmInvert = true; // invert PWM signal for reverse? (false or true)
   MOW800_MC33035.reverseDirLevel = LOW;   // logic level for reverse (LOW or HIGH)
-  MOW800_MC33035.usePwmRamp = true;       // use a ramp to get to PWM value?    
+  MOW800_MC33035.usePwmRamp = false;      // no driver-level ramp: it adds lag inside the wheel speed PID loop (overshoot)
   MOW800_MC33035.faultActive = LOW;        // fault active level (LOW or HIGH)
   MOW800_MC33035.resetFaultByToggleEnable = false; // reset a fault by toggling enable? 
   MOW800_MC33035.enableActive = LOW;       // enable active level (LOW or HIGH)
@@ -270,7 +270,12 @@ AmMotorDriver::AmMotorDriver(){
   MOW800_MC33035_MOW.keepPwmZeroSpeed = true;  // keep PWM zero value (disregard minPwmSpeed at zero speed)?
   MOW800_MC33035_MOW.minPwmSpeed = 0;          // minimum PWM speed your driver can operate
   MOW800_MC33035_MOW.maxPwmSpeed = 255;            
-  MOW800_MC33035_MOW.pwmFreq = PWM_FREQ_29300;  // choose between PWM_FREQ_3900 and PWM_FREQ_29300 here   
+  // 150 kHz, not 29300: the mow speed line feeds an RC into the MC33035 error amp input, and at
+  // 29.3 kHz ~1 V of ripple survives there - about 38% duty modulation against the 1.5..4.1 V ramp,
+  // and its difference to the 25 kHz oscillator (measured at pin 10) lands in the audible band.
+  // Raising the frequency cuts the ripple proportionally; TIM4 at 72 MHz still gives 480 steps,
+  // so the full 8 bit resolution is kept.
+  MOW800_MC33035_MOW.pwmFreq = PWM_FREQ_150000;
   MOW800_MC33035_MOW.adcVoltToAmpOfs = -0.045;      // ADC voltage to amps (offset)
   MOW800_MC33035_MOW.adcVoltToAmpScale = 3.8; // ADC voltage to amps (scale)
   MOW800_MC33035_MOW.adcVoltToAmpPow = 1.0;    // ADC voltage to amps (power of number)
@@ -424,6 +429,10 @@ void AmMotorDriver::begin(){
   pinMode(pinMotorMowSense, INPUT);
 #ifdef __MOW800__
   pinMode(pinMotorMowRpm, INPUT);
+  #ifdef pinMotorMowPWM
+    pinMode(pinMotorMowPWM, OUTPUT);
+    pinMan.analogWrite(pinMotorMowPWM, mowDriverChip.forwardPwmInvert ? 255 : 0, mowDriverChip.pwmFreq);
+  #endif
 #else
   pinMode(pinMotorMowDir, OUTPUT);
   pinMode(pinMotorMowPWM, OUTPUT);
@@ -512,7 +521,7 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // reverse
-    digitalWrite(pinDir, chip.reverseDirLevel) ;
+    if (pinDir >= 0) digitalWrite(pinDir, chip.reverseDirLevel) ;
     if (chip.reversePwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
     else 
@@ -526,7 +535,7 @@ void AmMotorDriver::setMotorDriver(int pinDir, int pinPWM, int speed, DriverChip
     //CONSOLE.print(",");
     //CONSOLE.println(speed);    
     // forward
-    digitalWrite(pinDir, chip.forwardDirLevel) ;
+    if (pinDir >= 0) digitalWrite(pinDir, chip.forwardDirLevel) ;
 
     if (chip.forwardPwmInvert) 
       pinMan.analogWrite(pinPWM, 255 - ((byte)abs(speed)), chip.pwmFreq);  // nPWM (inverted pwm)
@@ -565,6 +574,20 @@ void AmMotorDriver::setMotorPwm(int leftPwm, int rightPwm, int mowPwm, bool rele
   setMotorDriver(pinMotorRightDir, pinMotorRightPWM, rightPwm, gearsDriverChip, rightSpeedSign);
 #ifdef pinMotorMowDir
   setMotorDriver(pinMotorMowDir, pinMotorMowPWM, mowPwm, mowDriverChip, mowSpeedSign);
+#elif defined(pinMotorMowPWM)
+  // mow motor has a speed input but no direction line (MOW800): pass -1 to skip the dir pin
+  int mowPwmOut = mowPwm;
+  #if defined(MOW800_MOW_PWM_MIN) && defined(MOW800_MOW_PWM_MAX)
+    // the speed line drives an analog node that only reacts in a narrow window near full PWM:
+    // map 1..255 onto that window so the full Sunray range stays usable (0 = off, via enable pin)
+    if (mowPwmOut != 0){
+      int mag = abs(mowPwmOut);
+      if (mag > 255) mag = 255;
+      mag = MOW800_MOW_PWM_MIN + ((mag - 1) * (MOW800_MOW_PWM_MAX - MOW800_MOW_PWM_MIN)) / 254;
+      mowPwmOut = (mowPwmOut < 0) ? -mag : mag;
+    }
+  #endif
+  setMotorDriver(-1, pinMotorMowPWM, mowPwmOut, mowDriverChip, mowSpeedSign);
 #endif
 
   // disable driver at zero speed (brake function)    
@@ -872,17 +895,27 @@ bool AmStopButtonDriver::triggered(){
 // ------------------------------------------------------------------------------------
 
 
+// Which level means rain. Defaults to the previously fixed LOW, so an existing configuration
+// keeps reporting exactly as before.
+#ifndef pinRainTriggerdLevel
+  #define pinRainTriggerdLevel LOW
+#endif
+
 void AmRainSensorDriver::begin(){
   nextControlTime = 0;
   isRaining = false;  
+#if pinRainDisablePullUp == true
   pinMode(pinRain, INPUT);
+#else
+  pinMode(pinRain, INPUT_PULLUP);
+#endif
 }
 
 void AmRainSensorDriver::run(){
   unsigned long t = millis();
   if (t < nextControlTime) return;
   nextControlTime = t + 100;                                       // save CPU resources by running at 10 Hz
-  isRaining = (digitalRead(pinRain)== LOW);
+  isRaining = (digitalRead(pinRain)== pinRainTriggerdLevel);
 }
 
 bool AmRainSensorDriver::triggered(){
