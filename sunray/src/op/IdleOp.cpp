@@ -13,14 +13,9 @@ String IdleOp::name(){
 }
 
 void IdleOp::begin(){
-    CONSOLE.println("OP_IDLE");
+    CONSOLE.println("OP_IDLE");          
     motor.setLinearAngularSpeed(0,0);
-    if (!maps.restoreMowStateAfterGoto){
-        motor.setMowState(false);
-    } else {
-        CONSOLE.println("OP_IDLE: preserving mow state after goto");
-        maps.restoreMowStateAfterGoto = false;
-    }
+    motor.setMowState(false);
     maps.setIsDocked(false);
 }
 

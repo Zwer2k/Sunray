@@ -238,14 +238,9 @@ void Comm::cmdControl(){
     setOperation(OP_IDLE);    
   }
   if (op == 0){
-      if (maps.wayMode == WAY_FREE && maps.freePoints.numPoints > 0){
-          // GoTo active: let setOperation handle transition (preserves mow via restoreMowStateAfterGoto)
-          CONSOLE.println("goto: idleOp via setOperation");
-      } else {
-          // special security case: directly calling IDLE state ensures all motors to stop
-          CONSOLE.println("direct call: idleOp.begin()");
-          idleOp.begin();
-      }
+      // special security case: directly calling IDLE state ensures all motors to stop
+      CONSOLE.println("direct call: idleOp.begin()");
+      idleOp.begin();
   }
   if (op >= 0) setOperation((OperationType)op, false); // new operation by operator
     else if (restartRobot){     // no operation given by operator, continue current operation from IDLE state
@@ -281,10 +276,9 @@ void Comm::cmdMotor(){
   CONSOLE.print(linear);
   CONSOLE.print(" angular=");
   CONSOLE.println(angular);*/
-  if ((maps.wayMode == WAY_FREE) && (maps.freePoints.numPoints > 0) && maps.gotoActive){
+  if (maps.gotoActive){
     CONSOLE.println("AT+M: goto cancelled");
-    maps.freePoints.dealloc();
-    maps.freePointsIdx = 0;
+    maps.gotoActive = false;
     setOperation(OP_IDLE);
   }
   linear = applyManualSlowDown(linear);
@@ -507,39 +501,66 @@ void Comm::cmdPosMode(){
   cmdAnswer(s);
 }
 
+// parse an AT+R coordinate (meters), the whole field must be a number
+static bool parseRouteCoordinate(const String &field, float &value){
+  const char *str = field.c_str();
+  char *end = NULL;
+  double v = strtod(str, &end);
+  if (end == str) return false;
+  while (*end == ' ') end++;
+  if (*end != '\0') return false;
+  if (!(fabs(v) <= 320.0)) return false;  // map points are stored in cm as short
+  value = v;
+  return true;
+}
+
 // navigate to point (AT+R,<x>,<y>)
 void Comm::cmdRoute(){
-  if (cmd.length() < 8) return;
-  int firstComma = cmd.indexOf(',', 4);
-  if (firstComma < 0) return;
-  int secondComma = cmd.indexOf(',', firstComma + 1);
-  if (secondComma < 0) return;
-  float x = cmd.substring(firstComma + 1, secondComma).toFloat();
-  float y = cmd.substring(secondComma + 1).toFloat();
+  int firstComma = cmd.indexOf(',');
+  int secondComma = (firstComma < 0) ? -1 : cmd.indexOf(',', firstComma + 1);
+  float x = 0;
+  float y = 0;
+  if ((secondComma < 0)
+      || (!parseRouteCoordinate(cmd.substring(firstComma + 1, secondComma), x))
+      || (!parseRouteCoordinate(cmd.substring(secondComma + 1), y))){
+    CONSOLE.println("AT+R: invalid arguments");
+    cmdAnswer(String(F("R,ERR_ARGS")));
+    return;
+  }
+
   CONSOLE.print("AT+R: goto ");
   CONSOLE.print(x);
   CONSOLE.print(",");
   CONSOLE.println(y);
 
+  if (stateEstimator.stateOp == OP_CHARGE){
+    CONSOLE.println("AT+R: rejected, robot is charging");
+    cmdAnswer(String(F("R,ERR_DOCKED")));
+    return;
+  }
+  if (!maps.isGotoTargetAllowed(x, y)){
+    CONSOLE.println("AT+R: rejected, target outside perimeter or inside exclusion");
+    cmdAnswer(String(F("R,ERR_OUTSIDE")));
+    return;
+  }
   if (!maps.findGotoRoute(stateEstimator.stateX, stateEstimator.stateY, x, y)){
-    CONSOLE.println("AT+R: direct route");
-    maps.freePoints.dealloc();
-    if (!maps.freePoints.alloc(1)){
-      CONSOLE.println("ERROR AT+R: alloc failed");
-      return;
-    }
-    maps.freePoints.points[0].setXY(x, y);
-    maps.freePointsIdx = 0;
+    CONSOLE.println("AT+R: rejected, no route");
+    cmdAnswer(String(F("R,ERR_NO_ROUTE")));
+    return;
   }
   maps.wayMode = WAY_FREE;
   maps.shouldMow = false;
   maps.shouldDock = false;
+  maps.gotoTarget.setXY(x, y);
+  maps.gotoMowMotor = (fabs(motor.motorMowPWMCurr) > 0.01);
   maps.gotoActive = true;
-  maps.savedMowMotorRunningBeforeGoto = (motor.motorMowPWMCurr > 0.01);
-  maps.restoreMowStateAfterGoto = maps.savedMowMotorRunningBeforeGoto;
 
-  setOperation(OP_IDLE);
-  setOperation(OP_MOW);
+  if (activeOp == &mowOp){
+    mowOp.beginGoto();  // mowing or another route active: switch to the new route
+  } else if (stateEstimator.stateOp != OP_MOW){
+    setOperation(OP_MOW);  // MowOp::begin() starts the route
+  }
+  // otherwise a sub operation of MowOp is active (e.g. obstacle escape), MowOp continues with the route afterwards
   cmdAnswer(String(F("R")));
 }
 

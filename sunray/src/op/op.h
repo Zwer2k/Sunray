@@ -130,6 +130,8 @@ class MowOp: public Op {
     unsigned long gotoNearTargetSince;
     bool gotoDone;
     MowOp();
+    void beginGoto();
+    void finishGoto();
     virtual String name() override;
     virtual void begin() override;
     virtual void end() override;
