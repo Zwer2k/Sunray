@@ -696,7 +696,6 @@ void Comm::cmdToggleGPSSolution(){
 }
 
 
-// request obstacles
 // request motor speeds, currents and the mow PWM actually sent to the driver.
 // Kept separate from AT+S and AT+S2 so a client can poll motor telemetry at its own rate
 // without inflating the hot status message. Speed and current belong together: either alone
@@ -719,6 +718,7 @@ void Comm::cmdMotorRpm(){
   cmdAnswer(s);
 }
 
+// request obstacles
 void Comm::cmdObstacles(){
   String s = F("S2,");
   s += maps.obstacles.numPolygons;
@@ -1274,9 +1274,9 @@ void Comm::processCmd(String channel, bool checkCrc, bool decrypt, bool verbose)
       if (cmd[4] == '2') cmdObstacles();
       if (cmd[4] == '3') cmdSensorSummary();
       if (cmd[4] == '4') cmdGpsDetails();
-      if (cmd[4] == '5') cmdMotorRpm();
     }
   }
+  if ((cmd[3] == 'S') && (cmd.length() > 4) && (cmd[4] == '5')) cmdMotorRpm();  // motor telemetry
   if (cmd[3] == 'M') cmdMotor();
   if (cmd[3] == 'C'){
     // Special cases under 'C'
